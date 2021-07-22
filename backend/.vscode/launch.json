@@ -13,7 +13,15 @@
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
-            "console": "externalTerminal"
+            "console": "internalConsole"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Launch",
+            "program": "${workspaceFolder}/target/debug/osm_firefighter.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}"
         },
         {
             "name": "(gdb) Starten",
