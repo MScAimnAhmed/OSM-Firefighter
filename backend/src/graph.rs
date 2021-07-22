@@ -142,7 +142,7 @@ impl ToString for Graph {
     }
 }
 
-#[derive(Debug, ToString)]
+#[derive(Debug)]
 enum ParseGraphError {
     IO(std::io::Error),
     ParseInt(ParseIntError),
