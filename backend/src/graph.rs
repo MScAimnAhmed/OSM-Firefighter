@@ -75,7 +75,8 @@ impl Graph {
                 .expect(&format!("Unexpected EOF while parsing nodes in line {}", line_no))?;
             let mut split = line.split(" ");
             line_no += 1;
-            split.next();
+            split.next(); // id
+            split.next(); // second id
 
             let node = Node {
                 id: i,
@@ -136,11 +137,6 @@ impl Graph {
         }
     }
 }
-impl ToString for Graph {
-    fn to_string(&self) -> String {
-        format!("{:#?}", self)
-    }
-}
 
 #[derive(Debug)]
 enum ParseGraphError {
@@ -183,5 +179,28 @@ impl From<ParseIntError> for ParseGraphError {
 impl From<ParseFloatError> for ParseGraphError {
     fn from(err: ParseFloatError) -> Self {
         ParseGraphError::ParseFloat(err)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::graph::Graph;
+
+    #[test]
+    fn test_graph() {
+        let graph = Graph::from_file("resources/toy.fmi");
+
+        assert_eq!(graph.nodes.len(), 5);
+        assert_eq!(graph.edges.len(), 9);
+
+        for i in 0..graph.nodes.len() {
+            let node = graph.nodes.get(i).unwrap();
+            assert_eq!(node.lat, (4900+i) as f64 / 100.);
+            assert_eq!(node.lon, (1000+i) as f64 / 100.);
+        }
+
+        assert_eq!(graph.edges.get(0).unwrap().src, 0);
+        assert_eq!(graph.edges.get(3).unwrap().tgt, 0);
+        assert_eq!(graph.offsets.get(1).unwrap(), graph.offsets.get(2).unwrap());
     }
 }
