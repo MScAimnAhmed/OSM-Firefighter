@@ -1,5 +1,5 @@
 [package]
-name = "osm_firefighter"
+name = "osm_firefighter_backend"
 version = "0.1.0"
 authors = ["Samuel Holderbach <st152101@stud.uni-stuttgart.de>",
             "Dominik Krenz",
