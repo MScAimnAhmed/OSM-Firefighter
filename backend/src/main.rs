@@ -1,11 +1,64 @@
+use std::env;
 use std::fs;
 
-use actix_web::{get, HttpServer, App, Responder, HttpResponse};
+use actix_web::{get, error::ResponseError, http::StatusCode, middleware::Logger, HttpServer, App,
+                Responder, HttpResponse};
+use derive_more::{Display, Error};
+use log;
+use serde::Serialize;
 use serde_json::json;
 
 mod graph;
 
 //use crate::graph::Graph;
+
+/// Blueprint for error responses
+#[derive(Serialize)]
+struct ErrorResponse {
+    status_code: u16,
+    error: String,
+    message: String,
+}
+impl ErrorResponse {
+    /// Create a new error response
+    fn new(status_code: StatusCode, error: String, message: String) -> Self {
+        ErrorResponse {
+            status_code: status_code.as_u16(),
+            error,
+            message,
+        }
+    }
+}
+
+/// OSM-Firefighter custom error
+#[derive(Debug, Display, Error)]
+enum OSMFirefighterError {
+    #[display(fmt = "{}", message)]
+    Internal { message: String },
+}
+impl OSMFirefighterError {
+    /// Return the name of this error
+    pub fn name(&self) -> String {
+        match self {
+            Self::Internal { .. } => "Internal Server Error".to_string(),
+        }
+    }
+}
+impl ResponseError for OSMFirefighterError {
+    fn status_code(&self) -> StatusCode {
+        match *self {
+            Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
+    fn error_response(&self) -> HttpResponse {
+        let res = ErrorResponse::new(
+            self.status_code(),
+            self.name(),
+            self.to_string()
+        );
+        HttpResponse::build(self.status_code()).json(res)
+    }
+}
 
 /// Request to check whether the server is up and available
 #[get("/ping")]
@@ -15,7 +68,7 @@ async fn ping() -> impl Responder {
 
 /// List all graph files that can be parsed by the server
 #[get("/")]
-async fn list_graphs() -> impl Responder {
+async fn list_graphs() -> Result<HttpResponse, OSMFirefighterError> {
     match fs::read_dir("resources/") {
         Ok(paths) => {
             let mut graphs = Vec::new();
@@ -35,23 +88,31 @@ async fn list_graphs() -> impl Responder {
                 }
                 graphs.push(filename);
             }
-            HttpResponse::Ok().json(json!(graphs))
+            Ok(HttpResponse::Ok().json(json!(graphs)))
         },
-        Err(err) => HttpResponse::InternalServerError().body(err.to_string())
+        Err(err) => {
+            log::warn!("Failed to list graph files: {}", err.to_string());
+            Err(OSMFirefighterError::Internal {
+                message: "Could not find graph file directory".to_string()
+            })
+        }
     }
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    //let graph = Graph::from_file("resources/toy.fmi");
-    //println!("{:#?}", graph);
+    // Initialize logger
+    env::set_var("RUST_LOG", "info");
+    env::set_var("RUST_BACKTRACE", "1");
+    env_logger::init();
 
+    // Initialize and start server
     let server = HttpServer::new(|| {
         App::new()
+            .wrap(Logger::default())
             .service(ping)
             .service(list_graphs)
     });
-    println!("Starting web server on 127.0.0.1:8080");
     server.bind("127.0.0.1:8080")?
         .run()
         .await
