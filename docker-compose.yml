@@ -1,0 +1,35 @@
+version: '3.7'
+
+services:
+  # Frontend
+  osm-ff-frontend:
+    container_name: osm-ff-frontend
+    hostname: localhost
+    build:
+      context: ./frontend/
+      dockerfile: Dockerfile
+    image: osm-ff-frontend:latest
+    ports:
+      - 80:80
+      - 443:443
+    command: [nginx, '-g', 'daemon off;']
+    restart: always
+    networks:
+      - ff
+
+  # Backend
+  osm-ff-backend:
+    container_name: osm-ff-backend
+    build:
+      context: ./backend/
+      dockerfile: Dockerfile
+    image: osm-ff-backend:latest
+    ports:
+      - 8080:8080
+    restart: always
+    networks:
+      - ff
+
+networks:
+  ff:
+    name: firefighter
