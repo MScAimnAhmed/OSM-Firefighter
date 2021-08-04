@@ -1,16 +1,26 @@
 use std::env;
 use std::fs;
+use std::sync::Mutex;
 
-use actix_web::{get, error::ResponseError, http::StatusCode, middleware::Logger, HttpServer, App,
-                Responder, HttpResponse};
+use actix_web::{get, HttpServer, App, HttpResponse, HttpRequest, HttpMessage};
+use actix_web::dev::HttpResponseBuilder;
+use actix_web::error::ResponseError;
+use actix_web::http::StatusCode;
+use actix_web::middleware::Logger;
 use derive_more::{Display, Error};
 use log;
+use once_cell::sync::Lazy;
 use serde::Serialize;
 use serde_json::json;
 
 mod graph;
+mod session;
 
 //use crate::graph::Graph;
+use crate::session::{OSMFSessionStatus, OSMFSessionStorage};
+
+static SESSIONS: Lazy<Mutex<OSMFSessionStorage>> =
+    Lazy::new(|| Mutex::new(OSMFSessionStorage::new()));
 
 /// Blueprint for error responses
 #[derive(Serialize)]
@@ -22,7 +32,7 @@ struct ErrorResponse {
 impl ErrorResponse {
     /// Create a new error response
     fn new(status_code: StatusCode, error: String, message: String) -> Self {
-        ErrorResponse {
+        Self {
             status_code: status_code.as_u16(),
             error,
             message,
@@ -32,11 +42,11 @@ impl ErrorResponse {
 
 /// OSM-Firefighter custom error
 #[derive(Debug, Display, Error)]
-enum OSMFirefighterError {
+enum OSMFError {
     #[display(fmt = "{}", message)]
     Internal { message: String },
 }
-impl OSMFirefighterError {
+impl OSMFError {
     /// Return the name of this error
     pub fn name(&self) -> String {
         match self {
@@ -44,7 +54,7 @@ impl OSMFirefighterError {
         }
     }
 }
-impl ResponseError for OSMFirefighterError {
+impl ResponseError for OSMFError {
     fn status_code(&self) -> StatusCode {
         match *self {
             Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
@@ -60,42 +70,73 @@ impl ResponseError for OSMFirefighterError {
     }
 }
 
+fn before_response(req: HttpRequest) -> Result<HttpResponseBuilder, OSMFError> {
+    let mut sessions = SESSIONS.lock().unwrap();
+    let session_status = match req.cookie("sid") {
+        Some(cookie) => {
+            let sid = cookie.value();
+            sessions.get_or_open_session(sid)
+        },
+        None => sessions.open_session()
+    };
+    let mut res = HttpResponse::Ok();
+    match session_status {
+        OSMFSessionStatus::Opened(session) => {
+            res.cookie(session.build_cookie());
+        },
+        OSMFSessionStatus::Got(..) => (),
+    }
+    Ok(res)
+}
+
 /// Request to check whether the server is up and available
 #[get("/ping")]
-async fn ping() -> impl Responder {
-    HttpResponse::Ok().body("pong")
+async fn ping(req: HttpRequest) -> Result<HttpResponse, OSMFError> {
+    let res = before_response(req);
+    match res {
+        Ok(mut res) =>
+            Ok(res.content_type("text/plain; charset=utf-8")
+                .body("pong")),
+        Err(err) => Err(err)
+    }
 }
 
 /// List all graph files that can be parsed by the server
 #[get("/")]
-async fn list_graphs() -> Result<HttpResponse, OSMFirefighterError> {
-    match fs::read_dir("resources/") {
-        Ok(paths) => {
-            let mut graphs = Vec::new();
-            for path in paths {
-                let path = path.unwrap();
-                let filetype = path.file_type().unwrap();
-                if filetype.is_dir() {
-                    continue;
+async fn list_graphs(req: HttpRequest) -> Result<HttpResponse, OSMFError> {
+    let res = before_response(req);
+    match res {
+        Ok(mut res) => {
+            match fs::read_dir("resources/") {
+                Ok(paths) => {
+                    let mut graphs = Vec::new();
+                    for path in paths {
+                        let path = path.unwrap();
+                        let filetype = path.file_type().unwrap();
+                        if filetype.is_dir() {
+                            continue;
+                        }
+                        let filename = String::from(
+                            path.file_name()
+                                .to_str()
+                                .unwrap()
+                        );
+                        if !filename.ends_with(".fmi") {
+                            continue;
+                        }
+                        graphs.push(filename);
+                    }
+                    Ok(res.json(json!(graphs)))
+                },
+                Err(err) => {
+                    log::warn!("Failed to list graph files: {}", err.to_string());
+                    Err(OSMFError::Internal {
+                        message: "Could not find graph file directory".to_string()
+                    })
                 }
-                let filename = String::from(
-                    path.file_name()
-                        .to_str()
-                        .unwrap()
-                );
-                if !filename.ends_with(".fmi") {
-                    continue;
-                }
-                graphs.push(filename);
             }
-            Ok(HttpResponse::Ok().json(json!(graphs)))
         },
-        Err(err) => {
-            log::warn!("Failed to list graph files: {}", err.to_string());
-            Err(OSMFirefighterError::Internal {
-                message: "Could not find graph file directory".to_string()
-            })
-        }
+        Err(err) => Err(err)
     }
 }
 
