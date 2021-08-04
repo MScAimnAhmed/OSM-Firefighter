@@ -1,30 +1,18 @@
-use std::collections::HashMap;
-use std::time::{Instant, Duration};
-
 use actix_web::http::Cookie;
 use actix_web::cookie::SameSite;
 use nanoid;
-
-const SESSION_MAX_AGE: Duration = Duration::from_secs(60*60);
+use transient_hashmap::TransientHashMap;
 
 /// Container for OSM-Firefighter session data
 pub struct OSMFSession {
     pub id: String,
-    expires: Instant,
 }
 impl OSMFSession {
     /// Create a new OSM-Firefighter session
     fn new(id: &str) -> Self {
         Self {
             id: id.to_string(),
-            expires: Instant::now() + SESSION_MAX_AGE
         }
-    }
-
-    /// Check whether this OSM-Firefighter session is still valid, i.e. not
-    /// expired yet
-    fn is_valid(&self) -> bool {
-        self.expires > Instant::now()
     }
 
     /// Build a session cookie from this OSM-Firefighter session
@@ -43,15 +31,17 @@ pub enum OSMFSessionStatus<'a> {
     Got(&'a OSMFSession),
 }
 
+const SESSION_MAX_AGE_SECS: u32 = 60 * 60;
+
 /// Storage for OSM-Firefighter sessions
 pub struct OSMFSessionStorage {
-    sessions: HashMap<String, OSMFSession>,
+    sessions: TransientHashMap<String, OSMFSession>,
 }
 impl OSMFSessionStorage {
     /// Create a new storage for OSM-Firefighter sessions
     pub fn new() -> Self {
         Self {
-            sessions: HashMap::new(),
+            sessions: TransientHashMap::new(SESSION_MAX_AGE_SECS),
         }
     }
 
@@ -66,16 +56,11 @@ impl OSMFSessionStorage {
     /// Get the session data container that matches `id` or open a new session
     /// if the old session is invalid or `id` matches none
     pub fn get_or_open_session(&mut self, id: &str) -> OSMFSessionStatus {
-        match self.sessions.get(id) {
-            Some(session) => {
-                if session.is_valid() {
-                    OSMFSessionStatus::Got(self.sessions.get(id).unwrap())
-                } else {
-                    self.sessions.remove(id);
-                    self.open_session()
-                }
-            },
-            None => self.open_session()
+        let string_id = &id.to_string();
+        if self.sessions.contains_key(string_id) {
+            OSMFSessionStatus::Got(self.sessions.get(string_id).unwrap())
+        } else {
+            self.open_session()
         }
     }
 }
