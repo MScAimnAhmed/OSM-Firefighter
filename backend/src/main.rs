@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::sync::Mutex;
 
-use actix_web::{get, HttpServer, App, HttpResponse, HttpRequest, HttpMessage};
+use actix_web::{get, HttpServer, App, HttpResponse, HttpRequest, HttpMessage, Responder};
 use actix_web::dev::HttpResponseBuilder;
 use actix_web::error::ResponseError;
 use actix_web::http::StatusCode;
@@ -70,7 +70,9 @@ impl ResponseError for OSMFError {
     }
 }
 
-fn before_response(req: HttpRequest) -> Result<HttpResponseBuilder, OSMFError> {
+/// Common function to initialize a `HttpResponseBuilder` for an incoming `HttpRequest`.
+/// This function must be called before retrieving session data.
+fn init_response(req: HttpRequest, mut res: HttpResponseBuilder) -> HttpResponseBuilder {
     let mut sessions = SESSIONS.lock().unwrap();
     let session_status = match req.cookie("sid") {
         Some(cookie) => {
@@ -79,64 +81,54 @@ fn before_response(req: HttpRequest) -> Result<HttpResponseBuilder, OSMFError> {
         },
         None => sessions.open_session()
     };
-    let mut res = HttpResponse::Ok();
     match session_status {
         OSMFSessionStatus::Opened(session) => {
             res.cookie(session.build_cookie());
         },
         OSMFSessionStatus::Got(..) => (),
     }
-    Ok(res)
+    res
 }
 
 /// Request to check whether the server is up and available
 #[get("/ping")]
-async fn ping(req: HttpRequest) -> Result<HttpResponse, OSMFError> {
-    let res = before_response(req);
-    match res {
-        Ok(mut res) =>
-            Ok(res.content_type("text/plain; charset=utf-8")
-                .body("pong")),
-        Err(err) => Err(err)
-    }
+async fn ping(req: HttpRequest) -> impl Responder {
+    let mut res = init_response(req, HttpResponse::Ok());
+    res.content_type("text/plain; charset=utf-8")
+        .body("pong")
 }
 
 /// List all graph files that can be parsed by the server
 #[get("/")]
 async fn list_graphs(req: HttpRequest) -> Result<HttpResponse, OSMFError> {
-    let res = before_response(req);
-    match res {
-        Ok(mut res) => {
-            match fs::read_dir("resources/") {
-                Ok(paths) => {
-                    let mut graphs = Vec::new();
-                    for path in paths {
-                        let path = path.unwrap();
-                        let filetype = path.file_type().unwrap();
-                        if filetype.is_dir() {
-                            continue;
-                        }
-                        let filename = String::from(
-                            path.file_name()
-                                .to_str()
-                                .unwrap()
-                        );
-                        if !filename.ends_with(".fmi") {
-                            continue;
-                        }
-                        graphs.push(filename);
-                    }
-                    Ok(res.json(json!(graphs)))
-                },
-                Err(err) => {
-                    log::warn!("Failed to list graph files: {}", err.to_string());
-                    Err(OSMFError::Internal {
-                        message: "Could not find graph file directory".to_string()
-                    })
+    let mut res = init_response(req, HttpResponse::Ok());
+    match fs::read_dir("resources/") {
+        Ok(paths) => {
+            let mut graphs = Vec::new();
+            for path in paths {
+                let path = path.unwrap();
+                let filetype = path.file_type().unwrap();
+                if filetype.is_dir() {
+                    continue;
                 }
+                let filename = String::from(
+                    path.file_name()
+                        .to_str()
+                        .unwrap()
+                );
+                if !filename.ends_with(".fmi") {
+                    continue;
+                }
+                graphs.push(filename);
             }
+            Ok(res.json(json!(graphs)))
         },
-        Err(err) => Err(err)
+        Err(err) => {
+            log::warn!("Failed to list graph files: {}", err.to_string());
+            Err(OSMFError::Internal {
+                message: "Could not find graph file directory".to_string()
+            })
+        }
     }
 }
 
