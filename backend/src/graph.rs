@@ -28,7 +28,7 @@ pub struct Graph {
 impl Graph {
     /// Create a new directed graph without any nodes or edges
     pub fn new() -> Self {
-        Graph {
+        Self {
             nodes: Vec::new(),
             edges: Vec::new(),
             offsets: Vec::new()
@@ -130,7 +130,7 @@ impl Graph {
 
     /// Create a directed graph from a file that contains node and edge data
     pub fn from_file(file_path: &str) -> Self {
-        match Graph::parse_graph(file_path) {
+        match Self::parse_graph(file_path) {
             Ok(graph) => graph,
             Err(err) => panic!("Failed to create graph from file {}: {}", file_path,
                                err.to_string())
@@ -148,37 +148,36 @@ enum ParseGraphError {
 impl std::fmt::Display for ParseGraphError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParseGraphError::IO(err) => write!(f, "{}", err.to_string()),
-            ParseGraphError::ParseInt(err) => write!(f, "{}", err.to_string()),
-            ParseGraphError::ParseFloat(err) => write!(f, "{}", err.to_string()),
-            ParseGraphError::WrongFileFormat =>
-                write!(f, "Graph files must have the '.fmi' file extension")
+            Self::IO(err) => write!(f, "{}", err.to_string()),
+            Self::ParseInt(err) => write!(f, "{}", err.to_string()),
+            Self::ParseFloat(err) => write!(f, "{}", err.to_string()),
+            Self::WrongFileFormat => write!(f, "Graph files must have the '.fmi' file extension")
         }
     }
 }
 impl std::error::Error for ParseGraphError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match *self {
-            ParseGraphError::IO(ref err) => Some(err),
-            ParseGraphError::ParseInt(ref err) => Some(err),
-            ParseGraphError::ParseFloat(ref err) => Some(err),
-            ParseGraphError::WrongFileFormat => None
+            Self::IO(ref err) => Some(err),
+            Self::ParseInt(ref err) => Some(err),
+            Self::ParseFloat(ref err) => Some(err),
+            Self::WrongFileFormat => None
         }
     }
 }
 impl From<std::io::Error> for ParseGraphError {
     fn from(err: std::io::Error) -> Self {
-        ParseGraphError::IO(err)
+        Self::IO(err)
     }
 }
 impl From<ParseIntError> for ParseGraphError {
     fn from(err: ParseIntError) -> Self {
-        ParseGraphError::ParseInt(err)
+        Self::ParseInt(err)
     }
 }
 impl From<ParseFloatError> for ParseGraphError {
     fn from(err: ParseFloatError) -> Self {
-        ParseGraphError::ParseFloat(err)
+        Self::ParseFloat(err)
     }
 }
 
