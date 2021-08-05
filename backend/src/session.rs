@@ -8,59 +8,58 @@ pub struct OSMFSession {
     pub id: String,
 }
 impl OSMFSession {
-    /// Create a new OSM-Firefighter session
-    fn new(id: &str) -> Self {
+    /// Create a new `OSMFSession`
+    fn new(id: String) -> Self {
         Self {
-            id: id.to_string(),
+            id,
         }
     }
 
-    /// Build a session cookie from this OSM-Firefighter session
-    pub fn build_cookie(&self) -> Cookie {
-        Cookie::build("sid", &self.id)
+    /// Build a session cookie for this `OSMFSession`
+    fn build_cookie<'a, 'b: 'a>(&'a self) -> Cookie<'b> {
+        Cookie::build("sid", self.id.clone())
             .secure(false)
             .same_site(SameSite::Strict)
             .finish()
     }
 }
 
-/// Tells whether a session has been opened, retrieved or whether no session
-/// is available
-pub enum OSMFSessionStatus<'a> {
-    Opened(&'a OSMFSession),
-    Got(&'a OSMFSession),
-}
+/// Time, after which to prune unused `OSMFSession` instances
+const PRUNE_SESSIONS_AFTER_SECS: u32 = 60 * 60;
 
-const SESSION_MAX_AGE_SECS: u32 = 60 * 60;
-
-/// Storage for OSM-Firefighter sessions
+/// Storage for `OSMFSession` instances
 pub struct OSMFSessionStorage {
     sessions: TransientHashMap<String, OSMFSession>,
 }
 impl OSMFSessionStorage {
-    /// Create a new storage for OSM-Firefighter sessions
+    /// Create a new storage for `OSMFSession` instances
     pub fn new() -> Self {
         Self {
-            sessions: TransientHashMap::new(SESSION_MAX_AGE_SECS),
+            sessions: TransientHashMap::new(PRUNE_SESSIONS_AFTER_SECS),
         }
     }
 
-    /// Open a new session data container
-    pub fn open_session(&mut self) -> OSMFSessionStatus {
-        let id = nanoid::nanoid!();
-        let session = OSMFSession::new(&id);
-        self.sessions.insert(id.clone(), session);
-        OSMFSessionStatus::Opened(self.sessions.get(&id).unwrap())
+    /// Open a new `OSMFSession`
+    pub fn open_session(&mut self) -> Cookie {
+        let session = OSMFSession::new(nanoid::nanoid!());
+        let cookie = session.build_cookie();
+        self.sessions.insert(session.id.clone(), session);
+        cookie
     }
 
-    /// Get the session data container that matches `id` or open a new session
-    /// if the old session is invalid or `id` matches none
-    pub fn get_or_open_session(&mut self, id: &str) -> OSMFSessionStatus {
+    /// Refresh the `OSMFSession` with session id `id`
+    pub fn refresh_session(&mut self, id: &str) -> Option<Cookie> {
         let string_id = &id.to_string();
         if self.sessions.contains_key(string_id) {
-            OSMFSessionStatus::Got(self.sessions.get(string_id).unwrap())
+            None
         } else {
-            self.open_session()
+            Some(self.open_session())
         }
+    }
+
+    /// Get a mutable reference to the `OSMFSession` with session id `id`
+    pub fn get_mut_session(&mut self, id: &str) -> Option<&mut OSMFSession> {
+        let string_id = &id.to_string();
+        self.sessions.get_mut(string_id)
     }
 }

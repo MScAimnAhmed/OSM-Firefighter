@@ -1,6 +1,6 @@
 use std::env;
 use std::fs;
-use std::sync::Mutex;
+use std::sync::RwLock;
 
 use actix_web::{get, HttpServer, App, HttpResponse, HttpRequest, HttpMessage, Responder};
 use actix_web::dev::HttpResponseBuilder;
@@ -17,10 +17,10 @@ mod graph;
 mod session;
 
 //use crate::graph::Graph;
-use crate::session::{OSMFSessionStatus, OSMFSessionStorage};
+use crate::session::OSMFSessionStorage;
 
-static SESSIONS: Lazy<Mutex<OSMFSessionStorage>> =
-    Lazy::new(|| Mutex::new(OSMFSessionStorage::new()));
+static SESSIONS: Lazy<RwLock<OSMFSessionStorage>> =
+    Lazy::new(|| RwLock::new(OSMFSessionStorage::new()));
 
 /// Blueprint for error responses
 #[derive(Serialize)]
@@ -73,19 +73,16 @@ impl ResponseError for OSMFError {
 /// Common function to initialize a `HttpResponseBuilder` for an incoming `HttpRequest`.
 /// This function must be called before retrieving session data.
 fn init_response(req: HttpRequest, mut res: HttpResponseBuilder) -> HttpResponseBuilder {
-    let mut sessions = SESSIONS.lock().unwrap();
-    let session_status = match req.cookie("sid") {
-        Some(cookie) => {
-            let sid = cookie.value();
-            sessions.get_or_open_session(sid)
-        },
-        None => sessions.open_session()
+    let mut sessions = SESSIONS.write().unwrap();
+    let new_cookie = match req.cookie("sid") {
+        Some(cookie) => sessions.refresh_session(cookie.value()),
+        None => Some(sessions.open_session())
     };
-    match session_status {
-        OSMFSessionStatus::Opened(session) => {
-            res.cookie(session.build_cookie());
+    match new_cookie {
+        Some(cookie) => {
+            res.cookie(cookie);
         },
-        OSMFSessionStatus::Got(..) => (),
+        None => ()
     }
     res
 }
