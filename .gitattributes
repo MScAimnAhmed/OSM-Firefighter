@@ -1,0 +1,2 @@
+# exclude HTML from language statistics
+*.html language-vendored
