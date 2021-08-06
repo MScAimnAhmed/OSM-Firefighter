@@ -1,2 +1,3 @@
-# exclude HTML from language statistics
+# exclude HTML/CSS from language statistics
 *.html linguist-vendored
+*.css linguist-vendored
