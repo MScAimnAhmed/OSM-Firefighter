@@ -1,26 +1,29 @@
 use std::env;
 use std::fs;
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 
 use actix_web::{get, HttpServer, App, HttpResponse, HttpRequest, HttpMessage, Responder};
 use actix_web::dev::HttpResponseBuilder;
 use actix_web::error::ResponseError;
 use actix_web::http::StatusCode;
 use actix_web::middleware::Logger;
+use actix_web::web;
 use derive_more::{Display, Error};
 use log;
-use once_cell::sync::Lazy;
 use serde::Serialize;
 use serde_json::json;
 
 mod graph;
 mod session;
 
-//use crate::graph::Graph;
+use crate::graph::Graph;
 use crate::session::OSMFSessionStorage;
 
-static SESSIONS: Lazy<RwLock<OSMFSessionStorage>> =
-    Lazy::new(|| RwLock::new(OSMFSessionStorage::new()));
+/// Storage for data associated to the web app
+struct AppData {
+    sessions: Mutex<OSMFSessionStorage>,
+    graph: RwLock<Graph>,
+}
 
 /// Blueprint for error responses
 #[derive(Serialize)]
@@ -72,8 +75,8 @@ impl ResponseError for OSMFError {
 
 /// Common function to initialize a `HttpResponseBuilder` for an incoming `HttpRequest`.
 /// This function must be called before retrieving session data.
-fn init_response(req: HttpRequest, mut res: HttpResponseBuilder) -> HttpResponseBuilder {
-    let mut sessions = SESSIONS.write().unwrap();
+fn init_response(data: web::Data<AppData>, req: HttpRequest, mut res: HttpResponseBuilder) -> HttpResponseBuilder {
+    let mut sessions = data.sessions.lock().unwrap();
     let new_cookie = match req.cookie("sid") {
         Some(cookie) => sessions.refresh_session(cookie.value()),
         None => Some(sessions.open_session())
@@ -89,16 +92,16 @@ fn init_response(req: HttpRequest, mut res: HttpResponseBuilder) -> HttpResponse
 
 /// Request to check whether the server is up and available
 #[get("/ping")]
-async fn ping(req: HttpRequest) -> impl Responder {
-    let mut res = init_response(req, HttpResponse::Ok());
+async fn ping(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
+    let mut res = init_response(data, req, HttpResponse::Ok());
     res.content_type("text/plain; charset=utf-8")
         .body("pong")
 }
 
 /// List all graph files that can be parsed by the server
 #[get("/")]
-async fn list_graphs(req: HttpRequest) -> Result<HttpResponse, OSMFError> {
-    let mut res = init_response(req, HttpResponse::Ok());
+async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
+    let mut res = init_response(data, req, HttpResponse::Ok());
     match fs::read_dir("resources/") {
         Ok(paths) => {
             let mut graphs = Vec::new();
@@ -136,9 +139,22 @@ async fn main() -> std::io::Result<()> {
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
+    // Read in default graph
+    let default_graph_file = env::var("OSMF_DEFAULT_GRAPH")
+        .expect(&format!("Could not find environment variable 'OSMF_DEFAULT_GRAPH'"));
+    let default_graph = Graph::from_file(&default_graph_file);
+    log::info!("Read in default graph file {}", default_graph_file);
+
+    // Initialize app data
+    let data = web::Data::new(AppData {
+        sessions: Mutex::new(OSMFSessionStorage::new()),
+        graph: RwLock::new(default_graph)
+    });
+
     // Initialize and start server
-    let server = HttpServer::new(|| {
+    let server = HttpServer::new(move || {
         App::new()
+            .app_data(data.clone())
             .wrap(Logger::default())
             .service(ping)
             .service(list_graphs)
