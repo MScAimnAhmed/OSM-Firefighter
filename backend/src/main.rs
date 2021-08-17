@@ -143,7 +143,7 @@ async fn main() -> std::io::Result<()> {
             .service(ping)
             .service(list_graphs)
     });
-    server.bind("127.0.0.1:8080")?
+    server.bind("0.0.0.0:8080")?
         .run()
         .await
 }
