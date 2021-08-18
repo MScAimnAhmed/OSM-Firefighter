@@ -11,6 +11,21 @@ pub struct Node {
     lon: f64
 }
 
+struct FirefighterProblem {
+    nodedatas: Vec<NodeData>,
+}
+
+struct NodeData {
+    id: usize,
+    state: State,
+    time: u64,
+}
+
+enum State {
+    Burns,
+    Saved,
+}
+
 /// A directed graph edge with source and target
 #[derive(Debug)]
 pub struct Edge {
