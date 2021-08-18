@@ -20,6 +20,8 @@ services:
   # Backend
   osm-ff-backend:
     container_name: osm-ff-backend
+    environment:
+      - OSMF_DEFAULT_GRAPH=/app/resources/toy.fmi
     build:
       context: ./backend/
       dockerfile: Dockerfile
