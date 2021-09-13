@@ -135,7 +135,7 @@ impl Graph {
     pub fn from_file(file_path: &str) -> Self {
         let mut graph = Graph::new();
         match graph.parse_graph(file_path) {
-            Ok(graph) => graph,
+            Ok(_) => (),
             Err(err) => panic!("Failed to create graph from file {}: {}", file_path,
                                err.to_string())
         };
