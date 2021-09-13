@@ -138,7 +138,7 @@ impl Graph {
             Ok(_) => (),
             Err(err) => panic!("Failed to create graph from file {}: {}", file_path,
                                err.to_string())
-        };
+        }
         graph
     }
 }
