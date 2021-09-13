@@ -6,8 +6,7 @@ use std::num::{ParseIntError, ParseFloatError};
 use serde::Serialize;
 
 /// A graph node with id, latitude and longitude
-#[derive(Debug)]
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct Node {
     pub id: usize,
     lat: f64,
@@ -15,16 +14,14 @@ pub struct Node {
 }
 
 /// A directed graph edge with source and target
-#[derive(Debug)]
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct Edge {
     pub src: usize,
     pub tgt: usize
 }
 
 /// A directed graph with nodes, edges and node offsets
-#[derive(Debug)]
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct Graph {
     nodes: Vec<Node>,
     edges: Vec<Edge>,
