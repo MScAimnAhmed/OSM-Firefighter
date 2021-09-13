@@ -1,13 +1,13 @@
-use std::env;
-use std::fs;
-use std::sync::{Mutex, RwLock};
+use std::{env,
+          fs,
+          sync::{Mutex, RwLock}};
 
-use actix_web::{get, HttpServer, App, HttpResponse, HttpRequest, HttpMessage, Responder};
-use actix_web::dev::HttpResponseBuilder;
-use actix_web::error::ResponseError;
-use actix_web::http::StatusCode;
-use actix_web::middleware::Logger;
-use actix_web::web;
+use actix_web::{get, HttpServer, App, HttpRequest, HttpResponse, Responder, HttpMessage,
+                dev::HttpResponseBuilder,
+                error::ResponseError,
+                http::StatusCode,
+                middleware::Logger,
+                web};
 use derive_more::{Display, Error};
 use log;
 use serde::Serialize;
@@ -15,6 +15,7 @@ use serde_json::json;
 
 mod graph;
 mod session;
+mod firefighter;
 
 use crate::graph::Graph;
 use crate::session::OSMFSessionStorage;
@@ -75,7 +76,7 @@ impl ResponseError for OSMFError {
 
 /// Common function to initialize a `HttpResponseBuilder` for an incoming `HttpRequest`.
 /// This function must be called before retrieving session data.
-fn init_response(data: web::Data<AppData>, req: HttpRequest, mut res: HttpResponseBuilder) -> HttpResponseBuilder {
+fn init_response(data: &web::Data<AppData>, req: HttpRequest, mut res: HttpResponseBuilder) -> HttpResponseBuilder {
     let mut sessions = data.sessions.lock().unwrap();
     let new_cookie = match req.cookie("sid") {
         Some(cookie) => sessions.refresh_session(cookie.value()),
@@ -93,7 +94,7 @@ fn init_response(data: web::Data<AppData>, req: HttpRequest, mut res: HttpRespon
 /// Request to check whether the server is up and available
 #[get("/ping")]
 async fn ping(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
-    let mut res = init_response(data, req, HttpResponse::Ok());
+    let mut res = init_response(&data, req, HttpResponse::Ok());
     res.content_type("text/plain; charset=utf-8")
         .body("pong")
 }
@@ -101,9 +102,9 @@ async fn ping(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
 /// List all graph files that can be parsed by the server
 #[get("/")]
 async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
-    let mut res = init_response(data, req, HttpResponse::Ok());
     match fs::read_dir("resources/") {
         Ok(paths) => {
+            let mut res = init_response(&data, req, HttpResponse::Ok());
             let mut graphs = Vec::new();
             for path in paths {
                 let path = path.unwrap();
@@ -132,6 +133,14 @@ async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
     }
 }
 
+/// Send the currently loaded graph
+#[get("/graph")]
+async fn send_graph(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
+    let mut res = init_response(&data, req, HttpResponse::Ok());
+    let graph = data.graph.read().unwrap();
+    res.json(&*graph)
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Initialize logger
@@ -158,6 +167,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .service(ping)
             .service(list_graphs)
+            .service(send_graph)
     });
     server.bind("0.0.0.0:8080")?
         .run()

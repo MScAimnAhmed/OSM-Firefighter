@@ -1,7 +1,7 @@
 use std::time::{Instant, Duration};
 
-use actix_web::http::Cookie;
-use actix_web::cookie::SameSite;
+use actix_web::{http::Cookie,
+                cookie::SameSite};
 use nanoid;
 use transient_hashmap::TransientHashMap;
 

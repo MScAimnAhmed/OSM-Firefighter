@@ -3,31 +3,20 @@ use std::fs::File;
 use std::io::{prelude::*, BufReader};
 use std::num::{ParseIntError, ParseFloatError};
 
+use serde::Serialize;
+
 /// A graph node with id, latitude and longitude
 #[derive(Debug)]
+#[derive(Serialize)]
 pub struct Node {
     pub id: usize,
     lat: f64,
     lon: f64
 }
 
-struct FirefighterProblem {
-    nodedatas: Vec<NodeData>,
-}
-
-struct NodeData {
-    id: usize,
-    state: State,
-    time: u64,
-}
-
-enum State {
-    Burns,
-    Saved,
-}
-
 /// A directed graph edge with source and target
 #[derive(Debug)]
+#[derive(Serialize)]
 pub struct Edge {
     pub src: usize,
     pub tgt: usize
@@ -35,6 +24,7 @@ pub struct Edge {
 
 /// A directed graph with nodes, edges and node offsets
 #[derive(Debug)]
+#[derive(Serialize)]
 pub struct Graph {
     nodes: Vec<Node>,
     edges: Vec<Edge>,
