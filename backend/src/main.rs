@@ -33,6 +33,7 @@ struct ErrorResponse {
     error: String,
     message: String,
 }
+
 impl ErrorResponse {
     /// Create a new error response
     fn new(status_code: StatusCode, error: String, message: String) -> Self {
@@ -50,25 +51,27 @@ enum OSMFError {
     #[display(fmt = "{}", message)]
     Internal { message: String },
 }
+
 impl OSMFError {
     /// Return the name of this error
     pub fn name(&self) -> String {
         match self {
-            Self::Internal { .. } => "Internal Server Error".to_string(),
+            Self::Internal { .. } => "Internal Server Error".to_string()
         }
     }
 }
+
 impl ResponseError for OSMFError {
     fn status_code(&self) -> StatusCode {
         match *self {
-            Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR
         }
     }
     fn error_response(&self) -> HttpResponse {
         let res = ErrorResponse::new(
             self.status_code(),
             self.name(),
-            self.to_string()
+            self.to_string(),
         );
         HttpResponse::build(self.status_code()).json(res)
     }
@@ -76,7 +79,7 @@ impl ResponseError for OSMFError {
 
 /// Common function to initialize a `HttpResponseBuilder` for an incoming `HttpRequest`.
 /// This function must be called before retrieving session data.
-fn init_response(data: &web::Data<AppData>, req: HttpRequest, mut res: HttpResponseBuilder) -> HttpResponseBuilder {
+fn init_response(data: &web::Data<AppData>, req: &HttpRequest, mut res: HttpResponseBuilder) -> HttpResponseBuilder {
     let mut sessions = data.sessions.lock().unwrap();
     let new_cookie = match req.cookie("sid") {
         Some(cookie) => sessions.refresh_session(cookie.value()),
@@ -85,7 +88,7 @@ fn init_response(data: &web::Data<AppData>, req: HttpRequest, mut res: HttpRespo
     match new_cookie {
         Some(cookie) => {
             res.cookie(cookie);
-        },
+        }
         None => ()
     }
     res
@@ -94,7 +97,7 @@ fn init_response(data: &web::Data<AppData>, req: HttpRequest, mut res: HttpRespo
 /// Request to check whether the server is up and available
 #[get("/ping")]
 async fn ping(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
-    let mut res = init_response(&data, req, HttpResponse::Ok());
+    let mut res = init_response(&data, &req, HttpResponse::Ok());
     res.content_type("text/plain; charset=utf-8")
         .body("pong")
 }
@@ -104,7 +107,7 @@ async fn ping(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
 async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
     match fs::read_dir("resources/") {
         Ok(paths) => {
-            let mut res = init_response(&data, req, HttpResponse::Ok());
+            let mut res = init_response(&data, &req, HttpResponse::Ok());
             let mut graphs = Vec::new();
             for path in paths {
                 let path = path.unwrap();
@@ -123,7 +126,7 @@ async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
                 graphs.push(filename);
             }
             Ok(res.json(json!(graphs)))
-        },
+        }
         Err(err) => {
             log::warn!("Failed to list graph files: {}", err.to_string());
             Err(OSMFError::Internal {
@@ -136,7 +139,7 @@ async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
 /// Send the currently loaded graph
 #[get("/graph")]
 async fn send_graph(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
-    let mut res = init_response(&data, req, HttpResponse::Ok());
+    let mut res = init_response(&data, &req, HttpResponse::Ok());
     let graph = data.graph.read().unwrap();
     res.json(&*graph)
 }
@@ -157,7 +160,7 @@ async fn main() -> std::io::Result<()> {
     // Initialize app data
     let data = web::Data::new(AppData {
         sessions: Mutex::new(OSMFSessionStorage::new()),
-        graph: RwLock::new(default_graph)
+        graph: RwLock::new(default_graph),
     });
 
     // Initialize and start server

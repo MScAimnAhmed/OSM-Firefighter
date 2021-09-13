@@ -5,15 +5,20 @@ use actix_web::{http::Cookie,
 use nanoid;
 use transient_hashmap::TransientHashMap;
 
+//use crate::firefighter::OSMFProblem;
+
 /// Container for OSM-Firefighter session data
 pub struct OSMFSession {
     pub id: String,
+    //ff_problem: OSMFProblem,
 }
+
 impl OSMFSession {
     /// Create a new `OSMFSession`
     fn new(id: String) -> Self {
         Self {
             id,
+            //ff_problem: OSMFProblem::new(),
         }
     }
 
@@ -34,6 +39,7 @@ pub struct OSMFSessionStorage {
     sessions: TransientHashMap<String, OSMFSession>,
     last_pruned: Instant,
 }
+
 impl OSMFSessionStorage {
     /// Create a new storage for `OSMFSession` instances
     pub fn new() -> Self {

@@ -1,7 +1,7 @@
-use std::fmt::Formatter;
-use std::fs::File;
-use std::io::{prelude::*, BufReader};
-use std::num::{ParseIntError, ParseFloatError};
+use std::{fmt::Formatter,
+          fs::File,
+          io::{prelude::*, BufReader},
+          num::{ParseIntError, ParseFloatError}};
 
 use serde::Serialize;
 
@@ -10,14 +10,14 @@ use serde::Serialize;
 pub struct Node {
     pub id: usize,
     lat: f64,
-    lon: f64
+    lon: f64,
 }
 
 /// A directed graph edge with source and target
 #[derive(Debug, Serialize)]
 pub struct Edge {
     pub src: usize,
-    pub tgt: usize
+    pub tgt: usize,
 }
 
 /// A directed graph with nodes, edges and node offsets
@@ -25,30 +25,31 @@ pub struct Edge {
 pub struct Graph {
     nodes: Vec<Node>,
     edges: Vec<Edge>,
-    offsets: Vec<usize>
+    offsets: Vec<usize>,
+    pub num_nodes: usize,
+    pub num_edges: usize,
 }
+
 impl Graph {
     /// Create a new directed graph without any nodes or edges
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             nodes: Vec::new(),
             edges: Vec::new(),
-            offsets: Vec::new()
+            offsets: Vec::new(),
+            num_nodes: 0,
+            num_edges: 0,
         }
     }
 
-    fn parse_graph(file_path: &str) -> Result<Self, ParseGraphError> {
+    /// Parse node and edge data from a file into a directed graph
+    fn parse_graph(&mut self, file_path: &str) -> Result<(), ParseGraphError> {
         if !file_path.ends_with(".fmi") {
             return Err(ParseGraphError::WrongFileFormat);
         }
 
         let graph_file = File::open(file_path)?;
         let graph_reader = BufReader::new(graph_file);
-
-        let mut graph = Graph::new();
-        let nodes = &mut graph.nodes;
-        let edges = &mut graph.edges;
-        let offsets = &mut graph.offsets;
 
         let mut lines = graph_reader.lines();
         let mut line_no = 0;
@@ -63,16 +64,16 @@ impl Graph {
             }
         }
 
-        let num_nodes: usize = lines.next()
+        self.num_nodes = lines.next()
             .expect("Unexpected EOF while parsing number of nodes")?
             .parse()?;
-        let num_edges: usize = lines.next()
+        self.num_edges = lines.next()
             .expect("Unexpected EOF while parsing number of edges")?
             .parse()?;
         line_no += 3;
 
-        nodes.reserve_exact(num_nodes);
-        for i in 0..num_nodes {
+        self.nodes.reserve_exact(self.num_nodes);
+        for i in 0..self.num_nodes {
             let line = lines.next()
                 .expect(&format!("Unexpected EOF while parsing nodes in line {}", line_no))?;
             let mut split = line.split(" ");
@@ -89,16 +90,16 @@ impl Graph {
                 lon: split.next()
                     .expect(&format!("Unexpected EOL while parsing node longitude in line {}",
                                      line_no))
-                    .parse()?
+                    .parse()?,
             };
-            nodes.push(node);
+            self.nodes.push(node);
         }
 
         let mut last_src: i64 = -1;
         let mut offset: usize = 0;
-        edges.reserve_exact(num_edges);
-        offsets.resize(num_nodes+1, 0);
-        for _ in 0..num_edges {
+        self.edges.reserve_exact(self.num_edges);
+        self.offsets.resize(self.num_nodes + 1, 0);
+        for _ in 0..self.num_edges {
             let line = lines.next()
                 .expect(&format!("Unexpected EOF while parsing edges in line {}", line_no))?;
             let mut split = line.split(" ");
@@ -112,31 +113,33 @@ impl Graph {
                 tgt: split.next()
                     .expect(&format!("Unexpected EOL while parsing edge target in line {}",
                                      line_no))
-                    .parse()?
+                    .parse()?,
             };
 
             if edge.src as i64 > last_src {
-                for j in (last_src+1) as usize..=edge.src {
-                    offsets[j] = offset;
+                for j in (last_src + 1) as usize..=edge.src {
+                    self.offsets[j] = offset;
                 }
                 last_src = edge.src as i64;
             }
             offset += 1;
 
-            edges.push(edge);
+            self.edges.push(edge);
         }
-        offsets[num_nodes] = num_edges;
+        self.offsets[self.num_nodes] = self.num_edges;
 
-        Ok(graph)
+        Ok(())
     }
 
     /// Create a directed graph from a file that contains node and edge data
     pub fn from_file(file_path: &str) -> Self {
-        match Self::parse_graph(file_path) {
+        let mut graph = Graph::new();
+        match graph.parse_graph(file_path) {
             Ok(graph) => graph,
             Err(err) => panic!("Failed to create graph from file {}: {}", file_path,
                                err.to_string())
-        }
+        };
+        graph
     }
 }
 
@@ -145,8 +148,9 @@ enum ParseGraphError {
     IO(std::io::Error),
     ParseInt(ParseIntError),
     ParseFloat(ParseFloatError),
-    WrongFileFormat
+    WrongFileFormat,
 }
+
 impl std::fmt::Display for ParseGraphError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -157,6 +161,7 @@ impl std::fmt::Display for ParseGraphError {
         }
     }
 }
+
 impl std::error::Error for ParseGraphError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match *self {
@@ -167,16 +172,19 @@ impl std::error::Error for ParseGraphError {
         }
     }
 }
+
 impl From<std::io::Error> for ParseGraphError {
     fn from(err: std::io::Error) -> Self {
         Self::IO(err)
     }
 }
+
 impl From<ParseIntError> for ParseGraphError {
     fn from(err: ParseIntError) -> Self {
         Self::ParseInt(err)
     }
 }
+
 impl From<ParseFloatError> for ParseGraphError {
     fn from(err: ParseFloatError) -> Self {
         Self::ParseFloat(err)
@@ -196,8 +204,8 @@ mod test {
 
         for i in 0..graph.nodes.len() {
             let node = graph.nodes.get(i).unwrap();
-            assert_eq!(node.lat, (4900+i) as f64 / 100.);
-            assert_eq!(node.lon, (1000+i) as f64 / 100.);
+            assert_eq!(node.lat, (4900 + i) as f64 / 100.);
+            assert_eq!(node.lon, (1000 + i) as f64 / 100.);
         }
 
         assert_eq!(graph.edges.get(0).unwrap().src, 0);
