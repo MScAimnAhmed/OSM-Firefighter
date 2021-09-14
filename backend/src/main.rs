@@ -1,6 +1,6 @@
 use std::{env,
           fs,
-          sync::{Mutex, RwLock}};
+          sync::{Mutex, RwLock, Arc}};
 
 use actix_web::{get, HttpServer, App, HttpRequest, HttpResponse, Responder, HttpMessage,
                 dev::HttpResponseBuilder,
@@ -23,7 +23,7 @@ use crate::session::OSMFSessionStorage;
 /// Storage for data associated to the web app
 struct AppData {
     sessions: Mutex<OSMFSessionStorage>,
-    graph: RwLock<Graph>,
+    graph: Arc<RwLock<Graph>>,
 }
 
 /// Blueprint for error responses
@@ -81,9 +81,10 @@ impl ResponseError for OSMFError {
 /// This function must be called before retrieving session data.
 fn init_response(data: &web::Data<AppData>, req: &HttpRequest, mut res: HttpResponseBuilder) -> HttpResponseBuilder {
     let mut sessions = data.sessions.lock().unwrap();
+    let graph = data.graph.clone();
     let new_cookie = match req.cookie("sid") {
-        Some(cookie) => sessions.refresh_session(cookie.value()),
-        None => Some(sessions.open_session())
+        Some(cookie) => sessions.refresh_session(cookie.value(), graph),
+        None => Some(sessions.open_session(graph))
     };
     match new_cookie {
         Some(cookie) => {
@@ -147,7 +148,7 @@ async fn send_graph(data: web::Data<AppData>, req: HttpRequest) -> impl Responde
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Initialize logger
-    env::set_var("RUST_LOG", "info");
+    env::set_var("RUST_LOG", "debug");
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
@@ -160,7 +161,7 @@ async fn main() -> std::io::Result<()> {
     // Initialize app data
     let data = web::Data::new(AppData {
         sessions: Mutex::new(OSMFSessionStorage::new()),
-        graph: RwLock::new(default_graph),
+        graph: Arc::new(RwLock::new(default_graph)),
     });
 
     // Initialize and start server

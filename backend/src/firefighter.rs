@@ -1,17 +1,21 @@
 use std::{collections::HashMap,
-          fmt::Formatter};
+          fmt::Formatter,
+          sync::{RwLock, Arc}};
 
+use log;
 use rand::prelude::*;
 
 use crate::graph::Graph;
 
 /// A firefighter problem instance
-pub struct OSMFProblem<'a> {
-    graph: &'a Graph,
+#[derive(Debug)]
+pub struct OSMFProblem {
+    graph: Arc<RwLock<Graph>>,
     node_data: HashMap<usize, NodeData>,
 }
 
 /// Node data related to the firefighter problem
+#[derive(Debug)]
 pub struct NodeData {
     node_id: usize,
     state: NodeState,
@@ -19,22 +23,29 @@ pub struct NodeData {
 }
 
 /// State of a node in the firefighter problem
+#[derive(Debug)]
 pub enum NodeState {
     Burning,
     Defended,
 }
 
-impl<'a> OSMFProblem<'a> {
+impl OSMFProblem {
     /// Create a new firefighter problem instance
-    pub fn new(graph: &'a Graph) -> Self {
-        let mut problem = OSMFProblem {
+    pub fn new(graph: Arc<RwLock<Graph>>) -> Self {
+        let mut problem = Self {
             graph,
             node_data: HashMap::new(),
         };
+
         // Generate the root of the fire
-        let root: usize = thread_rng().gen_range(0..graph.num_nodes);
+        let root: usize = thread_rng().gen_range(0..problem.graph.read().unwrap().num_nodes);
         // Attach new node data with state burning to root
         problem.attach_node_data(root, NodeState::Burning, 0);
+
+        log::trace!("Created new firefighter problem {:#?}", problem);
+        log::debug!("Created new firefighter problem with root node data {:?}",
+            problem.node_data.get(&root).unwrap());
+
         problem
     }
 

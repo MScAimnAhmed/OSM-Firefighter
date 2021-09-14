@@ -1,24 +1,26 @@
-use std::time::{Instant, Duration};
+use std::{sync::{Arc, RwLock},
+          time::{Instant, Duration}};
 
 use actix_web::{http::Cookie,
                 cookie::SameSite};
 use nanoid;
 use transient_hashmap::TransientHashMap;
 
-//use crate::firefighter::OSMFProblem;
+use crate::firefighter::OSMFProblem;
+use crate::graph::Graph;
 
 /// Container for OSM-Firefighter session data
 pub struct OSMFSession {
     pub id: String,
-    //ff_problem: OSMFProblem,
+    problem: OSMFProblem,
 }
 
 impl OSMFSession {
     /// Create a new `OSMFSession`
-    fn new(id: String) -> Self {
+    fn new(id: String, graph: Arc<RwLock<Graph>>) -> Self {
         Self {
             id,
-            //ff_problem: OSMFProblem::new(),
+            problem: OSMFProblem::new(graph),
         }
     }
 
@@ -58,22 +60,22 @@ impl OSMFSessionStorage {
     }
 
     /// Open a new `OSMFSession`
-    pub fn open_session(&mut self) -> Cookie {
+    pub fn open_session(&mut self, graph: Arc<RwLock<Graph>>) -> Cookie {
         self.prune_sessions();
-        let session = OSMFSession::new(nanoid::nanoid!());
+        let session = OSMFSession::new(nanoid::nanoid!(), graph);
         let cookie = session.build_cookie();
         self.sessions.insert(session.id.clone(), session);
         cookie
     }
 
     /// Refresh the `OSMFSession` with session id `id`
-    pub fn refresh_session(&mut self, id: &str) -> Option<Cookie> {
+    pub fn refresh_session(&mut self, id: &str, graph: Arc<RwLock<Graph>>) -> Option<Cookie> {
         self.prune_sessions();
         let string_id = &id.to_string();
         if self.sessions.contains_key(string_id) {
             None
         } else {
-            Some(self.open_session())
+            Some(self.open_session(graph))
         }
     }
 
