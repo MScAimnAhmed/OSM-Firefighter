@@ -7,13 +7,11 @@ use rand::prelude::*;
 
 use crate::graph::Graph;
 
-/// A firefighter problem instance
+/// State of a node in the firefighter problem
 #[derive(Debug)]
-pub struct OSMFProblem {
-    graph: Arc<RwLock<Graph>>,
-    node_data: HashMap<usize, NodeData>,
-    global_time: u64,
-    pub is_active: bool,
+pub enum NodeState {
+    Burning,
+    Defended,
 }
 
 /// Node data related to the firefighter problem
@@ -45,11 +43,13 @@ impl NodeData {
     }
 }
 
-/// State of a node in the firefighter problem
+/// A firefighter problem instance
 #[derive(Debug)]
-pub enum NodeState {
-    Burning,
-    Defended,
+pub struct OSMFProblem {
+    graph: Arc<RwLock<Graph>>,
+    node_data: HashMap<usize, NodeData>,
+    global_time: u64,
+    pub is_active: bool,
 }
 
 impl OSMFProblem {
