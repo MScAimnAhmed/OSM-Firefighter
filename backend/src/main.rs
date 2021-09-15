@@ -148,7 +148,7 @@ async fn send_graph(data: web::Data<AppData>, req: HttpRequest) -> impl Responde
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Initialize logger
-    env::set_var("RUST_LOG", "debug");
+    env::set_var("RUST_LOG", "trace");
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 

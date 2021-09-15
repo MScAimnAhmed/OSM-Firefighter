@@ -7,6 +7,9 @@ use rand::prelude::*;
 
 use crate::graph::Graph;
 
+/// `u64` type alias to denote a time unit in the firefighter problem
+type TimeUnit = u64;
+
 /// State of a node in the firefighter problem
 #[derive(Debug)]
 pub enum NodeState {
@@ -19,12 +22,12 @@ pub enum NodeState {
 pub struct NodeData {
     node_id: usize,
     state: NodeState,
-    time: u64,
+    time: TimeUnit,
 }
 
 impl NodeData {
     /// Create new node data with state `state` for node with id `node_id`
-    fn new(node_id: usize, state: NodeState, time: u64) -> Self {
+    fn new(node_id: usize, state: NodeState, time: TimeUnit) -> Self {
         Self {
             node_id,
             state,
@@ -48,7 +51,8 @@ impl NodeData {
 pub struct OSMFProblem {
     graph: Arc<RwLock<Graph>>,
     node_data: HashMap<usize, NodeData>,
-    global_time: u64,
+    change_tracker: HashMap<TimeUnit, Vec<usize>>,
+    global_time: TimeUnit,
     pub is_active: bool,
 }
 
@@ -58,6 +62,7 @@ impl OSMFProblem {
         let mut problem = Self {
             graph,
             node_data: HashMap::new(),
+            change_tracker: HashMap::new(),
             global_time: 0,
             is_active: true,
         };
@@ -85,8 +90,7 @@ impl OSMFProblem {
 
     /// Attach new node data to the node with id `node_id`
     fn attach_node_data(&mut self, node_id: usize, state: NodeState) {
-        let time = self.global_time;
-        self.node_data.insert(node_id, NodeData::new(node_id, state, time));
+        self.node_data.insert(node_id, NodeData::new(node_id, state, self.global_time));
     }
 
     /// Try to attach new node data to the node with id `node_id`.
@@ -128,12 +132,15 @@ impl OSMFProblem {
 
         if !to_burn.is_empty() {
             // Burn all nodes in `to_burn`
-            for node_id in to_burn {
-                self.attach_node_data(node_id, NodeState::Burning);
+            for node_id in &to_burn {
+                self.attach_node_data(*node_id, NodeState::Burning);
+
+                log::trace!("Node {} caught fire", node_id);
             }
         } else {
             self.is_active = false;
         }
+        self.change_tracker.insert(self.global_time, to_burn);
     }
 
     /// Execute the containment strategy to prevent as much nodes as
@@ -146,8 +153,9 @@ impl OSMFProblem {
     /// That is, execute the containment strategy, spread the fire and
     /// check whether the game is finished.
     pub fn exec_step(&mut self) {
-        self.global_time += 1;
         //self.contain_fire();
+
+        self.global_time += 1;
         self.spread_fire();
     }
 }
@@ -169,8 +177,7 @@ impl std::error::Error for OSMFProblemError {}
 
 #[cfg(test)]
 mod test {
-    use std::{ops::Index,
-              sync::{Arc, RwLock}};
+    use std::sync::{Arc, RwLock};
 
     use crate::firefighter::OSMFProblem;
     use crate::graph::Graph;
@@ -188,7 +195,7 @@ mod test {
             let node_data: Vec<_> = problem.node_data.values().collect();
             root = node_data.first().unwrap().node_id;
 
-            assert!(root >= 0 && root < graph.read().unwrap().num_nodes);
+            assert!(root < graph.read().unwrap().num_nodes);
         }
 
         problem.exec_step();
@@ -198,6 +205,9 @@ mod test {
         for i in graph_.offsets[root]..graph_.offsets[root+1] {
             let edge = &graph_.edges[i];
             targets.push(edge.tgt);
+        }
+        for node_id in problem.change_tracker.get(&problem.global_time).unwrap() {
+            assert!(targets.contains(node_id));
         }
         let not_burning_targets: Vec<_> = targets.iter()
             .filter(|&tgt| !problem.node_data.get(tgt).unwrap().is_burning())
