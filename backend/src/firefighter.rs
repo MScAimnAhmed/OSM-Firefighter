@@ -51,8 +51,8 @@ impl NodeData {
 pub struct OSMFProblem {
     graph: Arc<RwLock<Graph>>,
     node_data: HashMap<usize, NodeData>,
-    change_tracker: HashMap<TimeUnit, Vec<usize>>,
     global_time: TimeUnit,
+    change_tracker: HashMap<TimeUnit, Vec<usize>>,
     pub is_active: bool,
 }
 
@@ -62,8 +62,8 @@ impl OSMFProblem {
         let mut problem = Self {
             graph,
             node_data: HashMap::new(),
-            change_tracker: HashMap::new(),
             global_time: 0,
+            change_tracker: HashMap::new(),
             is_active: true,
         };
 
