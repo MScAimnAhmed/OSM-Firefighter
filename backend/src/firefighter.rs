@@ -100,8 +100,8 @@ impl OSMFProblem {
         match self.change_tracker.get_mut(&self.global_time) {
             Some(changes) => {
                 changes.reserve_exact(changed.len());
-                for node in changed {
-                    changes.push(node);
+                for node_id in changed {
+                    changes.push(node_id);
                 }
             }
             None => {
