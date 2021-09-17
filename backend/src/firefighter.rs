@@ -59,6 +59,11 @@ pub struct OSMFProblem {
 impl OSMFProblem {
     /// Create a new firefighter problem instance
     pub fn new(graph: Arc<RwLock<Graph>>, num_roots: usize) -> Self {
+        let num_nodes = graph.read().unwrap().num_nodes;
+        if num_roots > num_nodes {
+            panic!("Number of fire roots must not be greater than {}", num_nodes);
+        }
+
         let mut problem = Self {
             graph,
             node_data: HashMap::new(),
@@ -66,21 +71,43 @@ impl OSMFProblem {
             change_tracker: HashMap::new(),
             is_active: true,
         };
-
-        // Generate `num_roots` fire roots
-        let mut rng = thread_rng();
-        let num_nodes = problem.graph.read().unwrap().num_nodes;
-        for _ in 0..num_roots {
-            let root = rng.gen_range(0..num_nodes);
-            if !problem.is_node_data_attached(&root) {
-                problem.attach_node_data(root, NodeState::Burning);
-                log::trace!("Set vertex {} as fire root", root);
-            }
-        }
+        problem.gen_fire_roots(num_roots, num_nodes);
 
         log::debug!("Created new firefighter problem {:#?}", problem);
 
         problem
+    }
+
+    /// Generate `num_roots` fire roots
+    fn gen_fire_roots(&mut self, num_roots: usize, num_nodes: usize) {
+        let mut rng = thread_rng();
+        let mut roots = Vec::with_capacity(num_roots);
+        while roots.len() < num_roots {
+            let root = rng.gen_range(0..num_nodes);
+            if !self.is_node_data_attached(&root) {
+                self.attach_node_data(root, NodeState::Burning);
+                roots.push(root);
+
+                log::trace!("Set vertex {} as fire root", root);
+            }
+        }
+        self.track_changes(roots);
+    }
+
+    /// Track a list of changed nodes.
+    /// The changes will be attached to the current global time.
+    fn track_changes(&mut self, changed: Vec<usize>) {
+        match self.change_tracker.get_mut(&self.global_time) {
+            Some(changes) => {
+                changes.reserve_exact(changed.len());
+                for node in changed {
+                    changes.push(node);
+                }
+            }
+            None => {
+                self.change_tracker.insert(self.global_time, changed);
+            }
+        }
     }
 
     /// Is node data attached to node with id `node_id`?
@@ -140,7 +167,7 @@ impl OSMFProblem {
         } else {
             self.is_active = false;
         }
-        self.change_tracker.insert(self.global_time, to_burn);
+        self.track_changes(to_burn);
     }
 
     /// Execute the containment strategy to prevent as much nodes as
@@ -186,9 +213,12 @@ mod test {
     fn test() {
         let graph = Arc::new(RwLock::new(
             Graph::from_file("resources/toy.fmi")));
-        let mut problem = OSMFProblem::new(graph.clone(), 1);
+        let num_roots = 1;
+        let mut problem = OSMFProblem::new(graph.clone(), num_roots);
 
-        assert_eq!(problem.node_data.len(), 1);
+        assert_eq!(problem.node_data.len(), num_roots);
+        assert_eq!(problem.change_tracker.len(), (problem.global_time+1) as usize);
+        assert_eq!(problem.change_tracker.get(&problem.global_time).unwrap().len(), num_roots);
 
         let root;
         {
@@ -199,6 +229,8 @@ mod test {
         }
 
         problem.exec_step();
+
+        assert_eq!(problem.change_tracker.len(), (problem.global_time+1) as usize);
 
         let graph_ = graph.read().unwrap();
         let mut targets = Vec::with_capacity(graph_.offsets[root+1] - graph_.offsets[root]);
