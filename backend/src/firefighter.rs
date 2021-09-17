@@ -133,7 +133,7 @@ impl OSMFProblem {
 
     /// Spread the fire to all nodes that are adjacent to burning nodes.
     /// Defended nodes will remain defended.
-    pub fn spread_fire(&mut self) {
+    fn spread_fire(&mut self) {
         let mut to_burn = Vec::new();
         {
             // Get all burning nodes
