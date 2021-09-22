@@ -23,9 +23,9 @@ pub struct Edge {
 /// A directed graph with nodes, edges and node offsets
 #[derive(Debug, Serialize)]
 pub struct Graph {
-    nodes: Vec<Node>,
-    edges: Vec<Edge>,
-    offsets: Vec<usize>,
+    pub nodes: Vec<Node>,
+    pub edges: Vec<Edge>,
+    pub offsets: Vec<usize>,
     pub num_nodes: usize,
     pub num_edges: usize,
 }

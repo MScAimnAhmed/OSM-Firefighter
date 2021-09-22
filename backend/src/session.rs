@@ -20,7 +20,7 @@ impl OSMFSession {
     fn new(id: String, graph: Arc<RwLock<Graph>>) -> Self {
         Self {
             id,
-            problem: OSMFProblem::new(graph),
+            problem: OSMFProblem::new(graph, 1),
         }
     }
 
