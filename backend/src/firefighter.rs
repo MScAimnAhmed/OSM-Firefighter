@@ -252,6 +252,7 @@ mod test {
             targets.push(edge.tgt);
             weights.insert(edge.tgt, edge.weight);
         }
+
         for node_id in problem.change_tracker.get(&problem.global_time).unwrap() {
             assert!(targets.contains(node_id));
         }
