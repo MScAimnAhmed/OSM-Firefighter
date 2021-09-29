@@ -214,7 +214,8 @@ impl std::error::Error for OSMFProblemError {}
 
 #[cfg(test)]
 mod test {
-    use std::sync::{Arc, RwLock};
+    use std::{collections::HashMap,
+              sync::{Arc, RwLock}};
 
     use crate::firefighter::OSMFProblem;
     use crate::graph::Graph;
@@ -244,17 +245,22 @@ mod test {
 
         let graph_ = graph.read().unwrap();
         let mut targets = Vec::with_capacity(graph_.offsets[root+1] - graph_.offsets[root]);
+        let mut weights = HashMap::with_capacity(graph_.offsets[root+1] - graph_.offsets[root]);
         for i in graph_.offsets[root]..graph_.offsets[root+1] {
             let edge = &graph_.edges[i];
             targets.push(edge.tgt);
+            weights.insert(edge.tgt, edge.weight);
         }
         for node_id in problem.change_tracker.get(&problem.global_time).unwrap() {
             assert!(targets.contains(node_id));
         }
-        // let not_burning_targets: Vec<_> = targets.iter()
-        //     .filter(|&tgt| !problem.node_data.get(tgt).unwrap().is_burning())
-        //     .collect();
-        //
-        // assert!(not_burning_targets.is_empty());
+
+        let root_nd = problem.node_data.get(&root).unwrap();
+        for tgt in targets {
+            match problem.node_data.get(&tgt) {
+                Some(nd) => assert!(nd.is_burning() && problem.global_time >= root_nd.time + *weights.get(&tgt).unwrap()),
+                None => assert!(problem.global_time < root_nd.time + *weights.get(&tgt).unwrap())
+            }
+        }
     }
 }
