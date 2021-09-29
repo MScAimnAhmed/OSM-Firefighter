@@ -134,6 +134,10 @@ impl OSMFProblem {
     /// Spread the fire to all nodes that are adjacent to burning nodes.
     /// Defended nodes will remain defended.
     fn spread_fire(&mut self) {
+        if !self.is_active {
+            return;
+        }
+
         let mut to_burn = Vec::new();
         {
             // Get all burning nodes
@@ -180,9 +184,9 @@ impl OSMFProblem {
     /// That is, execute the containment strategy, spread the fire and
     /// check whether the game is finished.
     pub fn exec_step(&mut self) {
-        //self.contain_fire();
-
         self.global_time += 1;
+
+        //self.contain_fire();
         self.spread_fire();
     }
 }
