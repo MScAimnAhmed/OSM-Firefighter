@@ -244,8 +244,9 @@ mod test {
         assert_eq!(problem.change_tracker.len(), (problem.global_time+1) as usize);
 
         let graph_ = graph.read().unwrap();
-        let mut targets = Vec::with_capacity(graph_.offsets[root+1] - graph_.offsets[root]);
-        let mut weights = HashMap::with_capacity(graph_.offsets[root+1] - graph_.offsets[root]);
+        let mut targets = Vec::with_capacity(graph_.get_out_degree(root));
+        let mut weights =
+            HashMap::with_capacity(graph_.get_out_degree(root));
         for i in graph_.offsets[root]..graph_.offsets[root+1] {
             let edge = &graph_.edges[i];
             targets.push(edge.tgt);
@@ -258,7 +259,8 @@ mod test {
         let root_nd = problem.node_data.get(&root).unwrap();
         for tgt in targets {
             match problem.node_data.get(&tgt) {
-                Some(nd) => assert!(nd.is_burning() && problem.global_time >= root_nd.time + *weights.get(&tgt).unwrap()),
+                Some(nd) => assert!(nd.is_burning()
+                    && problem.global_time >= root_nd.time + *weights.get(&tgt).unwrap()),
                 None => assert!(problem.global_time < root_nd.time + *weights.get(&tgt).unwrap())
             }
         }
