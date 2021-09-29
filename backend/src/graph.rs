@@ -18,6 +18,7 @@ pub struct Node {
 pub struct Edge {
     pub src: usize,
     pub tgt: usize,
+    pub weight: u64,
 }
 
 /// A directed graph with nodes, edges and node offsets
@@ -112,6 +113,10 @@ impl Graph {
                     .parse()?,
                 tgt: split.next()
                     .expect(&format!("Unexpected EOL while parsing edge target in line {}",
+                                     line_no))
+                    .parse()?,
+                weight: split.next()
+                    .expect(&format!("Unexpected EOL while parsing edge weight in line {}",
                                      line_no))
                     .parse()?,
             };
