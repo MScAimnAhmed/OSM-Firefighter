@@ -140,8 +140,8 @@ impl OSMFProblem {
 
         let mut to_burn = Vec::new();
         {
-            // Get all burning nodes
-            let burning: Vec<_> = self.node_data.values()
+            // Get all nodes that got burned in the last step
+            let last_burning: Vec<_> = self.node_data.values()
                 .filter(|&nd| nd.is_burning() && nd.time == self.global_time - 1)
                 .collect();
 
@@ -149,8 +149,8 @@ impl OSMFProblem {
             let offsets = &graph.offsets;
             let edges = &graph.edges;
 
-            // Add all undefended nodes that are not already burning to `to_burn`
-            for node_data in burning {
+            // Add all undefended neighbours that are not already burning to `to_burn`
+            for node_data in last_burning {
                 let node_id = node_data.node_id;
                 for i in offsets[node_id]..offsets[node_id + 1] {
                     let edge = &edges[i];
