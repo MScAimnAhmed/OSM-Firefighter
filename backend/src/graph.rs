@@ -141,6 +141,11 @@ impl Graph {
         }
         graph
     }
+
+    /// Get the number of outgoing edges of the node with id `node_id`
+    pub fn get_out_degree(&self, node_id: usize) -> usize {
+        self.offsets[node_id+1] - self.offsets[node_id]
+    }
 }
 
 #[derive(Debug)]

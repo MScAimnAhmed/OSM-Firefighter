@@ -142,7 +142,7 @@ impl OSMFProblem {
         {
             // Get all burning nodes
             let burning: Vec<_> = self.node_data.values()
-                .filter(|&nd| nd.is_burning())
+                .filter(|&nd| nd.is_burning() && nd.time == self.global_time - 1)
                 .collect();
 
             let graph = self.graph.read().unwrap();
