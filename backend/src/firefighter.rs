@@ -149,7 +149,8 @@ impl OSMFProblem {
             let offsets = &graph.offsets;
             let edges = &graph.edges;
 
-            // Add all undefended nodes that are not already burning to `to_burn`
+            // For all undefended neighbours that are not already burning, check whether they have
+            // to be added to `to_burn`
             self.is_active = false;
             for node_data in burning {
                 let node_id = node_data.node_id;
