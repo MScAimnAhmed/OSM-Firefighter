@@ -145,6 +145,9 @@ async fn send_graph(data: web::Data<AppData>, req: HttpRequest) -> impl Responde
     res.json(&*graph)
 }
 
+/// Simulate a new firefighter problem instance
+///
+/// TODO send settings in query and parse them in this function
 #[post("/simulate")]
 async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
     let mut res = init_response(&data, &req, HttpResponse::Created());
@@ -164,7 +167,6 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> impl Re
 
     let mut problem_ = problem.write().unwrap();
     problem_.simulate();
-
     res.json(&problem_.node_data)
 }
 
