@@ -47,6 +47,7 @@ impl NodeData {
     }
 }
 
+/// Strategy to contain the fire in the firefighter problem
 #[derive(Debug)]
 pub enum OSMFStrategy {
     Greedy,
