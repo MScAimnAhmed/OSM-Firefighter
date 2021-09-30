@@ -4,6 +4,7 @@ use std::{collections::HashMap,
 
 use log;
 use rand::prelude::*;
+use serde::Serialize;
 
 use crate::graph::Graph;
 
@@ -11,14 +12,14 @@ use crate::graph::Graph;
 type TimeUnit = u64;
 
 /// State of a node in the firefighter problem
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum NodeState {
     Burning,
     Defended,
 }
 
 /// Node data related to the firefighter problem
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct NodeData {
     node_id: usize,
     state: NodeState,
@@ -46,11 +47,37 @@ impl NodeData {
     }
 }
 
+#[derive(Debug)]
+pub enum OSMFStrategy {
+    Greedy,
+    ShortestDistance,
+}
+
+/// Settings for a firefighter problem instance
+#[derive(Debug)]
+pub struct OSMFSettings {
+    num_roots: usize,
+    num_firefighters: usize,
+    strategy: OSMFStrategy,
+}
+
+impl OSMFSettings {
+    /// Create new settings for a firefighter problem instance
+    pub fn new(num_roots: usize, num_firefighters: usize, strategy: OSMFStrategy) -> Self {
+        Self {
+            num_roots,
+            num_firefighters,
+            strategy,
+        }
+    }
+}
+
 /// A firefighter problem instance
 #[derive(Debug)]
 pub struct OSMFProblem {
     graph: Arc<RwLock<Graph>>,
-    node_data: HashMap<usize, NodeData>,
+    settings: OSMFSettings,
+    pub node_data: HashMap<usize, NodeData>,
     global_time: TimeUnit,
     change_tracker: HashMap<TimeUnit, Vec<usize>>,
     pub is_active: bool,
@@ -58,20 +85,21 @@ pub struct OSMFProblem {
 
 impl OSMFProblem {
     /// Create a new firefighter problem instance
-    pub fn new(graph: Arc<RwLock<Graph>>, num_roots: usize) -> Self {
+    pub fn new(graph: Arc<RwLock<Graph>>, settings: OSMFSettings) -> Self {
         let num_nodes = graph.read().unwrap().num_nodes;
-        if num_roots > num_nodes {
+        if settings.num_roots > num_nodes {
             panic!("Number of fire roots must not be greater than {}", num_nodes);
         }
 
         let mut problem = Self {
             graph,
+            settings,
             node_data: HashMap::new(),
             global_time: 0,
             change_tracker: HashMap::new(),
             is_active: true,
         };
-        problem.gen_fire_roots(num_roots, num_nodes);
+        problem.gen_fire_roots();
 
         log::debug!("Created new firefighter problem {:#?}", problem);
 
@@ -79,16 +107,17 @@ impl OSMFProblem {
     }
 
     /// Generate `num_roots` fire roots
-    fn gen_fire_roots(&mut self, num_roots: usize, num_nodes: usize) {
+    fn gen_fire_roots(&mut self) {
         let mut rng = thread_rng();
-        let mut roots = Vec::with_capacity(num_roots);
-        while roots.len() < num_roots {
+        let mut roots = Vec::with_capacity(self.settings.num_roots);
+        let num_nodes = self.graph.read().unwrap().num_nodes;
+        while roots.len() < self.settings.num_roots {
             let root = rng.gen_range(0..num_nodes);
             if !self.is_node_data_attached(&root) {
                 self.attach_node_data(root, NodeState::Burning);
                 roots.push(root);
 
-                log::trace!("Set vertex {} as fire root", root);
+                log::debug!("Set vertex {} as fire root", root);
             }
         }
         self.track_changes(roots);
@@ -175,7 +204,7 @@ impl OSMFProblem {
         for node_id in &to_burn {
             self.attach_node_data(*node_id, NodeState::Burning);
 
-            log::trace!("Node {} caught fire", node_id);
+            log::debug!("Node {} caught fire", node_id);
         }
         self.track_changes(to_burn);
     }
@@ -189,11 +218,18 @@ impl OSMFProblem {
     /// Execute one time step in the firefighter problem.
     /// That is, execute the containment strategy, spread the fire and
     /// check whether the game is finished.
-    pub fn exec_step(&mut self) {
+    fn exec_step(&mut self) {
         self.global_time += 1;
 
         //self.contain_fire();
         self.spread_fire();
+    }
+
+    /// Simulate the firefighter problem until the `is_active` flag is set to `false`
+    pub fn simulate(&mut self) {
+        while self.is_active {
+            self.exec_step();
+        }
     }
 }
 
@@ -217,7 +253,7 @@ mod test {
     use std::{collections::HashMap,
               sync::{Arc, RwLock}};
 
-    use crate::firefighter::OSMFProblem;
+    use crate::firefighter::{OSMFProblem, OSMFStrategy, OSMFSettings};
     use crate::graph::Graph;
 
     #[test]
@@ -225,10 +261,12 @@ mod test {
         let graph = Arc::new(RwLock::new(
             Graph::from_file("resources/toy.fmi")));
         let num_roots = 1;
-        let mut problem = OSMFProblem::new(graph.clone(), num_roots);
+        let mut problem = OSMFProblem::new(
+            graph.clone(),
+            OSMFSettings::new(1, 1, OSMFStrategy::Greedy));
 
         assert_eq!(problem.node_data.len(), num_roots);
-        assert_eq!(problem.change_tracker.len(), (problem.global_time+1) as usize);
+        assert_eq!(problem.change_tracker.len(), (problem.global_time + 1) as usize);
         assert_eq!(problem.change_tracker.get(&problem.global_time).unwrap().len(), num_roots);
 
         let root;
@@ -241,13 +279,13 @@ mod test {
 
         problem.exec_step();
 
-        assert_eq!(problem.change_tracker.len(), (problem.global_time+1) as usize);
+        assert_eq!(problem.change_tracker.len(), (problem.global_time + 1) as usize);
 
         let graph_ = graph.read().unwrap();
         let mut targets = Vec::with_capacity(graph_.get_out_degree(root));
         let mut weights =
             HashMap::with_capacity(graph_.get_out_degree(root));
-        for i in graph_.offsets[root]..graph_.offsets[root+1] {
+        for i in graph_.offsets[root]..graph_.offsets[root + 1] {
             let edge = &graph_.edges[i];
             targets.push(edge.tgt);
             weights.insert(edge.tgt, edge.weight);

@@ -7,20 +7,19 @@ use nanoid;
 use transient_hashmap::TransientHashMap;
 
 use crate::firefighter::OSMFProblem;
-use crate::graph::Graph;
 
 /// Container for OSM-Firefighter session data
 pub struct OSMFSession {
     pub id: String,
-    problem: OSMFProblem,
+    problem: Option<Arc<RwLock<OSMFProblem>>>,
 }
 
 impl OSMFSession {
     /// Create a new `OSMFSession`
-    fn new(id: String, graph: Arc<RwLock<Graph>>) -> Self {
+    fn new(id: String) -> Self {
         Self {
             id,
-            problem: OSMFProblem::new(graph, 1),
+            problem: None,
         }
     }
 
@@ -30,6 +29,11 @@ impl OSMFSession {
             .secure(false)
             .same_site(SameSite::Strict)
             .finish()
+    }
+
+    /// Attach a firefighter problem instance to this `OSMFSession`
+    pub fn attach_problem(&mut self, problem: Arc<RwLock<OSMFProblem>>) {
+        self.problem = Some(problem);
     }
 }
 
@@ -60,22 +64,22 @@ impl OSMFSessionStorage {
     }
 
     /// Open a new `OSMFSession`
-    pub fn open_session(&mut self, graph: Arc<RwLock<Graph>>) -> Cookie {
+    pub fn open_session(&mut self) -> Cookie {
         self.prune_sessions();
-        let session = OSMFSession::new(nanoid::nanoid!(), graph);
+        let session = OSMFSession::new(nanoid::nanoid!());
         let cookie = session.build_cookie();
         self.sessions.insert(session.id.clone(), session);
         cookie
     }
 
     /// Refresh the `OSMFSession` with session id `id`
-    pub fn refresh_session(&mut self, id: &str, graph: Arc<RwLock<Graph>>) -> Option<Cookie> {
+    pub fn refresh_session(&mut self, id: &str) -> Option<Cookie> {
         self.prune_sessions();
         let string_id = &id.to_string();
         if self.sessions.contains_key(string_id) {
             None
         } else {
-            Some(self.open_session(graph))
+            Some(self.open_session())
         }
     }
 

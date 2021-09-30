@@ -2,7 +2,7 @@ use std::{env,
           fs,
           sync::{Mutex, RwLock, Arc}};
 
-use actix_web::{get, HttpServer, App, HttpRequest, HttpResponse, Responder, HttpMessage,
+use actix_web::{get, post, HttpServer, App, HttpRequest, HttpResponse, Responder, HttpMessage,
                 dev::HttpResponseBuilder,
                 error::ResponseError,
                 http::StatusCode,
@@ -19,6 +19,7 @@ mod firefighter;
 
 use crate::graph::Graph;
 use crate::session::OSMFSessionStorage;
+use crate::firefighter::{OSMFSettings, OSMFStrategy, OSMFProblem};
 
 /// Storage for data associated to the web app
 struct AppData {
@@ -81,10 +82,9 @@ impl ResponseError for OSMFError {
 /// This function must be called before retrieving session data.
 fn init_response(data: &web::Data<AppData>, req: &HttpRequest, mut res: HttpResponseBuilder) -> HttpResponseBuilder {
     let mut sessions = data.sessions.lock().unwrap();
-    let graph = data.graph.clone();
     let new_cookie = match req.cookie("sid") {
-        Some(cookie) => sessions.refresh_session(cookie.value(), graph),
-        None => Some(sessions.open_session(graph))
+        Some(cookie) => sessions.refresh_session(cookie.value()),
+        None => Some(sessions.open_session())
     };
     match new_cookie {
         Some(cookie) => {
@@ -145,10 +145,33 @@ async fn send_graph(data: web::Data<AppData>, req: HttpRequest) -> impl Responde
     res.json(&*graph)
 }
 
+#[post("/simulate")]
+async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
+    let mut res = init_response(&data, &req, HttpResponse::Created());
+
+    let graph = data.graph.clone();
+    let settings = OSMFSettings::new(1, 1, OSMFStrategy::Greedy);
+    let problem = Arc::new(
+        RwLock::new(OSMFProblem::new(graph, settings)));
+
+    {
+        let mut sessions = data.sessions.lock().unwrap();
+        let session = sessions.get_mut_session(
+            req.cookie("sid").unwrap().value())
+            .unwrap();
+        session.attach_problem(problem.clone());
+    }
+
+    let mut problem_ = problem.write().unwrap();
+    problem_.simulate();
+
+    res.json(&problem_.node_data)
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     // Initialize logger
-    env::set_var("RUST_LOG", "trace");
+    env::set_var("RUST_LOG", "debug");
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
@@ -172,6 +195,7 @@ async fn main() -> std::io::Result<()> {
             .service(ping)
             .service(list_graphs)
             .service(send_graph)
+            .service(simulate_problem)
     });
     server.bind("0.0.0.0:8080")?
         .run()
