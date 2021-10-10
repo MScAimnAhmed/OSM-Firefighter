@@ -6,19 +6,29 @@ import { HeaderComponent } from './header/header.component';
 import {MatListModule} from "@angular/material/list";
 import {MatButtonModule} from "@angular/material/button";
 import {MatIconModule} from "@angular/material/icon";
-import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { SimulationConfiguratorComponent } from './simulation-configurator/simulation-configurator.component';
+import {MatDialogModule} from "@angular/material/dialog";
+import {MatSelectModule} from "@angular/material/select";
+import {MatOptionModule} from "@angular/material/core";
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import {MatInputModule} from "@angular/material/input";
 
 @NgModule({
   declarations: [
     AppComponent,
-    HeaderComponent
+    HeaderComponent,
+    SimulationConfiguratorComponent
   ],
   imports: [
     BrowserModule,
     MatListModule,
     MatButtonModule,
     MatIconModule,
-    NoopAnimationsModule
+    MatDialogModule,
+    MatSelectModule,
+    MatInputModule,
+    MatOptionModule,
+    BrowserAnimationsModule
   ],
   providers: [],
   bootstrap: [AppComponent]

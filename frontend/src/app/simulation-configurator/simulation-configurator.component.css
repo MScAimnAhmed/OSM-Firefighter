@@ -1,0 +1,26 @@
+button {
+  margin: auto;
+  font-size: 17px;
+}
+
+mat-divider {
+  margin-bottom: 15px;
+}
+
+.config-topic {
+  width: 40%;
+}
+
+form {
+  font-size: 15px;
+}
+
+mat-form-field {
+  margin-right: 10px;
+}
+
+.button-wrapper {
+  width: 100%;
+  text-align: center;
+  display: flex;
+}

@@ -1,0 +1,60 @@
+<h3>Start Simulation</h3>
+<form>
+  <mat-divider></mat-divider>
+
+  <mat-form-field appearance="fill">
+    <mat-label>Select a Graph</mat-label>
+    <mat-select>
+      <mat-option *ngFor="let graph of graphOptions" [value]="graph">
+        {{graph}}
+      </mat-option>
+    </mat-select>
+  </mat-form-field>
+
+  <mat-divider></mat-divider>
+
+  <table>
+    <tr>
+      <td>
+          <h4>Configure the Fire</h4>
+          <mat-form-field appearance="fill">
+            <mat-label>Fire sources</mat-label>
+            <input matInput type="number" value="1">
+          </mat-form-field>
+          <mat-form-field appearance="fill">
+            <mat-label>Turns between fire spread</mat-label>
+            <input matInput type="number" value="1">
+          </mat-form-field>
+          <mat-form-field appearance="fill">
+            <mat-label>Spawn fire at Turn</mat-label>
+            <input matInput type="number" value="0">
+          </mat-form-field>
+      </td>
+      <td>
+          <h4>Configure the Firefighters</h4>
+          <mat-form-field appearance="fill">
+            <mat-label>Start placing firefigthers at Turn</mat-label>
+            <input matInput type="number" value="1">
+          </mat-form-field>
+          <mat-form-field appearance="fill">
+            <mat-label>Available Firefighters</mat-label>
+            <input matInput type="number" value="1">
+          </mat-form-field>
+          <mat-form-field appearance="fill">
+            <mat-label>Strategy</mat-label>
+            <mat-select>
+              <mat-option *ngFor="let strat of strategyOptions" [value]="strat">
+                {{strat}}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+      </td>
+    </tr>
+  </table>
+  <mat-divider></mat-divider>
+</form>
+
+<div class="button-wrapper">
+  <button mat-raised-button (click)="cancel()">Cancel</button>
+  <button mat-raised-button color="primary">Confirm</button>
+</div>
