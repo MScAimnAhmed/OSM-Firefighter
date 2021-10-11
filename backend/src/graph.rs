@@ -236,6 +236,41 @@ impl Graph {
     pub fn get_out_degree(&self, node_id: usize) -> usize {
         self.offsets[node_id + 1] - self.offsets[node_id]
     }
+
+    /// Get the shortest distance between the node with id `src_id` and the node
+    /// with id `tgt_id`.
+    pub fn get_shortest_dist(&self, src_id: usize, tgt_id: usize) -> usize {
+        let src = &self.nodes[src_id];
+        let tgt = &self.nodes[tgt_id];
+
+        let mut ind_s = 0;
+        let mut ind_t = 0;
+        let sz_s = src.fwd_hubs.len();
+        let sz_t = tgt.bwd_hubs.len();
+
+        let mut best_dist = usize::MAX;
+
+        while (ind_s < sz_s) && (ind_t < sz_t) {
+            let src_hub = &src.fwd_hubs[ind_s];
+            let tgt_hub = &tgt.bwd_hubs[ind_t];
+
+            let order = src_hub.hub_id as isize - tgt_hub.hub_id as isize;
+            if order == 0 {
+                let hub_dist = src_hub.dist + tgt_hub.dist;
+                if best_dist > hub_dist {
+                    best_dist = hub_dist;
+                }
+                ind_s += 1;
+                ind_t += 1;
+            } else if order < 0 {
+                ind_s += 1;
+            } else {
+                ind_t += 1;
+            }
+        }
+
+        best_dist
+    }
 }
 
 #[derive(Debug)]
@@ -307,5 +342,19 @@ mod test {
             .filter(|&e| e.src == 70)
             .collect();
         assert_eq!(edges_with_src_70.len(), 9);
+
+        assert_eq!(graph.nodes[70].bwd_hubs.len(), 6);
+        assert_eq!(graph.nodes[70].fwd_hubs.len(), 3);
+
+        for node in &graph.nodes {
+            if !node.bwd_hubs.is_empty() {
+                assert!(node.bwd_hubs[0].hub_id <= node.bwd_hubs[node.bwd_hubs.len()-1].hub_id);
+            }
+            if !node.fwd_hubs.is_empty() {
+                assert!(node.fwd_hubs[0].hub_id <= node.fwd_hubs[node.fwd_hubs.len()-1].hub_id);
+            }
+        }
+
+        assert_eq!(graph.get_shortest_dist(1, 321), 822);
     }
 }
