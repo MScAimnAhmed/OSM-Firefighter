@@ -15,7 +15,7 @@ enum HubDirection {
 /// Hub label for a node
 #[derive(Debug, Serialize)]
 struct HubLabel {
-    pub hub_id: usize,
+    hub_id: usize,
     dist: usize,
     dir: HubDirection,
 }
@@ -23,7 +23,7 @@ struct HubLabel {
 /// A graph node with id, latitude and longitude
 #[derive(Debug, Serialize)]
 pub struct Node {
-    pub id: usize,
+    id: usize,
     lat: f64,
     lon: f64,
     bwd_hubs: Vec<HubLabel>,
@@ -62,13 +62,13 @@ impl Graph {
 
     /// Parse node and edge data from one file and hub labels from another file
     /// into a directed graph
-    fn parse_graph_with_hubs(&mut self, file_path: String) -> Result<(), ParseGraphError> {
+    fn parse_graph_with_hubs(&mut self, file_path: String) -> Result<(), ParseError> {
         self.parse_graph((file_path.clone() + ".fmi").as_str())?;
         self.parse_hubs((file_path + ".hub").as_str())
     }
 
     /// Parse node and edge data from a file into a directed graph
-    fn parse_graph(&mut self, graph_file_path: &str) -> Result<(), ParseGraphError> {
+    fn parse_graph(&mut self, graph_file_path: &str) -> Result<(), ParseError> {
         let graph_file = File::open(graph_file_path)?;
         let graph_reader = BufReader::new(graph_file);
 
@@ -159,7 +159,7 @@ impl Graph {
     }
 
     /// Parse hub labels from a file and add them to their respective nodes
-    fn parse_hubs(&mut self, hub_file_path: &str) -> Result<(), ParseGraphError> {
+    fn parse_hubs(&mut self, hub_file_path: &str) -> Result<(), ParseError> {
         let hub_file = File::open(hub_file_path)?;
         let hub_reader = BufReader::new(hub_file);
 
@@ -187,7 +187,7 @@ impl Graph {
     }
 
     /// Parse a single hub label and add it to its respective node
-    fn parse_hub(&mut self, lines: &mut Lines<BufReader<File>>, line_no: usize, direction: HubDirection) -> Result<(), ParseGraphError> {
+    fn parse_hub(&mut self, lines: &mut Lines<BufReader<File>>, line_no: usize, direction: HubDirection) -> Result<(), ParseError> {
         let line = lines.next()
             .expect(&format!("Unexpected EOF while parsing hub label in line {}", line_no))?;
         let mut split = line.split(" ");
@@ -217,7 +217,7 @@ impl Graph {
                 }
                 Ok(())
             },
-            None => Err(ParseGraphError::InvalidNodeId(node_id))
+            None => Err(ParseError::InvalidNode(node_id))
         }
     }
 
@@ -237,9 +237,9 @@ impl Graph {
         self.offsets[node_id + 1] - self.offsets[node_id]
     }
 
-    /// Get the shortest distance between the node with id `src_id` and the node
-    /// with id `tgt_id`.
-    pub fn get_shortest_dist(&self, src_id: usize, tgt_id: usize) -> usize {
+    /// Get the shortest distance between the node with id `src_id` and the node with id `tgt_id`.
+    /// Returns error if no path exists.
+    pub fn get_shortest_dist(&self, src_id: usize, tgt_id: usize) -> Result<usize, CalculationError> {
         let src = &self.nodes[src_id];
         let tgt = &self.nodes[tgt_id];
 
@@ -269,55 +269,73 @@ impl Graph {
             }
         }
 
-        best_dist
+        if best_dist < usize::MAX {
+            Ok(best_dist)
+        } else {
+            Err(CalculationError::NoPath(src_id, tgt_id))
+        }
     }
 }
 
 #[derive(Debug)]
-enum ParseGraphError {
+enum ParseError {
     IO(std::io::Error),
     ParseInt(ParseIntError),
     ParseFloat(ParseFloatError),
-    InvalidNodeId(usize),
+    InvalidNode(usize),
 }
 
-impl std::fmt::Display for ParseGraphError {
+impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::IO(err) => write!(f, "{}", err.to_string()),
             Self::ParseInt(err) => write!(f, "{}", err.to_string()),
             Self::ParseFloat(err) => write!(f, "{}", err.to_string()),
-            Self::InvalidNodeId(node_id) => write!(f, "Invalid node id {}", node_id)
+            Self::InvalidNode(node_id) => write!(f, "Invalid node {}", node_id)
         }
     }
 }
 
-impl std::error::Error for ParseGraphError {
+impl std::error::Error for ParseError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match *self {
             Self::IO(ref err) => Some(err),
             Self::ParseInt(ref err) => Some(err),
             Self::ParseFloat(ref err) => Some(err),
-            Self::InvalidNodeId(..) => None,
+           _ => None
         }
     }
 }
 
-impl From<std::io::Error> for ParseGraphError {
+impl From<std::io::Error> for ParseError {
     fn from(err: std::io::Error) -> Self {
         Self::IO(err)
     }
 }
 
-impl From<ParseIntError> for ParseGraphError {
+impl From<ParseIntError> for ParseError {
     fn from(err: ParseIntError) -> Self {
         Self::ParseInt(err)
     }
 }
 
-impl From<ParseFloatError> for ParseGraphError {
+impl From<ParseFloatError> for ParseError {
     fn from(err: ParseFloatError) -> Self {
         Self::ParseFloat(err)
+    }
+}
+
+#[derive(Debug)]
+pub enum CalculationError {
+    NoPath(usize, usize),
+}
+
+impl std::fmt::Display for CalculationError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoPath(src_id, tgt_id) =>
+                write!(f, "No path between nodes {} and {}", src_id, tgt_id)
+        }
     }
 }
 
@@ -355,6 +373,6 @@ mod test {
             }
         }
 
-        assert_eq!(graph.get_shortest_dist(1, 321), 822);
+        assert_eq!(graph.get_shortest_dist(1, 321).unwrap(), 822);
     }
 }
