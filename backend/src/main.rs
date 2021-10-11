@@ -177,10 +177,17 @@ async fn main() -> std::io::Result<()> {
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
+    let args: Vec<_> = env::args().collect();
+
+    if args.len() < 1 {
+        let err = "Missing argument: path to graph file";
+        log::error!("{}", err);
+        panic!("{}", err);
+    }
+
     // Read in default graph
-    let default_graph_file = env::var("OSMF_DEFAULT_GRAPH")
-        .expect(&format!("Could not find environment variable 'OSMF_DEFAULT_GRAPH'"));
-    let default_graph = Graph::from_file(&default_graph_file);
+    let default_graph_file = &args[1];
+    let default_graph = Graph::from_files(&default_graph_file);
     log::info!("Read in default graph file {}", default_graph_file);
 
     // Initialize app data

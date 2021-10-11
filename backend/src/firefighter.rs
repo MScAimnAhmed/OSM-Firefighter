@@ -193,7 +193,7 @@ impl OSMFProblem {
                         }
                         // Burn the node if the global time exceeds the time at which the edge source
                         // started burning plus the edge weight
-                        if self.global_time >= node_data.time + edge.weight {
+                        if self.global_time >= node_data.time + edge.dist as u64 {
                             to_burn.push(edge.tgt);
                         }
                     }
@@ -260,7 +260,7 @@ mod test {
     #[test]
     fn test() {
         let graph = Arc::new(RwLock::new(
-            Graph::from_file("resources/toy.fmi")));
+            Graph::from_files("resources/bbgrund_ch")));
         let num_roots = 1;
         let mut problem = OSMFProblem::new(
             graph.clone(),
@@ -284,12 +284,12 @@ mod test {
 
         let graph_ = graph.read().unwrap();
         let mut targets = Vec::with_capacity(graph_.get_out_degree(root));
-        let mut weights =
+        let mut distances =
             HashMap::with_capacity(graph_.get_out_degree(root));
         for i in graph_.offsets[root]..graph_.offsets[root + 1] {
             let edge = &graph_.edges[i];
             targets.push(edge.tgt);
-            weights.insert(edge.tgt, edge.weight);
+            distances.insert(edge.tgt, edge.dist);
         }
 
         for node_id in problem.change_tracker.get(&problem.global_time).unwrap() {
@@ -300,8 +300,8 @@ mod test {
         for tgt in targets {
             match problem.node_data.get(&tgt) {
                 Some(nd) => assert!(nd.is_burning()
-                    && problem.global_time >= root_nd.time + *weights.get(&tgt).unwrap()),
-                None => assert!(problem.global_time < root_nd.time + *weights.get(&tgt).unwrap())
+                    && problem.global_time >= root_nd.time + *distances.get(&tgt).unwrap() as u64),
+                None => assert!(problem.global_time < root_nd.time + *distances.get(&tgt).unwrap() as u64)
             }
         }
     }
