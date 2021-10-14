@@ -260,7 +260,7 @@ mod test {
     #[test]
     fn test() {
         let graph = Arc::new(RwLock::new(
-            Graph::from_files("resources/bbgrund_ch")));
+            Graph::from_files("resources/bbgrund")));
         let num_roots = 1;
         let mut problem = OSMFProblem::new(
             graph.clone(),

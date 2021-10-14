@@ -22,7 +22,7 @@ struct HubLabel {
 
 /// A graph node with id, latitude and longitude
 #[derive(Debug, Serialize)]
-pub struct Node {
+struct Node {
     id: usize,
     lat: f64,
     lon: f64,
@@ -41,7 +41,7 @@ pub struct Edge {
 /// A directed graph with nodes, edges and node offsets
 #[derive(Debug, Serialize)]
 pub struct Graph {
-    pub nodes: Vec<Node>,
+    nodes: Vec<Node>,
     pub edges: Vec<Edge>,
     pub offsets: Vec<usize>,
     pub num_nodes: usize,
@@ -64,7 +64,7 @@ impl Graph {
     /// into a directed graph
     fn parse_graph_with_hubs(&mut self, file_path: String) -> Result<(), ParseError> {
         self.parse_graph((file_path.clone() + ".fmi").as_str())?;
-        self.parse_hubs((file_path + ".hub").as_str())
+        self.parse_hubs((file_path + ".ch.hub").as_str())
     }
 
     /// Parse node and edge data from a file into a directed graph
@@ -345,10 +345,10 @@ mod test {
 
     #[test]
     fn test_graph() {
-        let graph = Graph::from_files("resources/bbgrund_ch");
+        let graph = Graph::from_files("resources/bbgrund");
 
         assert_eq!(graph.nodes.len(), 350);
-        assert_eq!(graph.edges.len(), 1087);
+        assert_eq!(graph.edges.len(), 685);
 
         for i in 0..graph.nodes.len() {
             let node = graph.nodes.get(i).unwrap();
@@ -359,7 +359,7 @@ mod test {
         let edges_with_src_70: Vec<_> = graph.edges.iter()
             .filter(|&e| e.src == 70)
             .collect();
-        assert_eq!(edges_with_src_70.len(), 9);
+        assert_eq!(edges_with_src_70.len(), 3);
 
         assert_eq!(graph.nodes[70].bwd_hubs.len(), 6);
         assert_eq!(graph.nodes[70].fwd_hubs.len(), 3);
