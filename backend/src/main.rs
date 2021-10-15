@@ -80,25 +80,32 @@ impl ResponseError for OSMFError {
 
 /// Common function to initialize a `HttpResponseBuilder` for an incoming `HttpRequest`.
 /// This function must be called before retrieving session data.
-fn init_response(data: &web::Data<AppData>, req: &HttpRequest, mut res: HttpResponseBuilder) -> HttpResponseBuilder {
+fn init_response(data: &web::Data<AppData>, req: &HttpRequest, mut res: HttpResponseBuilder) -> (HttpResponseBuilder, String) {
     let mut sessions = data.sessions.lock().unwrap();
-    let new_cookie = match req.cookie("sid") {
-        Some(cookie) => sessions.refresh_session(cookie.value()),
-        None => Some(sessions.open_session())
-    };
-    match new_cookie {
-        Some(cookie) => {
-            res.cookie(cookie);
+    let sid = match req.cookie("sid") {
+        Some(cur_cookie) => {
+            if let Some(new_cookie) = sessions.refresh_session(cur_cookie.value()) {
+                let sid = new_cookie.value().to_string();
+                res.cookie(new_cookie);
+                sid
+            } else {
+                cur_cookie.value().to_string()
+            }
         }
-        None => ()
-    }
-    res
+        None => {
+            let new_cookie = sessions.open_session();
+            let sid = new_cookie.value().to_string();
+            res.cookie(new_cookie);
+            sid
+        }
+    };
+    (res, sid)
 }
 
 /// Request to check whether the server is up and available
 #[get("/ping")]
 async fn ping(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
-    let mut res = init_response(&data, &req, HttpResponse::Ok());
+    let mut res = init_response(&data, &req, HttpResponse::Ok()).0;
     res.content_type("text/plain; charset=utf-8")
         .body("pong")
 }
@@ -108,7 +115,7 @@ async fn ping(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
 async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
     match fs::read_dir("resources/") {
         Ok(paths) => {
-            let mut res = init_response(&data, &req, HttpResponse::Ok());
+            let mut res = init_response(&data, &req, HttpResponse::Ok()).0;
             let mut graphs = Vec::new();
             for path in paths {
                 let path = path.unwrap();
@@ -140,7 +147,7 @@ async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
 /// Send the currently loaded graph
 #[get("/graph")]
 async fn send_graph(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
-    let mut res = init_response(&data, &req, HttpResponse::Ok());
+    let mut res = init_response(&data, &req, HttpResponse::Ok()).0;
     let graph = data.graph.read().unwrap();
     res.json(&*graph)
 }
@@ -150,7 +157,9 @@ async fn send_graph(data: web::Data<AppData>, req: HttpRequest) -> impl Responde
 /// TODO send settings in query and parse them in this function
 #[post("/simulate")]
 async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
-    let mut res = init_response(&data, &req, HttpResponse::Created());
+    let res_sid = init_response(&data, &req, HttpResponse::Created());
+    let mut res = res_sid.0;
+    let sid = res_sid.1;
 
     let graph = data.graph.clone();
     let settings = OSMFSettings::new(1, 1, OSMFStrategy::Greedy);
@@ -159,9 +168,7 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> impl Re
 
     {
         let mut sessions = data.sessions.lock().unwrap();
-        let session = sessions.get_mut_session(
-            req.cookie("sid").unwrap().value())
-            .unwrap();
+        let session = sessions.get_mut_session(&sid).unwrap();
         session.attach_problem(problem.clone());
     }
 
@@ -179,7 +186,7 @@ async fn main() -> std::io::Result<()> {
 
     let args: Vec<_> = env::args().collect();
 
-    if args.len() < 1 {
+    if args.len() < 2 {
         let err = "Missing argument: path to graph file";
         log::error!("{}", err);
         panic!("{}", err);

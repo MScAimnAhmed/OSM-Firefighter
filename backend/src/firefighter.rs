@@ -78,10 +78,11 @@ impl OSMFSettings {
 pub struct OSMFProblem {
     graph: Arc<RwLock<Graph>>,
     settings: OSMFSettings,
+    sho_dists: HashMap<usize, usize>,
     pub node_data: HashMap<usize, NodeData>,
     global_time: TimeUnit,
     change_tracker: HashMap<TimeUnit, Vec<usize>>,
-    pub is_active: bool,
+    is_active: bool,
 }
 
 impl OSMFProblem {
@@ -95,14 +96,13 @@ impl OSMFProblem {
         let mut problem = Self {
             graph,
             settings,
+            sho_dists: HashMap::with_capacity(num_nodes),
             node_data: HashMap::new(),
             global_time: 0,
             change_tracker: HashMap::new(),
             is_active: true,
         };
         problem.gen_fire_roots();
-
-        log::debug!("Created new firefighter problem {:#?}", problem);
 
         problem
     }
@@ -119,6 +119,24 @@ impl OSMFProblem {
                 roots.push(root);
 
                 log::debug!("Set vertex {} as fire root", root);
+
+                // For every node, calculate the minimum shortest distance between the node and
+                // any fire root
+                let graph = self.graph.read().unwrap();
+                for node in &graph.nodes {
+                    match graph.get_shortest_dist(root, node.id) {
+                        Ok(new_dist) => {
+                            self.sho_dists.entry(node.id)
+                                .and_modify(|cur_dist| if new_dist < *cur_dist { *cur_dist = new_dist })
+                                .or_insert(new_dist);
+                        }
+                        Err(err) => {
+                            log::warn!("{}", err.to_string());
+                        }
+                    }
+                }
+
+                log::debug!("Calculated shortest distances to fire root {}", root);
             }
         }
         self.track_changes(roots);
@@ -254,6 +272,8 @@ mod test {
     use std::{collections::HashMap,
               sync::{Arc, RwLock}};
 
+    use rand::prelude::*;
+
     use crate::firefighter::{OSMFProblem, OSMFStrategy, OSMFSettings};
     use crate::graph::Graph;
 
@@ -261,47 +281,70 @@ mod test {
     fn test() {
         let graph = Arc::new(RwLock::new(
             Graph::from_files("resources/bbgrund")));
-        let num_roots = 1;
+        let num_roots = 10;
         let mut problem = OSMFProblem::new(
             graph.clone(),
-            OSMFSettings::new(1, 1, OSMFStrategy::Greedy));
+            OSMFSettings::new(num_roots, 2, OSMFStrategy::Greedy));
 
         assert_eq!(problem.node_data.len(), num_roots);
         assert_eq!(problem.change_tracker.len(), (problem.global_time + 1) as usize);
-        assert_eq!(problem.change_tracker.get(&problem.global_time).unwrap().len(), num_roots);
+        assert_eq!(problem.change_tracker[&problem.global_time].len(), num_roots);
 
-        let root;
+        let graph_ = graph.read().unwrap();
+        let num_nodes = graph_.num_nodes;
+
+        let roots: Vec<_>;
         {
-            let node_data: Vec<_> = problem.node_data.values().collect();
-            root = node_data.first().unwrap().node_id;
+            roots = problem.node_data.keys()
+                .into_iter()
+                .map(|k| *k)
+                .collect();
 
-            assert!(root < graph.read().unwrap().num_nodes);
+            for root in &roots {
+                assert!(*root < num_nodes);
+            }
         }
+
+        let mut rng = thread_rng();
+        let some_node = rng.gen_range(0..num_nodes);
+        let mut dists_from_roots = Vec::with_capacity(num_roots);
+        let max_dist = usize::MAX;
+        for root in &roots {
+            dists_from_roots.push(graph_.get_shortest_dist(*root, some_node)
+                .unwrap_or(max_dist));
+        }
+        let min_dist = dists_from_roots.iter().min().unwrap();
+
+        assert_eq!(*problem.sho_dists.get(&some_node).unwrap_or(&max_dist), *min_dist);
 
         problem.exec_step();
 
         assert_eq!(problem.change_tracker.len(), (problem.global_time + 1) as usize);
 
-        let graph_ = graph.read().unwrap();
-        let mut targets = Vec::with_capacity(graph_.get_out_degree(root));
-        let mut distances =
-            HashMap::with_capacity(graph_.get_out_degree(root));
-        for i in graph_.offsets[root]..graph_.offsets[root + 1] {
-            let edge = &graph_.edges[i];
-            targets.push(edge.tgt);
-            distances.insert(edge.tgt, edge.dist);
+        let mut targets = Vec::new();
+        let mut distances = HashMap::new();
+        for root in &roots {
+            let out_deg = graph_.get_out_degree(*root);
+            targets.reserve(out_deg);
+            distances.reserve(out_deg);
+            for i in graph_.offsets[*root]..graph_.offsets[*root + 1] {
+                let edge = &graph_.edges[i];
+                targets.push(edge.tgt);
+                distances.insert(edge.tgt, edge.dist);
+            }
         }
 
-        for node_id in problem.change_tracker.get(&problem.global_time).unwrap() {
+        for node_id in &problem.change_tracker[&problem.global_time] {
             assert!(targets.contains(node_id));
         }
 
-        let root_nd = problem.node_data.get(&root).unwrap();
-        for tgt in targets {
-            match problem.node_data.get(&tgt) {
-                Some(nd) => assert!(nd.is_burning()
-                    && problem.global_time >= root_nd.time + *distances.get(&tgt).unwrap() as u64),
-                None => assert!(problem.global_time < root_nd.time + *distances.get(&tgt).unwrap() as u64)
+        for root in &roots {
+            let root_nd = &problem.node_data[root];
+            for tgt in &targets {
+                match problem.node_data.get(tgt) {
+                    Some(nd) => assert!(nd.is_burning()),
+                    None => assert!(problem.global_time < root_nd.time + distances[tgt] as u64)
+                }
             }
         }
     }

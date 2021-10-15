@@ -22,8 +22,8 @@ struct HubLabel {
 
 /// A graph node with id, latitude and longitude
 #[derive(Debug, Serialize)]
-struct Node {
-    id: usize,
+pub struct Node {
+    pub id: usize,
     lat: f64,
     lon: f64,
     bwd_hubs: Vec<HubLabel>,
@@ -41,7 +41,7 @@ pub struct Edge {
 /// A directed graph with nodes, edges and node offsets
 #[derive(Debug, Serialize)]
 pub struct Graph {
-    nodes: Vec<Node>,
+    pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
     pub offsets: Vec<usize>,
     pub num_nodes: usize,
