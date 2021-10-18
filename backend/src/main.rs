@@ -1,25 +1,27 @@
 use std::{env,
           fs,
-          sync::{Mutex, RwLock, Arc}};
+          sync::{Arc, Mutex, RwLock}};
 
-use actix_web::{get, post, HttpServer, App, HttpRequest, HttpResponse, Responder, HttpMessage,
-                dev::HttpResponseBuilder,
-                error::ResponseError,
-                http::StatusCode,
+use actix_web::{App, dev::HttpResponseBuilder, error::ResponseError, get, http::StatusCode, HttpMessage, HttpRequest, HttpResponse,
+                HttpServer,
                 middleware::Logger,
+                post,
+                Responder,
                 web};
 use derive_more::{Display, Error};
 use log;
 use serde::Serialize;
 use serde_json::json;
 
+use crate::firefighter::{OSMFProblem, OSMFSettings};
+use crate::graph::Graph;
+use crate::session::OSMFSessionStorage;
+use crate::strategy::{ShoDistStrategy, Strategy, OSMFStrategy};
+
 mod graph;
 mod session;
 mod firefighter;
-
-use crate::graph::Graph;
-use crate::session::OSMFSessionStorage;
-use crate::firefighter::{OSMFSettings, OSMFStrategy, OSMFProblem};
+mod strategy;
 
 /// Storage for data associated to the web app
 struct AppData {
@@ -162,9 +164,9 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> impl Re
     let sid = res_sid.1;
 
     let graph = data.graph.clone();
-    let settings = OSMFSettings::new(1, 1, OSMFStrategy::Greedy);
-    let problem = Arc::new(
-        RwLock::new(OSMFProblem::new(graph, settings)));
+    let strategy = OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone()));
+    let problem = Arc::new(RwLock::new(
+        OSMFProblem::new(graph, OSMFSettings::new(10, 2), strategy)));
 
     {
         let mut sessions = data.sessions.lock().unwrap();
@@ -174,7 +176,7 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> impl Re
 
     let mut problem_ = problem.write().unwrap();
     problem_.simulate();
-    res.json(&problem_.node_data)
+    res.json(problem_.node_data.direct())
 }
 
 #[actix_web::main]

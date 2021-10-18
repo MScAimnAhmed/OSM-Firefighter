@@ -1,12 +1,13 @@
-use std::{collections::HashMap,
+use std::{collections::{HashMap, hash_map::RandomState},
           fmt::Formatter,
-          sync::{RwLock, Arc}};
+          sync::{Arc, RwLock}};
 
 use log;
 use rand::prelude::*;
 use serde::Serialize;
 
 use crate::graph::Graph;
+use crate::strategy::OSMFStrategy;
 
 /// `u64` type alias to denote a time unit in the firefighter problem
 type TimeUnit = u64;
@@ -47,29 +48,61 @@ impl NodeData {
     }
 }
 
-/// Strategy to contain the fire in the firefighter problem
-#[derive(Debug)]
-pub enum OSMFStrategy {
-    Greedy,
-    ShortestDistance,
-}
-
 /// Settings for a firefighter problem instance
 #[derive(Debug)]
 pub struct OSMFSettings {
     num_roots: usize,
     num_firefighters: usize,
-    strategy: OSMFStrategy,
 }
 
 impl OSMFSettings {
     /// Create new settings for a firefighter problem instance
-    pub fn new(num_roots: usize, num_firefighters: usize, strategy: OSMFStrategy) -> Self {
+    pub fn new(num_roots: usize, num_firefighters: usize) -> Self {
         Self {
             num_roots,
             num_firefighters,
-            strategy,
         }
+    }
+}
+
+/// Storage for node data
+#[derive(Debug)]
+pub struct NodeDataStorage {
+    storage: HashMap<usize, NodeData>,
+}
+
+impl NodeDataStorage {
+    /// Create a new node data storage
+    fn new() -> Self {
+        Self {
+            storage: HashMap::new(),
+        }
+    }
+
+    /// Is node data attached to node with id `node_id`?
+    pub fn is_node_data_attached(&self, node_id: &usize) -> bool {
+        self.storage.contains_key(node_id)
+    }
+
+    /// Attach new node data to the node with id `node_id`
+    pub fn attach_node_data(&mut self, node_id: usize, state: NodeState, time: TimeUnit) {
+        self.storage.insert(node_id, NodeData::new(node_id, state, time));
+    }
+
+    /// Try to attach new node data to the node with id `node_id`.
+    /// Return an error if node data is already attached to the node.
+    pub fn try_attach_node_data(&mut self, node_id: usize, state: NodeState, time: TimeUnit) -> Result<(), OSMFProblemError> {
+        if !self.is_node_data_attached(&node_id) {
+            self.attach_node_data(node_id, state, time);
+            Ok(())
+        } else {
+            Err(OSMFProblemError::NodeDataAlreadyAttached)
+        }
+    }
+
+    /// Get direct access to the underlying `HashMap`
+    pub fn direct(&self) -> &HashMap<usize, NodeData, RandomState> {
+        &self.storage
     }
 }
 
@@ -78,8 +111,8 @@ impl OSMFSettings {
 pub struct OSMFProblem {
     graph: Arc<RwLock<Graph>>,
     settings: OSMFSettings,
-    sho_dists: HashMap<usize, usize>,
-    pub node_data: HashMap<usize, NodeData>,
+    strategy: OSMFStrategy,
+    pub node_data: NodeDataStorage,
     global_time: TimeUnit,
     change_tracker: HashMap<TimeUnit, Vec<usize>>,
     is_active: bool,
@@ -87,7 +120,7 @@ pub struct OSMFProblem {
 
 impl OSMFProblem {
     /// Create a new firefighter problem instance
-    pub fn new(graph: Arc<RwLock<Graph>>, settings: OSMFSettings) -> Self {
+    pub fn new(graph: Arc<RwLock<Graph>>, settings: OSMFSettings, strategy: OSMFStrategy) -> Self {
         let num_nodes = graph.read().unwrap().num_nodes;
         if settings.num_roots > num_nodes {
             panic!("Number of fire roots must not be greater than {}", num_nodes);
@@ -96,13 +129,19 @@ impl OSMFProblem {
         let mut problem = Self {
             graph,
             settings,
-            sho_dists: HashMap::with_capacity(num_nodes),
-            node_data: HashMap::new(),
+            strategy,
+            node_data: NodeDataStorage::new(),
             global_time: 0,
             change_tracker: HashMap::new(),
             is_active: true,
         };
+
         problem.gen_fire_roots();
+
+        if let OSMFStrategy::ShortestDistance(ref mut sho_dist_strategy) = problem.strategy {
+            let roots = problem.change_tracker.get(&0).unwrap();
+            sho_dist_strategy.compute_shortest_dists(roots);
+        }
 
         problem
     }
@@ -114,29 +153,11 @@ impl OSMFProblem {
         let num_nodes = self.graph.read().unwrap().num_nodes;
         while roots.len() < self.settings.num_roots {
             let root = rng.gen_range(0..num_nodes);
-            if !self.is_node_data_attached(&root) {
-                self.attach_node_data(root, NodeState::Burning);
+            if !self.node_data.is_node_data_attached(&root) {
+                self.node_data.attach_node_data(root, NodeState::Burning, self.global_time);
                 roots.push(root);
 
                 log::debug!("Set vertex {} as fire root", root);
-
-                // For every node, calculate the minimum shortest distance between the node and
-                // any fire root
-                let graph = self.graph.read().unwrap();
-                for node in &graph.nodes {
-                    match graph.get_shortest_dist(root, node.id) {
-                        Ok(new_dist) => {
-                            self.sho_dists.entry(node.id)
-                                .and_modify(|cur_dist| if new_dist < *cur_dist { *cur_dist = new_dist })
-                                .or_insert(new_dist);
-                        }
-                        Err(err) => {
-                            log::warn!("{}", err.to_string());
-                        }
-                    }
-                }
-
-                log::debug!("Calculated shortest distances to fire root {}", root);
             }
         }
         self.track_changes(roots);
@@ -158,27 +179,6 @@ impl OSMFProblem {
         }
     }
 
-    /// Is node data attached to node with id `node_id`?
-    fn is_node_data_attached(&self, node_id: &usize) -> bool {
-        self.node_data.contains_key(node_id)
-    }
-
-    /// Attach new node data to the node with id `node_id`
-    fn attach_node_data(&mut self, node_id: usize, state: NodeState) {
-        self.node_data.insert(node_id, NodeData::new(node_id, state, self.global_time));
-    }
-
-    /// Try to attach new node data to the node with id `node_id`.
-    /// Return an error if node data is already attached to the node.
-    pub fn try_attach_node_data(&mut self, node_id: usize, state: NodeState) -> Result<(), OSMFProblemError> {
-        if !self.is_node_data_attached(&node_id) {
-            self.attach_node_data(node_id, state);
-            Ok(())
-        } else {
-            Err(OSMFProblemError::NodeDataAlreadyAttached)
-        }
-    }
-
     /// Spread the fire to all nodes that are adjacent to burning nodes.
     /// Defended nodes will remain defended.
     fn spread_fire(&mut self) {
@@ -189,7 +189,7 @@ impl OSMFProblem {
         let mut to_burn = Vec::new();
         {
             // Get all burning nodes
-            let burning: Vec<_> = self.node_data.values()
+            let burning: Vec<_> = self.node_data.direct().values()
                 .filter(|&nd| nd.is_burning())
                 .collect();
 
@@ -204,7 +204,7 @@ impl OSMFProblem {
                 let node_id = node_data.node_id;
                 for i in offsets[node_id]..offsets[node_id + 1] {
                     let edge = &edges[i];
-                    if !self.is_node_data_attached(&edge.tgt) {
+                    if !self.node_data.is_node_data_attached(&edge.tgt) {
                         // There is at least one node to be burned at some point in the future
                         if !self.is_active {
                             self.is_active = true;
@@ -221,7 +221,7 @@ impl OSMFProblem {
 
         // Burn all nodes in `to_burn`
         for node_id in &to_burn {
-            self.attach_node_data(*node_id, NodeState::Burning);
+            self.node_data.attach_node_data(*node_id, NodeState::Burning, self.global_time);
 
             log::debug!("Node {} caught fire", node_id);
         }
@@ -274,19 +274,20 @@ mod test {
 
     use rand::prelude::*;
 
-    use crate::firefighter::{OSMFProblem, OSMFStrategy, OSMFSettings};
+    use crate::firefighter::{OSMFProblem, OSMFSettings};
     use crate::graph::Graph;
+    use crate::strategy::{OSMFStrategy, ShoDistStrategy, Strategy};
 
     #[test]
     fn test() {
         let graph = Arc::new(RwLock::new(
             Graph::from_files("resources/bbgrund")));
         let num_roots = 10;
+        let strategy = OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone()));
         let mut problem = OSMFProblem::new(
-            graph.clone(),
-            OSMFSettings::new(num_roots, 2, OSMFStrategy::Greedy));
+            graph.clone(), OSMFSettings::new(num_roots, 2), strategy);
 
-        assert_eq!(problem.node_data.len(), num_roots);
+        assert_eq!(problem.node_data.direct().len(), num_roots);
         assert_eq!(problem.change_tracker.len(), (problem.global_time + 1) as usize);
         assert_eq!(problem.change_tracker[&problem.global_time].len(), num_roots);
 
@@ -295,7 +296,7 @@ mod test {
 
         let roots: Vec<_>;
         {
-            roots = problem.node_data.keys()
+            roots = problem.node_data.direct().keys()
                 .into_iter()
                 .map(|k| *k)
                 .collect();
@@ -315,7 +316,9 @@ mod test {
         }
         let min_dist = dists_from_roots.iter().min().unwrap();
 
-        assert_eq!(*problem.sho_dists.get(&some_node).unwrap_or(&max_dist), *min_dist);
+        if let OSMFStrategy::ShortestDistance(sho_dist_strategy) = &problem.strategy {
+            assert_eq!(*sho_dist_strategy.sho_dists.get(&some_node).unwrap_or(&max_dist), *min_dist);
+        }
 
         problem.exec_step();
 
@@ -339,9 +342,9 @@ mod test {
         }
 
         for root in &roots {
-            let root_nd = &problem.node_data[root];
+            let root_nd = problem.node_data.direct().get(root).unwrap();
             for tgt in &targets {
-                match problem.node_data.get(tgt) {
+                match problem.node_data.direct().get(tgt) {
                     Some(nd) => assert!(nd.is_burning()),
                     None => assert!(problem.global_time < root_nd.time + distances[tgt] as u64)
                 }

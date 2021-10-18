@@ -239,7 +239,7 @@ impl Graph {
 
     /// Get the shortest distance between the node with id `src_id` and the node with id `tgt_id`.
     /// Returns error if no path exists.
-    pub fn get_shortest_dist(&self, src_id: usize, tgt_id: usize) -> Result<usize, CalculationError> {
+    pub fn get_shortest_dist(&self, src_id: usize, tgt_id: usize) -> Result<usize, ComputationError> {
         let src = &self.nodes[src_id];
         let tgt = &self.nodes[tgt_id];
 
@@ -272,7 +272,7 @@ impl Graph {
         if best_dist < usize::MAX {
             Ok(best_dist)
         } else {
-            Err(CalculationError::NoPath(src_id, tgt_id))
+            Err(ComputationError::NoPath(src_id, tgt_id))
         }
     }
 }
@@ -326,11 +326,11 @@ impl From<ParseFloatError> for ParseError {
 }
 
 #[derive(Debug)]
-pub enum CalculationError {
+pub enum ComputationError {
     NoPath(usize, usize),
 }
 
-impl std::fmt::Display for CalculationError {
+impl std::fmt::Display for ComputationError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NoPath(src_id, tgt_id) =>
