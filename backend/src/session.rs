@@ -6,7 +6,7 @@ use actix_web::{http::Cookie,
 use nanoid;
 use transient_hashmap::TransientHashMap;
 
-use crate::firefighter::OSMFProblem;
+use crate::firefighter::problem::OSMFProblem;
 
 /// Container for OSM-Firefighter session data
 pub struct OSMFSession {

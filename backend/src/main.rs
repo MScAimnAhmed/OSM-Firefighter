@@ -14,15 +14,14 @@ use qstring::QString;
 use serde::Serialize;
 use serde_json::json;
 
-use crate::firefighter::{OSMFProblem, OSMFSettings};
+use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
+                         strategy::{GreedyStrategy, OSMFStrategy, ShoDistStrategy, Strategy}};
 use crate::graph::Graph;
 use crate::session::OSMFSessionStorage;
-use crate::strategy::{ShoDistStrategy, Strategy, OSMFStrategy, GreedyStrategy};
 
 mod graph;
 mod session;
 mod firefighter;
-mod strategy;
 
 /// Storage for data associated to the web app
 struct AppData {

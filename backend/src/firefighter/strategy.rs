@@ -1,9 +1,9 @@
-use std::{collections::HashMap,
-          cmp::min,
+use std::{cmp::min,
+          collections::HashMap,
           fmt::Debug,
           sync::{Arc, RwLock}};
 
-use crate::firefighter::{NodeDataStorage, OSMFSettings, TimeUnit, NodeState};
+use crate::firefighter::problem::{NodeDataStorage, OSMFSettings, TimeUnit, NodeState};
 use crate::graph::Graph;
 
 /// Strategy to contain the fire in the firefighter problem

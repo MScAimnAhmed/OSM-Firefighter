@@ -1,8 +1,8 @@
-use std::{fmt::Formatter,
+use std::{cmp::Ordering,
+          fmt::Formatter,
           fs::File,
           io::{prelude::*, BufReader, Lines},
-          num::{ParseIntError, ParseFloatError},
-          cmp::Ordering};
+          num::{ParseIntError, ParseFloatError}};
 
 use serde::Serialize;
 
