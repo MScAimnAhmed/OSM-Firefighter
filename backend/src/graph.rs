@@ -1,7 +1,8 @@
 use std::{fmt::Formatter,
           fs::File,
           io::{prelude::*, BufReader, Lines},
-          num::{ParseIntError, ParseFloatError}};
+          num::{ParseIntError, ParseFloatError},
+          cmp::Ordering};
 
 use serde::Serialize;
 
@@ -254,18 +255,21 @@ impl Graph {
             let src_hub = &src.fwd_hubs[ind_s];
             let tgt_hub = &tgt.bwd_hubs[ind_t];
 
-            let order = src_hub.hub_id as isize - tgt_hub.hub_id as isize;
-            if order == 0 {
-                let hub_dist = src_hub.dist + tgt_hub.dist;
-                if best_dist > hub_dist {
-                    best_dist = hub_dist;
+            match src_hub.hub_id.cmp(&tgt_hub.hub_id) {
+                Ordering::Equal => {
+                    let hub_dist = src_hub.dist + tgt_hub.dist;
+                    if best_dist > hub_dist {
+                        best_dist = hub_dist;
+                    }
+                    ind_s += 1;
+                    ind_t += 1;
                 }
-                ind_s += 1;
-                ind_t += 1;
-            } else if order < 0 {
-                ind_s += 1;
-            } else {
-                ind_t += 1;
+                Ordering::Less => {
+                    ind_s += 1;
+                }
+                Ordering::Greater => {
+                    ind_t += 1;
+                }
             }
         }
 

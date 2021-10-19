@@ -7,10 +7,10 @@ use rand::prelude::*;
 use serde::Serialize;
 
 use crate::graph::Graph;
-use crate::strategy::OSMFStrategy;
+use crate::strategy::{OSMFStrategy, Strategy};
 
 /// `u64` type alias to denote a time unit in the firefighter problem
-type TimeUnit = u64;
+pub type TimeUnit = u64;
 
 /// State of a node in the firefighter problem
 #[derive(Debug, Serialize)]
@@ -18,11 +18,27 @@ pub enum NodeState {
     Burning,
     Defended,
 }
+/// Settings for a firefighter problem instance
+#[derive(Debug)]
+pub struct OSMFSettings {
+    num_roots: usize,
+    pub num_firefighters: usize,
+}
+
+impl OSMFSettings {
+    /// Create new settings for a firefighter problem instance
+    pub fn new(num_roots: usize, num_firefighters: usize) -> Self {
+        Self {
+            num_roots,
+            num_firefighters,
+        }
+    }
+}
 
 /// Node data related to the firefighter problem
 #[derive(Debug, Serialize)]
 pub struct NodeData {
-    node_id: usize,
+    pub node_id: usize,
     state: NodeState,
     time: TimeUnit,
 }
@@ -38,30 +54,13 @@ impl NodeData {
     }
 
     /// Is corresponding node burning?
-    fn is_burning(&self) -> bool {
+    pub fn is_burning(&self) -> bool {
         matches!(self.state, NodeState::Burning)
     }
 
     /// Is corresponding node defended?
-    fn is_defended(&self) -> bool {
+    pub fn is_defended(&self) -> bool {
         matches!(self.state, NodeState::Defended)
-    }
-}
-
-/// Settings for a firefighter problem instance
-#[derive(Debug)]
-pub struct OSMFSettings {
-    num_roots: usize,
-    num_firefighters: usize,
-}
-
-impl OSMFSettings {
-    /// Create new settings for a firefighter problem instance
-    pub fn new(num_roots: usize, num_firefighters: usize) -> Self {
-        Self {
-            num_roots,
-            num_firefighters,
-        }
     }
 }
 
@@ -98,6 +97,13 @@ impl NodeDataStorage {
         } else {
             Err(OSMFProblemError::NodeDataAlreadyAttached)
         }
+    }
+
+    /// Get the node data of all burning vertices
+    pub fn get_all_burning(&self) -> Vec<&NodeData> {
+        self.storage.values()
+            .filter(|&nd| nd.is_burning())
+            .collect::<Vec<_>>()
     }
 
     /// Get direct access to the underlying `HashMap`
@@ -188,10 +194,7 @@ impl OSMFProblem {
 
         let mut to_burn = Vec::new();
         {
-            // Get all burning nodes
-            let burning: Vec<_> = self.node_data.direct().values()
-                .filter(|&nd| nd.is_burning())
-                .collect();
+            let burning = self.node_data.get_all_burning();
 
             let graph = self.graph.read().unwrap();
             let offsets = &graph.offsets;
@@ -231,7 +234,21 @@ impl OSMFProblem {
     /// Execute the containment strategy to prevent as much nodes as
     /// possible from catching fire
     fn contain_fire(&mut self) {
-        todo!()
+        if !self.is_active {
+            return;
+        }
+
+        let defended = match self.strategy {
+            OSMFStrategy::Greedy(ref mut greedy_strategy) =>
+                greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
+            _ => Vec::new()
+        };
+
+        if defended.is_empty()
+            && matches!(self.strategy, OSMFStrategy::Greedy( .. )) { // TODO remove when shortest distance strategy is implemented
+            self.is_active = false;
+        }
+        self.track_changes(defended);
     }
 
     /// Execute one time step in the firefighter problem.
@@ -240,7 +257,7 @@ impl OSMFProblem {
     fn exec_step(&mut self) {
         self.global_time += 1;
 
-        //self.contain_fire();
+        self.contain_fire();
         self.spread_fire();
     }
 
