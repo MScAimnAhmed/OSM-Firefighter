@@ -131,7 +131,7 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<
         }
     };
     let num_roots = query.get_and_parse::<usize>("num_roots")?;
-    let num_ffs= query.get_and_parse::<usize>("num_ffs")?;
+    let num_ffs = query.get_and_parse::<usize>("num_ffs")?;
 
     let problem = Arc::new(RwLock::new(
         OSMFProblem::new(graph, OSMFSettings::new(num_roots, num_ffs), strategy)));
