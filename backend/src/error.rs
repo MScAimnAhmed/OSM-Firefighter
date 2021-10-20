@@ -4,7 +4,7 @@ use serde::Serialize;
 
 /// Blueprint for error responses
 #[derive(Serialize)]
-pub struct ErrorResponse {
+struct ErrorResponse {
     status_code: u16,
     error: String,
     message: String,
