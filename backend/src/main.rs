@@ -1,87 +1,38 @@
+mod error;
+mod graph;
+mod session;
+mod firefighter;
+mod query;
+
 use std::{env,
           fs,
           sync::{Arc, Mutex, RwLock}};
 
-use actix_web::{App, dev::HttpResponseBuilder, error::ResponseError, get, http::StatusCode, HttpMessage, HttpRequest, HttpResponse,
+use actix_web::{App,
+                dev::HttpResponseBuilder,
+                get,
+                HttpMessage,
+                HttpRequest,
+                HttpResponse,
                 HttpServer,
                 middleware::Logger,
                 post,
                 Responder,
                 web};
-use derive_more::{Display, Error};
 use log;
-use qstring::QString;
-use serde::Serialize;
 use serde_json::json;
 
+use crate::error::OSMFError;
 use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
                          strategy::{GreedyStrategy, OSMFStrategy, ShoDistStrategy, Strategy}};
 use crate::graph::Graph;
 use crate::session::OSMFSessionStorage;
-
-mod graph;
-mod session;
-mod firefighter;
+use crate::query::Query;
 
 /// Storage for data associated to the web app
 struct AppData {
     sessions: Mutex<OSMFSessionStorage>,
     graph: Arc<RwLock<Graph>>,
-}
-
-/// Blueprint for error responses
-#[derive(Serialize)]
-struct ErrorResponse {
-    status_code: u16,
-    error: String,
-    message: String,
-}
-
-impl ErrorResponse {
-    /// Create a new error response
-    fn new(status_code: StatusCode, error: String, message: String) -> Self {
-        Self {
-            status_code: status_code.as_u16(),
-            error,
-            message,
-        }
-    }
-}
-
-/// OSM-Firefighter custom error
-#[derive(Debug, Display, Error)]
-enum OSMFError {
-    #[display(fmt = "{}", message)]
-    Internal { message: String },
-    #[display(fmt = "{}", message)]
-    BadRequest { message: String },
-}
-
-impl OSMFError {
-    /// Return the name of this error
-    pub fn name(&self) -> String {
-        match self {
-            Self::Internal { .. } => "Internal Server Error".to_string(),
-            Self::BadRequest { .. } => "Bad Request".to_string()
-        }
-    }
-}
-
-impl ResponseError for OSMFError {
-    fn status_code(&self) -> StatusCode {
-        match *self {
-            Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::BadRequest { .. } => StatusCode::BAD_REQUEST
-        }
-    }
-    fn error_response(&self) -> HttpResponse {
-        let res = ErrorResponse::new(
-            self.status_code(),
-            self.name(),
-            self.to_string(),
-        );
-        HttpResponse::build(self.status_code()).json(res)
-    }
 }
 
 /// Common function to initialize a `HttpResponseBuilder` for an incoming `HttpRequest`.
@@ -159,69 +110,28 @@ async fn send_graph(data: web::Data<AppData>, req: HttpRequest) -> impl Responde
 }
 
 /// Simulate a new firefighter problem instance
-///
-/// TODO send settings in query and parse them in this function
 #[post("/simulate")]
 async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
     let res_sid = init_response(&data, &req, HttpResponse::Created());
     let mut res = res_sid.0;
     let sid = res_sid.1;
 
-    let query = QString::from(req.query_string());
     let graph = data.graph.clone();
+    let query = Query::from(req.query_string());
 
-    let strategy;
-    if let Some(strategy_name) = query.get("strategy") {
-        if strategy_name == "greedy" {
-            strategy = OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone()));
-        } else if strategy_name == "sho_dist" {
-            strategy = OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone()));
-        } else {
-            log::warn!("Unknown strategy");
+    let strategy_name = query.get("strategy")?;
+    let strategy = match strategy_name {
+        "greedy" => OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone())),
+        "sho_dist" => OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone())),
+        _ => {
+            log::warn!("Unknown strategy {}", strategy_name);
             return Err(OSMFError::BadRequest {
-                message: format!("Unknown value for query parameter 'strategy': '{}'", strategy_name)
+                message: format!("Unknown value for parameter 'strategy': '{}'", strategy_name)
             });
         }
-    } else {
-        log::warn!("Strategy not specified");
-        return Err(OSMFError::BadRequest {
-            message: "Missing query parameter: 'strategy'".to_string()
-        });
-    }
-
-    let num_roots;
-    if let Some(num_str) = query.get("num_roots") {
-        if let Ok(num) = num_str.parse::<usize>() {
-            num_roots = num;
-        } else {
-            log::warn!("Number of fire roots no integer");
-            return Err(OSMFError::BadRequest {
-                message: format!("Invalid value for query parameter 'num_roots': {}", num_str)
-            });
-        }
-    } else {
-        log::warn!("Number of fire roots not specified");
-        return Err(OSMFError::BadRequest {
-            message: "Missing parameter: 'num_roots'".to_string()
-        });
-    }
-
-    let num_ffs;
-    if let Some(num_str) = query.get("num_ffs") {
-        if let Ok(num) = num_str.parse::<usize>() {
-            num_ffs = num;
-        } else {
-            log::warn!("Number of firefighters no integer");
-            return Err(OSMFError::BadRequest {
-                message: format!("Invalid value for query parameter 'num_ffs': {}", num_str)
-            });
-        }
-    } else {
-        log::warn!("Number of firefighters not specified");
-        return Err(OSMFError::BadRequest {
-            message: "Missing parameter: 'num_ffs'".to_string()
-        });
-    }
+    };
+    let num_roots = query.get_and_parse::<usize>("num_roots")?;
+    let num_ffs= query.get_and_parse::<usize>("num_ffs")?;
 
     let problem = Arc::new(RwLock::new(
         OSMFProblem::new(graph, OSMFSettings::new(num_roots, num_ffs), strategy)));
@@ -234,6 +144,7 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<
 
     let mut problem_ = problem.write().unwrap();
     problem_.simulate();
+
     Ok(res.json(problem_.node_data.direct()))
 }
 
