@@ -349,7 +349,7 @@ mod test {
 
     #[test]
     fn test_graph() {
-        let graph = Graph::from_files("resources/bbgrund");
+        let graph = Graph::from_files("data/bbgrund");
 
         assert_eq!(graph.nodes.len(), 350);
         assert_eq!(graph.edges.len(), 685);

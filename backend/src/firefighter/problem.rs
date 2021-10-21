@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, hash_map::RandomState},
+use std::{collections::BTreeMap,
           fmt::Formatter,
           sync::{Arc, RwLock}};
 
@@ -67,14 +67,14 @@ impl NodeData {
 /// Storage for node data
 #[derive(Debug)]
 pub struct NodeDataStorage {
-    storage: HashMap<usize, NodeData>,
+    storage: BTreeMap<usize, NodeData>,
 }
 
 impl NodeDataStorage {
     /// Create a new node data storage
     fn new() -> Self {
         Self {
-            storage: HashMap::new(),
+            storage: BTreeMap::new(),
         }
     }
 
@@ -105,11 +105,16 @@ impl NodeDataStorage {
             .filter(|&nd| nd.is_burning())
             .collect::<Vec<_>>()
     }
+}
 
-    /// Get direct access to the underlying `HashMap`
-    pub fn direct(&self) -> &HashMap<usize, NodeData, RandomState> {
-        &self.storage
-    }
+/// Container for data about the simulation of a firefighter problem instance
+#[derive(Serialize)]
+pub struct OSMFSimulationResponse<'a> {
+    node_data: &'a BTreeMap<usize, NodeData>,
+    nodes_burned: usize,
+    nodes_defended: usize,
+    nodes_total: usize,
+    end_time: TimeUnit,
 }
 
 /// A firefighter problem instance
@@ -118,9 +123,9 @@ pub struct OSMFProblem {
     graph: Arc<RwLock<Graph>>,
     settings: OSMFSettings,
     strategy: OSMFStrategy,
-    pub node_data: NodeDataStorage,
+    node_data: NodeDataStorage,
     global_time: TimeUnit,
-    change_tracker: HashMap<TimeUnit, Vec<usize>>,
+    change_tracker: BTreeMap<TimeUnit, Vec<usize>>,
     is_active: bool,
 }
 
@@ -138,7 +143,7 @@ impl OSMFProblem {
             strategy,
             node_data: NodeDataStorage::new(),
             global_time: 0,
-            change_tracker: HashMap::new(),
+            change_tracker: BTreeMap::new(),
             is_active: true,
         };
 
@@ -241,7 +246,7 @@ impl OSMFProblem {
         let defended = match self.strategy {
             OSMFStrategy::Greedy(ref mut greedy_strategy) =>
                 greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
-            _ => Vec::new()
+            _ => Vec::default()
         };
 
         if defended.is_empty()
@@ -267,6 +272,27 @@ impl OSMFProblem {
             self.exec_step();
         }
     }
+
+    /// Generate the simulation response for this firefighter problem instance
+    pub fn simulation_response(&self) -> OSMFSimulationResponse {
+        let mut nodes_burned = 0;
+        let mut nodes_defended = 0;
+        for nd in self.node_data.storage.values() {
+            if nd.is_burning() {
+                nodes_burned += 1;
+            } else {
+                nodes_defended += 1;
+            }
+        }
+
+        OSMFSimulationResponse {
+            node_data: &self.node_data.storage,
+            nodes_burned,
+            nodes_defended,
+            nodes_total: self.graph.read().unwrap().num_nodes,
+            end_time: self.global_time,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -286,7 +312,7 @@ impl std::error::Error for OSMFProblemError {}
 
 #[cfg(test)]
 mod test {
-    use std::{collections::HashMap,
+    use std::{collections::BTreeMap,
               sync::{Arc, RwLock}};
 
     use rand::prelude::*;
@@ -298,13 +324,13 @@ mod test {
     #[test]
     fn test() {
         let graph = Arc::new(RwLock::new(
-            Graph::from_files("resources/bbgrund")));
+            Graph::from_files("data/bbgrund")));
         let num_roots = 10;
         let strategy = OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone()));
         let mut problem = OSMFProblem::new(
             graph.clone(), OSMFSettings::new(num_roots, 2), strategy);
 
-        assert_eq!(problem.node_data.direct().len(), num_roots);
+        assert_eq!(problem.node_data.storage.len(), num_roots);
         assert_eq!(problem.change_tracker.len(), (problem.global_time + 1) as usize);
         assert_eq!(problem.change_tracker[&problem.global_time].len(), num_roots);
 
@@ -313,7 +339,7 @@ mod test {
 
         let roots: Vec<_>;
         {
-            roots = problem.node_data.direct().keys()
+            roots = problem.node_data.storage.keys()
                 .into_iter()
                 .map(|k| *k)
                 .collect();
@@ -342,11 +368,10 @@ mod test {
         assert_eq!(problem.change_tracker.len(), (problem.global_time + 1) as usize);
 
         let mut targets = Vec::new();
-        let mut distances = HashMap::new();
+        let mut distances = BTreeMap::new();
         for root in &roots {
             let out_deg = graph_.get_out_degree(*root);
             targets.reserve(out_deg);
-            distances.reserve(out_deg);
             for i in graph_.offsets[*root]..graph_.offsets[*root + 1] {
                 let edge = &graph_.edges[i];
                 targets.push(edge.tgt);
@@ -359,9 +384,9 @@ mod test {
         }
 
         for root in &roots {
-            let root_nd = problem.node_data.direct().get(root).unwrap();
+            let root_nd = problem.node_data.storage.get(root).unwrap();
             for tgt in &targets {
-                match problem.node_data.direct().get(tgt) {
+                match problem.node_data.storage.get(tgt) {
                     Some(nd) => assert!(nd.is_burning()),
                     None => assert!(problem.global_time < root_nd.time + distances[tgt] as u64)
                 }

@@ -1,5 +1,5 @@
 use std::{cmp::min,
-          collections::HashMap,
+          collections::BTreeMap,
           fmt::Debug,
           sync::{Arc, RwLock}};
 
@@ -76,7 +76,7 @@ impl Strategy for GreedyStrategy {
 #[derive(Debug)]
 pub struct ShoDistStrategy {
     graph: Arc<RwLock<Graph>>,
-    pub sho_dists: HashMap<usize, usize>,
+    pub sho_dists: BTreeMap<usize, usize>,
 }
 
 impl ShoDistStrategy {
@@ -105,10 +105,9 @@ impl ShoDistStrategy {
 
 impl Strategy for ShoDistStrategy {
     fn new(graph: Arc<RwLock<Graph>>) -> Self {
-        let num_nodes = graph.read().unwrap().num_nodes;
         Self {
             graph,
-            sho_dists: HashMap::with_capacity(num_nodes),
+            sho_dists: BTreeMap::new(),
         }
     }
 
