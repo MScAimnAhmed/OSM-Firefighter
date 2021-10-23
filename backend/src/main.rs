@@ -1,115 +1,81 @@
-use std::{env,
-          fs,
-          sync::{Mutex, RwLock, Arc}};
-
-use actix_web::{get, post, HttpServer, App, HttpRequest, HttpResponse, Responder, HttpMessage,
-                dev::HttpResponseBuilder,
-                error::ResponseError,
-                http::StatusCode,
-                middleware::Logger,
-                web};
-use derive_more::{Display, Error};
-use log;
-use serde::Serialize;
-use serde_json::json;
-
+mod error;
 mod graph;
 mod session;
 mod firefighter;
+mod query;
 
+use std::{collections::HashMap,
+          env,
+          fs,
+          sync::{Arc, Mutex, RwLock}};
+
+use actix_web::{App,
+                dev::HttpResponseBuilder,
+                get,
+                HttpMessage,
+                HttpRequest,
+                HttpResponse,
+                HttpServer,
+                middleware::Logger,
+                post,
+                Responder,
+                web};
+use log;
+use serde_json::json;
+
+use crate::error::OSMFError;
+use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
+                         strategy::{GreedyStrategy, OSMFStrategy, ShoDistStrategy, Strategy}};
 use crate::graph::Graph;
 use crate::session::OSMFSessionStorage;
-use crate::firefighter::{OSMFSettings, OSMFStrategy, OSMFProblem};
+use crate::query::Query;
 
 /// Storage for data associated to the web app
 struct AppData {
     sessions: Mutex<OSMFSessionStorage>,
-    graph: Arc<RwLock<Graph>>,
-}
-
-/// Blueprint for error responses
-#[derive(Serialize)]
-struct ErrorResponse {
-    status_code: u16,
-    error: String,
-    message: String,
-}
-
-impl ErrorResponse {
-    /// Create a new error response
-    fn new(status_code: StatusCode, error: String, message: String) -> Self {
-        Self {
-            status_code: status_code.as_u16(),
-            error,
-            message,
-        }
-    }
-}
-
-/// OSM-Firefighter custom error
-#[derive(Debug, Display, Error)]
-enum OSMFError {
-    #[display(fmt = "{}", message)]
-    Internal { message: String },
-}
-
-impl OSMFError {
-    /// Return the name of this error
-    pub fn name(&self) -> String {
-        match self {
-            Self::Internal { .. } => "Internal Server Error".to_string()
-        }
-    }
-}
-
-impl ResponseError for OSMFError {
-    fn status_code(&self) -> StatusCode {
-        match *self {
-            Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR
-        }
-    }
-    fn error_response(&self) -> HttpResponse {
-        let res = ErrorResponse::new(
-            self.status_code(),
-            self.name(),
-            self.to_string(),
-        );
-        HttpResponse::build(self.status_code()).json(res)
-    }
+    graphs_path: String,
+    graphs: HashMap<String, Arc<RwLock<Graph>>>,
 }
 
 /// Common function to initialize a `HttpResponseBuilder` for an incoming `HttpRequest`.
 /// This function must be called before retrieving session data.
-fn init_response(data: &web::Data<AppData>, req: &HttpRequest, mut res: HttpResponseBuilder) -> HttpResponseBuilder {
+fn init_response(data: &web::Data<AppData>, req: &HttpRequest, mut res: HttpResponseBuilder) -> (HttpResponseBuilder, String) {
     let mut sessions = data.sessions.lock().unwrap();
-    let new_cookie = match req.cookie("sid") {
-        Some(cookie) => sessions.refresh_session(cookie.value()),
-        None => Some(sessions.open_session())
-    };
-    match new_cookie {
-        Some(cookie) => {
-            res.cookie(cookie);
+    let sid = match req.cookie("sid") {
+        Some(cur_cookie) => {
+            if let Some(new_cookie) = sessions.refresh_session(cur_cookie.value()) {
+                let sid = new_cookie.value().to_string();
+                res.cookie(new_cookie);
+                sid
+            } else {
+                cur_cookie.value().to_string()
+            }
         }
-        None => ()
-    }
-    res
+        None => {
+            let new_cookie = sessions.open_session();
+            let sid = new_cookie.value().to_string();
+            res.cookie(new_cookie);
+            sid
+        }
+    };
+    (res, sid)
 }
 
 /// Request to check whether the server is up and available
 #[get("/ping")]
 async fn ping(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
-    let mut res = init_response(&data, &req, HttpResponse::Ok());
+    let mut res = init_response(&data, &req, HttpResponse::Ok()).0;
     res.content_type("text/plain; charset=utf-8")
         .body("pong")
 }
 
 /// List all graph files that can be parsed by the server
-#[get("/")]
+#[get("/graphs")]
 async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
-    match fs::read_dir("resources/") {
+    match fs::read_dir(&data.graphs_path) {
         Ok(paths) => {
-            let mut res = init_response(&data, &req, HttpResponse::Ok());
-            let mut graphs = Vec::new();
+            let mut res = init_response(&data, &req, HttpResponse::Ok()).0;
+            let mut graph_files = Vec::new();
             for path in paths {
                 let path = path.unwrap();
                 let filetype = path.file_type().unwrap();
@@ -121,12 +87,21 @@ async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
                         .to_str()
                         .unwrap()
                 );
-                if !filename.ends_with(".fmi") {
+                let mut ext_len;
+                if filename.ends_with(".fmi") || filename.ends_with(".hub") {
+                    ext_len = 4;
+                    if filename.ends_with(".ch.hub") {
+                        ext_len += 3;
+                    }
+                } else {
                     continue;
                 }
-                graphs.push(filename);
+                let graph_file = filename[0..filename.len()-ext_len].to_string();
+                if !graph_files.contains(&graph_file) {
+                    graph_files.push(graph_file);
+                }
             }
-            Ok(res.json(json!(graphs)))
+            Ok(res.json(json!(graph_files)))
         }
         Err(err) => {
             log::warn!("Failed to list graph files: {}", err.to_string());
@@ -137,37 +112,56 @@ async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
     }
 }
 
-/// Send the currently loaded graph
-#[get("/graph")]
-async fn send_graph(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
-    let mut res = init_response(&data, &req, HttpResponse::Ok());
-    let graph = data.graph.read().unwrap();
-    res.json(&*graph)
-}
-
 /// Simulate a new firefighter problem instance
-///
-/// TODO send settings in query and parse them in this function
 #[post("/simulate")]
-async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
-    let mut res = init_response(&data, &req, HttpResponse::Created());
+async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
+    let res_sid = init_response(&data, &req, HttpResponse::Created());
+    let mut res = res_sid.0;
+    let sid = res_sid.1;
 
-    let graph = data.graph.clone();
-    let settings = OSMFSettings::new(1, 1, OSMFStrategy::Greedy);
-    let problem = Arc::new(
-        RwLock::new(OSMFProblem::new(graph, settings)));
+    let query = Query::from(req.query_string());
+
+    let graph_name = query.get("graph")?;
+    let graph = match data.graphs.get(graph_name) {
+        Some(graph) => graph,
+        None => {
+            log::warn!("Unknown graph {}", graph_name);
+            return Err(OSMFError::BadRequest {
+                message: format!("Unknown value for parameter 'graph': '{}'", graph_name)
+            });
+        }
+    };
+
+    let strategy_name = query.get("strategy")?;
+    let strategy = match strategy_name {
+        "greedy" => OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone())),
+        "sho_dist" => OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone())),
+        _ => {
+            log::warn!("Unknown strategy {}", strategy_name);
+            return Err(OSMFError::BadRequest {
+                message: format!("Unknown value for parameter 'strategy': '{}'", strategy_name)
+            });
+        }
+    };
+
+    let num_roots = query.get_and_parse::<usize>("num_roots")?;
+    let num_ffs = query.get_and_parse::<usize>("num_ffs")?;
+
+    let problem = Arc::new(RwLock::new(OSMFProblem::new(
+        graph.clone(),
+        OSMFSettings::new(num_roots, num_ffs),
+        strategy)));
 
     {
         let mut sessions = data.sessions.lock().unwrap();
-        let session = sessions.get_mut_session(
-            req.cookie("sid").unwrap().value())
-            .unwrap();
+        let session = sessions.get_mut_session(&sid).unwrap();
         session.attach_problem(problem.clone());
     }
 
     let mut problem_ = problem.write().unwrap();
     problem_.simulate();
-    res.json(&problem_.node_data)
+
+    Ok(res.json(problem_.simulation_response()))
 }
 
 #[actix_web::main]
@@ -177,16 +171,38 @@ async fn main() -> std::io::Result<()> {
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
-    // Read in default graph
-    let default_graph_file = env::var("OSMF_DEFAULT_GRAPH")
-        .expect(&format!("Could not find environment variable 'OSMF_DEFAULT_GRAPH'"));
-    let default_graph = Graph::from_file(&default_graph_file);
-    log::info!("Read in default graph file {}", default_graph_file);
+    let args: Vec<_> = env::args().collect();
+
+    if args.len() < 2 {
+        let err = "Missing argument: path to graph file";
+        log::error!("{}", err);
+        panic!("{}", err);
+    }
+
+    // Initialize graphs
+    let graphs_path = args[1].to_string();
+    let paths: Vec<_> = match fs::read_dir(&graphs_path) {
+        Ok(paths) => paths.map(|path| path.unwrap()).collect(),
+        Err(err) => panic!("{}", err.to_string())
+    };
+    let mut graphs = HashMap::with_capacity(graphs_path.len());
+    for path in paths {
+        let file_path = path.path().to_str().unwrap().split(".").collect::<Vec<_>>()[0].to_string();
+        let file_name = path.file_name().to_str().unwrap().split(".").collect::<Vec<_>>()[0].to_string();
+        graphs.entry(file_name.clone()).or_insert_with(|| {
+            let graph = Arc::new(RwLock::new(Graph::from_files(&file_path)));
+
+            log::info!("Loaded graph {}", file_name);
+
+            graph
+        });
+    }
 
     // Initialize app data
     let data = web::Data::new(AppData {
         sessions: Mutex::new(OSMFSessionStorage::new()),
-        graph: Arc::new(RwLock::new(default_graph)),
+        graphs_path,
+        graphs,
     });
 
     // Initialize and start server
@@ -196,7 +212,6 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .service(ping)
             .service(list_graphs)
-            .service(send_graph)
             .service(simulate_problem)
     });
     server.bind("0.0.0.0:8080")?

@@ -1,0 +1,85 @@
+{
+	"info": {
+		"_postman_id": "8dec9830-9924-4363-bdc5-fd2a0d1d86e1",
+		"name": "Firefighter",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Ping",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}:{{port}}/ping",
+					"host": [
+						"{{host}}"
+					],
+					"port": "{{port}}",
+					"path": [
+						"ping"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "List graphs",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}:{{port}}/graphs",
+					"host": [
+						"{{host}}"
+					],
+					"port": "{{port}}",
+					"path": [
+						"graphs"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Simulate problem",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{host}}:{{port}}/simulate?graph={{graph}}&strategy={{strategy}}&num_ffs={{num_firefighters}}&num_roots={{num_roots}}",
+					"host": [
+						"{{host}}"
+					],
+					"port": "{{port}}",
+					"path": [
+						"simulate"
+					],
+					"query": [
+						{
+							"key": "graph",
+							"value": "{{graph}}",
+							"description": "The graph to simulate the firefighter problem on"
+						},
+						{
+							"key": "strategy",
+							"value": "{{strategy}}",
+							"description": "The fire containment strategy"
+						},
+						{
+							"key": "num_ffs",
+							"value": "{{num_firefighters}}",
+							"description": "The number of available firefighters"
+						},
+						{
+							"key": "num_roots",
+							"value": "{{num_roots}}",
+							"description": "The number of fire roots"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
