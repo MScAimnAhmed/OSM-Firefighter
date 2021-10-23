@@ -12,12 +12,14 @@ import {MatSelectModule} from "@angular/material/select";
 import {MatOptionModule} from "@angular/material/core";
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import {MatInputModule} from "@angular/material/input";
+import { GraphViewerComponent } from './graph-viewer/graph-viewer.component';
 
 @NgModule({
   declarations: [
     AppComponent,
     HeaderComponent,
-    SimulationConfiguratorComponent
+    SimulationConfiguratorComponent,
+    GraphViewerComponent
   ],
   imports: [
     BrowserModule,

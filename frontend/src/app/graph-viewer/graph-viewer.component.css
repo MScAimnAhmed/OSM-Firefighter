@@ -1,0 +1,19 @@
+.map-container {
+  position: absolute;
+  top: 15%;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 10px;
+}
+
+.map-frame {
+  border: 2px solid;
+  border-color: indigo;
+  height: 100%;
+}
+
+#map {
+  z-index: 90;
+  height: 100%;
+}
