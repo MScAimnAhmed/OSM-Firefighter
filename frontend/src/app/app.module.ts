@@ -13,6 +13,7 @@ import {MatOptionModule} from "@angular/material/core";
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import {MatInputModule} from "@angular/material/input";
 import { GraphViewerComponent } from './graph-viewer/graph-viewer.component';
+import { HttpClientModule } from '@angular/common/http';
 
 @NgModule({
   declarations: [
@@ -24,6 +25,7 @@ import { GraphViewerComponent } from './graph-viewer/graph-viewer.component';
   imports: [
     BrowserModule,
     MatListModule,
+    HttpClientModule,
     MatButtonModule,
     MatIconModule,
     MatDialogModule,

@@ -1,5 +1,6 @@
 import {Component, Inject, OnInit} from '@angular/core';
 import {MatDialogRef} from "@angular/material/dialog";
+import {GraphServiceService} from "../service/graph-service.service";
 
 @Component({
   selector: 'app-simulation-configurator',
@@ -14,12 +15,22 @@ export class SimulationConfiguratorComponent implements OnInit {
 
   constructor(
     public dialogRef: MatDialogRef<SimulationConfiguratorComponent>,
-    ) { }
+    private graphService: GraphServiceService
+    ) {
+  }
 
   ngOnInit(): void {
+    //retrieve Dropdown Options here
+    this.graphService.ping().subscribe(
+      data => (console.log('ping successfull' + data))
+    );
   }
 
   cancel() {
     this.dialogRef.close();
+  }
+
+  confirm() {
+    console.log("sending sim data to backend");
   }
 }
