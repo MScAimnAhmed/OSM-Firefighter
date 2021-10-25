@@ -210,7 +210,7 @@ impl OSMFProblem {
         }
 
         // Burn all nodes in `to_burn`
-        log::debug!("Burning nodes {:?} ", &to_burn);
+        log::debug!("Burning nodes {:?}", &to_burn);
         self.node_data.mark_burning(to_burn, self.global_time);
     }
 
