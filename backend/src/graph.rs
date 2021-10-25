@@ -49,6 +49,14 @@ pub struct Graph {
     pub num_edges: usize,
 }
 
+/// Unstable float comparison.
+/// # Returns
+/// * `a < b`: `Ordering::Less`
+/// * `a >= b`: `Ordering::Greater`
+fn unstable_cmp_f64(a: f64, b: f64) -> Ordering {
+    if a < b { Ordering::Less } else { Ordering::Greater }
+}
+
 impl Graph {
     /// Create a new directed graph without any nodes or edges
     fn new() -> Self {
@@ -279,6 +287,32 @@ impl Graph {
             Err(ComputationError::NoPath(src_id, tgt_id))
         }
     }
+
+    /// Returns this graphs grid bounds, i.e. the minimal/maximal latitude/longitude
+    /// of this graph
+    pub fn get_grid_bounds(&self) -> (f64, f64, f64, f64) {
+        let latitudes: Vec<_> = self.nodes.iter()
+            .map(|n| n.lat)
+            .collect();
+        let longitudes: Vec<_> = self.nodes.iter()
+            .map(|n| n.lon)
+            .collect();
+
+        let min_lat = *latitudes.iter()
+            .min_by(|&lat1, &lat2| unstable_cmp_f64(*lat1, *lat2))
+            .unwrap_or(&f64::NAN);
+        let max_lat = *latitudes.iter()
+            .max_by(|&lat1, &lat2| unstable_cmp_f64(*lat1, *lat2))
+            .unwrap_or(&f64::NAN);
+        let min_lon = *longitudes.iter()
+            .min_by(|&lon1, &lon2| unstable_cmp_f64(*lon1, *lon2))
+            .unwrap_or(&f64::NAN);
+        let max_lon = *longitudes.iter()
+            .max_by(|&lon1, &lon2| unstable_cmp_f64(*lon1, *lon2))
+            .unwrap_or(&f64::NAN);
+
+        (min_lat, max_lat, min_lon, max_lon)
+    }
 }
 
 #[derive(Debug)]
@@ -353,6 +387,12 @@ mod test {
 
         assert_eq!(graph.nodes.len(), 350);
         assert_eq!(graph.edges.len(), 685);
+
+        let gb = graph.get_grid_bounds();
+        assert!(gb.0 >= 48.67);
+        assert!(gb.1 < 48.68);
+        assert!(gb.2 >= 8.99);
+        assert!(gb.3 < 9.02);
 
         for i in 0..graph.nodes.len() {
             let node = graph.nodes.get(i).unwrap();
