@@ -31,12 +31,28 @@ pub struct Node {
     fwd_hubs: Vec<HubLabel>,
 }
 
+impl Node {
+    /// Returns true if this node is located within the given grid bounds
+    pub fn is_located_in(&self, gb: &GridBounds) -> bool {
+        self.lat >= gb.min_lat && self.lat <= gb.max_lat
+            && self.lon >= gb.min_lon && self.lon  <= gb.max_lon
+    }
+}
+
 /// A directed graph edge with source and target
 #[derive(Debug, Serialize)]
 pub struct Edge {
     pub src: usize,
     pub tgt: usize,
     pub dist: usize,
+}
+
+/// Struct to hold the grid bounds of a graph or part of a graph
+pub struct GridBounds {
+    pub min_lat: f64,
+    pub max_lat: f64,
+    pub min_lon: f64,
+    pub max_lon: f64,
 }
 
 /// A directed graph with nodes, edges and node offsets
@@ -290,7 +306,7 @@ impl Graph {
 
     /// Returns this graphs grid bounds, i.e. the minimal/maximal latitude/longitude
     /// of this graph
-    pub fn get_grid_bounds(&self) -> (f64, f64, f64, f64) {
+    pub fn get_grid_bounds(&self) -> GridBounds {
         let latitudes: Vec<_> = self.nodes.iter()
             .map(|n| n.lat)
             .collect();
@@ -298,20 +314,20 @@ impl Graph {
             .map(|n| n.lon)
             .collect();
 
-        let min_lat = *latitudes.iter()
-            .min_by(|&lat1, &lat2| unstable_cmp_f64(*lat1, *lat2))
-            .unwrap_or(&f64::NAN);
-        let max_lat = *latitudes.iter()
-            .max_by(|&lat1, &lat2| unstable_cmp_f64(*lat1, *lat2))
-            .unwrap_or(&f64::NAN);
-        let min_lon = *longitudes.iter()
-            .min_by(|&lon1, &lon2| unstable_cmp_f64(*lon1, *lon2))
-            .unwrap_or(&f64::NAN);
-        let max_lon = *longitudes.iter()
-            .max_by(|&lon1, &lon2| unstable_cmp_f64(*lon1, *lon2))
-            .unwrap_or(&f64::NAN);
-
-        (min_lat, max_lat, min_lon, max_lon)
+        GridBounds {
+            min_lat: *latitudes.iter()
+                .min_by(|&lat1, &lat2| unstable_cmp_f64(*lat1, *lat2))
+                .unwrap_or(&f64::NAN),
+            max_lat: *latitudes.iter()
+                .max_by(|&lat1, &lat2| unstable_cmp_f64(*lat1, *lat2))
+                .unwrap_or(&f64::NAN),
+            min_lon: *longitudes.iter()
+                .min_by(|&lon1, &lon2| unstable_cmp_f64(*lon1, *lon2))
+                .unwrap_or(&f64::NAN),
+            max_lon: *longitudes.iter()
+                .max_by(|&lon1, &lon2| unstable_cmp_f64(*lon1, *lon2))
+                .unwrap_or(&f64::NAN),
+        }
     }
 }
 
