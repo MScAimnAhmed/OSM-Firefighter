@@ -84,14 +84,9 @@ impl View {
                 let nodes_px: Vec<_> = graph.nodes.iter()
                     .filter(|&n| n.is_located_in(&gb_px))
                     .collect();
-                let mut edges_px = Vec::new();
-                for n in nodes_px {
-                    edges_px.reserve(graph.get_out_degree(n.id));
-                    for i in graph.offsets[n.id]..graph.offsets[n.id+1] {
-                        let edge = &graph.edges[i];
-                        edges_px.push(edge);
-                    }
-                }
+                let edges_px: Vec<_> = graph.edges.iter()
+                    .filter(|&e| true) // TODO implement filter
+                    .collect();
             }
         }
     }
