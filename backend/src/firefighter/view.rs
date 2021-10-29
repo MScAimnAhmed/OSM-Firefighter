@@ -1,18 +1,40 @@
 extern crate image;
 
 use std::sync::{Arc, RwLock};
-use image::ImageBuffer;
-use image::RgbImage;
 use crate::graph::{Graph, GridBounds};
-use self::image::Rgb;
 
-const BLACK: Rgb<u8> = Rgb([0, 0, 0]);
-const RED: Rgb<u8> = Rgb([255, 0, 0]);
-const BLUE: Rgb<u8> = Rgb([0, 0, 255]);
+const BLACK: (u8, u8, u8) = (1, 1, 1);
+const RED: (u8, u8, u8) = (255, 0, 0);
+const BLUE: (u8, u8, u8) = (0, 0, 255);
 
 struct Position {
     lat: f64,
     lon: f64,
+}
+
+#[derive(Debug)]
+struct ImageBuffer {
+    buf: Vec<Vec<(u8, u8, u8)>>,
+    width: usize,
+    height: usize,
+}
+
+impl ImageBuffer {
+    fn new(width: usize, height: usize) -> Self {
+        Self {
+            buf: vec![vec![(0, 0, 0); width]; height],
+            width,
+            height,
+        }
+    }
+
+    fn get_px_unchecked(&self, w: usize, h: usize) -> (u8, u8, u8) {
+        self.buf[h][w]
+    }
+
+    fn set_px_unchecked(&mut self, w: usize, h: usize, px: (u8, u8, u8)) {
+        self.buf[h].insert(w, px);
+    }
 }
 
 pub struct View {
@@ -20,11 +42,11 @@ pub struct View {
     grid_bounds: GridBounds,
     delta_horiz: f64,
     delta_vert: f64,
-    img_buf: RgbImage,
+    img_buf: ImageBuffer,
 }
 
 impl View {
-    pub fn new(graph: Arc<RwLock<Graph>>, width: u32, height: u32) -> Self {
+    pub fn new(graph: Arc<RwLock<Graph>>, width: usize, height: usize) -> Self {
         let grid_bounds = graph.read().unwrap().get_grid_bounds();
         let delta_horiz = grid_bounds.max_lat - grid_bounds.min_lat;
         let delta_vert = grid_bounds.max_lon - grid_bounds.min_lon;
@@ -63,31 +85,65 @@ impl View {
         };
 
         // Delta degree per pixel in horizontal and vertical direction
-        let deg_per_px_hz = d_hz / self.img_buf.width() as f64;
-        let deg_per_pix_vert = d_vert / self.img_buf.height() as f64;
+        let deg_per_px_hz = d_hz / self.img_buf.width as f64;
+        let deg_per_px_vert = d_vert / self.img_buf.height as f64;
 
         let graph = self.graph.read().unwrap();
 
-        for w in 0..self.img_buf.width() {
-            for h in 0..self.img_buf.height() {
+        for h in 0..self.img_buf.height {
+            for w in 0..self.img_buf.width {
                 // Grid bounds of pixel at w x h
-                let min_lat_px = gb.min_lat + w * deg_per_px_hz;
-                let min_lon_px = gb.min_lon + h * deg_per_pix_vert;
+                let min_lat_px = gb.min_lat + w as f64 * deg_per_px_hz;
+                let min_lon_px = gb.min_lon + h as f64 * deg_per_px_vert;
                 let gb_px = GridBounds {
                     min_lat: min_lat_px,
                     max_lat: min_lat_px + deg_per_px_hz,
                     min_lon: min_lon_px,
-                    max_lon: min_lon_px + deg_per_pix_vert,
+                    max_lon: min_lon_px + deg_per_px_vert,
                 };
 
-                // Nodes and edges located or partly located in pixel at w x h
-                let nodes_px: Vec<_> = graph.nodes.iter()
-                    .filter(|&n| n.is_located_in(&gb_px))
-                    .collect();
-                let edges_px: Vec<_> = graph.edges.iter()
-                    .filter(|&e| true) // TODO implement filter
-                    .collect();
+                let mut next = false;
+                for node in &graph.nodes {
+                    if node.is_located_in(&gb_px) {
+                        self.img_buf.set_px_unchecked(w, h, BLACK);
+                        next = true;
+                        break;
+                    }
+                }
+
+                if !next {
+                    for edge in &graph.edges {
+                        let src = &graph.nodes[edge.src];
+                        let tgt = &graph.nodes[edge.tgt];
+                        if gb_px.intersected_by_segment(src, tgt) {
+                            self.img_buf.set_px_unchecked(w, h, BLACK);
+                            break;
+                        }
+                    }
+                }
             }
         }
     }
+}
+
+#[cfg(test)]
+mod test {
+    use std::sync::{Arc, RwLock};
+
+    use crate::firefighter::view::{BLACK, View};
+    use crate::graph::Graph;
+
+    #[test]
+    fn test_view() {
+        let graph = Arc::new(RwLock::new(Graph::from_files("data/bbgrund")));
+        let view = View::new(graph, 800, 600);
+
+        for row in &view.img_buf.buf {
+            for px in row {
+                print!("({},{},{})", px.0, px.1, px.2);
+            }
+            println!();
+        }
+    }
+
 }

@@ -21,12 +21,55 @@ struct HubLabel {
     dir: HubDirection,
 }
 
+/// Struct to hold the grid bounds of a graph or part of a graph
+#[derive(Debug)]
+pub struct GridBounds {
+    pub min_lat: f64,
+    pub max_lat: f64,
+    pub min_lon: f64,
+    pub max_lon: f64,
+}
+
+impl GridBounds {
+    /// Returns true if the line segment `(src, tgt)` intersects this grid bounds
+    pub fn intersected_by_segment(&self, src: &Node, tgt: &Node) -> bool {
+        match src.get_relative_compass_direction(self) {
+            CompassDirection::North => segments_intersect(src, tgt, (self.min_lat, self.max_lon), (self.max_lat, self.max_lon)),
+            CompassDirection::NorthEast => segments_intersect(src, tgt, (self.min_lat, self.max_lon), (self.max_lat, self.max_lon))
+                || segments_intersect(src, tgt, (self.max_lat, self.min_lon), (self.max_lat, self.max_lon)),
+            CompassDirection::East => segments_intersect(src, tgt, (self.max_lat, self.min_lon), (self.max_lat, self.max_lon)),
+            CompassDirection::SouthEast => segments_intersect(src, tgt, (self.max_lat, self.min_lon), (self.max_lat, self.max_lon))
+                || segments_intersect(src, tgt, (self.min_lat, self.min_lon), (self.max_lat, self.min_lon)),
+            CompassDirection::South => segments_intersect(src, tgt, (self.min_lat, self.min_lon), (self.max_lat, self.min_lon)),
+            CompassDirection::SouthWest => segments_intersect(src, tgt, (self.min_lat, self.min_lon), (self.max_lat, self.min_lon))
+                || segments_intersect(src, tgt, (self.min_lat, self.min_lon), (self.min_lat, self.max_lon)),
+            CompassDirection::West => segments_intersect(src, tgt, (self.min_lat, self.min_lon), (self.min_lat, self.max_lon)),
+            CompassDirection::NorthWest => segments_intersect(src, tgt, (self.min_lat, self.min_lon), (self.min_lat, self.max_lon))
+                || segments_intersect(src, tgt, (self.min_lat, self.max_lon), (self.max_lat, self.max_lon)),
+            CompassDirection::Zero => true
+        }
+    }
+}
+
+/// Compass directions related to grid bounds
+pub enum CompassDirection {
+    North,
+    NorthEast,
+    East,
+    SouthEast,
+    South,
+    SouthWest,
+    West,
+    NorthWest,
+    Zero,
+}
+
 /// A graph node with id, latitude and longitude
 #[derive(Debug, Serialize)]
 pub struct Node {
     pub id: usize,
-    lat: f64,
-    lon: f64,
+    pub(crate) lat: f64,
+    pub(crate) lon: f64,
     bwd_hubs: Vec<HubLabel>,
     fwd_hubs: Vec<HubLabel>,
 }
@@ -36,6 +79,29 @@ impl Node {
     pub fn is_located_in(&self, gb: &GridBounds) -> bool {
         self.lat >= gb.min_lat && self.lat <= gb.max_lat
             && self.lon >= gb.min_lon && self.lon  <= gb.max_lon
+    }
+
+    /// Get the compass direction of this node relative to the given grid bounds
+    pub fn get_relative_compass_direction(&self, gb: &GridBounds) -> CompassDirection {
+        if self.lat >= gb.min_lat && self.lat <= gb.max_lat && self.lon > gb.max_lon {
+            CompassDirection::North
+        } else if self.lat > gb.max_lat && self.lon > gb.max_lon {
+            CompassDirection::NorthEast
+        } else if self.lat > gb.max_lat && self.lon >= gb.min_lon && self.lon <= gb.max_lon {
+            CompassDirection::East
+        } else if self.lat > gb.max_lat && self.lon < gb.min_lon {
+            CompassDirection::SouthEast
+        } else if self.lat >= gb.min_lat && self.lat <= gb.max_lat && self.lon < gb.min_lon {
+            CompassDirection::South
+        } else if self.lat < gb.min_lat && self.lon < gb.min_lon {
+            CompassDirection::SouthWest
+        } else if self.lat < gb.min_lat && self.lon >= gb.min_lon && self.lon <= gb.max_lon {
+            CompassDirection::West
+        } else if self.lat < gb.min_lat && self.lon > gb.max_lon {
+            CompassDirection::NorthWest
+        } else {
+            CompassDirection::Zero
+        }
     }
 }
 
@@ -47,12 +113,47 @@ pub struct Edge {
     pub dist: usize,
 }
 
-/// Struct to hold the grid bounds of a graph or part of a graph
-pub struct GridBounds {
-    pub min_lat: f64,
-    pub max_lat: f64,
-    pub min_lon: f64,
-    pub max_lon: f64,
+/// Returns true if node `(n_lat, n_lon)` lies on line segment `((src_lat, src_lon), (tgt_lat, tgt_lon))`
+fn lies_on_segment((n_lat, n_lon): (f64, f64), (src_lat, src_lon): (f64, f64), (tgt_lat, tgt_lon): (f64, f64)) -> bool {
+    n_lat <= src_lat.max(tgt_lat) && n_lat >= src_lat.min(tgt_lat)
+        && n_lon <= src_lon.max(tgt_lon) && n_lon >= src_lon.min(tgt_lon)
+}
+
+/// Get the orientation of an ordered triple of nodes.
+/// # Returns
+/// * -1 for counter clockwise
+/// * 0 for collinear
+/// * 1 for clockwise
+fn orientation((n1_lat, n1_lon): (f64, f64), (n2_lat, n2_lon): (f64, f64), (n3_lat, n3_lon): (f64, f64)) -> i32 {
+    let orientation = (n2_lon - n1_lon) * (n3_lat - n2_lat) -
+        (n2_lat - n1_lat) * (n3_lon - n2_lon);
+
+    if orientation < 0.0 { -1 } else if orientation > 0.0 { 1 } else { 0 }
+}
+
+/// Returns true if the line segments `(src,tgt)` and `(p, q)` intersect
+fn segments_intersect(src: &Node, tgt: &Node, p: (f64, f64), q: (f64, f64)) -> bool {
+    let src_ = (src.lat, src.lon);
+    let tgt_ = (tgt.lat, tgt.lon);
+
+    let o1 = orientation(src_, tgt_, p);
+    let o2 = orientation(src_, tgt_, q);
+    let o3 = orientation(p, q, src_);
+    let o4 = orientation(p, q, tgt_);
+
+    if o1 != o2 && o3 != o4 {
+        true
+    } else if o1 == 0 && lies_on_segment(p, src_, tgt_) {
+        true
+    } else if o2 == 0 && lies_on_segment(q, src_, tgt_) {
+        true
+    } else if o3 == 0 && lies_on_segment(src_, p, q) {
+        true
+    } else if o4 == 0 && lies_on_segment(tgt_, p, q) {
+        true
+    } else {
+        false
+    }
 }
 
 /// A directed graph with nodes, edges and node offsets
@@ -405,10 +506,10 @@ mod test {
         assert_eq!(graph.edges.len(), 685);
 
         let gb = graph.get_grid_bounds();
-        assert!(gb.0 >= 48.67);
-        assert!(gb.1 < 48.68);
-        assert!(gb.2 >= 8.99);
-        assert!(gb.3 < 9.02);
+        assert!(gb.min_lat >= 48.67);
+        assert!(gb.max_lat < 48.68);
+        assert!(gb.min_lon >= 8.99);
+        assert!(gb.max_lon < 9.02);
 
         for i in 0..graph.nodes.len() {
             let node = graph.nodes.get(i).unwrap();
