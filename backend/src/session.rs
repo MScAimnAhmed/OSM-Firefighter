@@ -1,5 +1,4 @@
-use std::{sync::{Arc, RwLock},
-          time::{Instant, Duration}};
+use std::time::{Instant, Duration};
 
 use actix_web::{http::Cookie,
                 cookie::SameSite};
@@ -11,7 +10,7 @@ use crate::firefighter::problem::OSMFProblem;
 /// Container for OSM-Firefighter session data
 pub struct OSMFSession {
     pub id: String,
-    problem: Option<Arc<RwLock<OSMFProblem>>>,
+    problem: Option<OSMFProblem>,
 }
 
 impl OSMFSession {
@@ -32,8 +31,17 @@ impl OSMFSession {
     }
 
     /// Attach a firefighter problem instance to this `OSMFSession`
-    pub fn attach_problem(&mut self, problem: Arc<RwLock<OSMFProblem>>) {
+    pub fn attach_problem(&mut self, problem: OSMFProblem) {
         self.problem = Some(problem);
+    }
+
+    /// Get a reference to the attached firefighter problem instance of this `OSMFSession`
+    pub fn get_problem(&self) -> Option<&OSMFProblem> {
+        if let Some(ref problem) = self.problem {
+            Some(problem)
+        } else {
+            None
+        }
     }
 }
 
@@ -81,6 +89,13 @@ impl OSMFSessionStorage {
         } else {
             Some(self.open_session())
         }
+    }
+
+    /// Get a reference to the `OSMFSession` with session id `id`
+    pub fn get_session(&mut self, id: &str) -> Option<&OSMFSession> {
+        self.prune_sessions();
+        let string_id = &id.to_string();
+        self.sessions.get(string_id)
     }
 
     /// Get a mutable reference to the `OSMFSession` with session id `id`

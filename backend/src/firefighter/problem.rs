@@ -6,7 +6,8 @@ use log;
 use rand::prelude::*;
 use serde::Serialize;
 
-use crate::firefighter::strategy::{OSMFStrategy, Strategy};
+use crate::firefighter::{strategy::{OSMFStrategy, Strategy},
+                         view::View};
 use crate::graph::Graph;
 
 /// `u64` type alias to denote a time unit in the firefighter problem
@@ -111,12 +112,11 @@ impl NodeDataStorage {
 
 /// Container for data about the simulation of a firefighter problem instance
 #[derive(Serialize)]
-pub struct OSMFSimulationResponse<'a> {
+pub struct OSMFSimulationResponse {
     nodes_burned: usize,
     nodes_defended: usize,
     nodes_total: usize,
     end_time: TimeUnit,
-    node_data: &'a NodeDataStorage,
 }
 
 /// A firefighter problem instance
@@ -128,6 +128,7 @@ pub struct OSMFProblem {
     node_data: NodeDataStorage,
     global_time: TimeUnit,
     is_active: bool,
+    view: View,
 }
 
 impl OSMFProblem {
@@ -139,12 +140,13 @@ impl OSMFProblem {
         }
 
         let mut problem = Self {
-            graph,
+            graph: graph.clone(),
             settings,
             strategy,
             node_data: NodeDataStorage::new(),
             global_time: 0,
             is_active: true,
+            view: View::new(graph, 1920, 1080),
         };
 
         problem.gen_fire_roots();
@@ -257,8 +259,12 @@ impl OSMFProblem {
             nodes_defended: self.node_data.defended.len(),
             nodes_total: self.graph.read().unwrap().num_nodes,
             end_time: self.global_time,
-            node_data: &self.node_data,
         }
+    }
+
+    /// Returns the raw bytes of this firefighter problem instance's view as a PNG image
+    pub fn view_bytes(&self) -> Vec<u8> {
+        self.view.png_bytes()
     }
 }
 

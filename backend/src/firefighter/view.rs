@@ -1,8 +1,9 @@
 extern crate image;
 
-use std::sync::{Arc, RwLock};
+use std::{io::Cursor,
+          sync::{Arc, RwLock}};
 
-use self::image::{ImageBuffer, Rgb, RgbImage};
+use self::image::{DynamicImage, ImageBuffer, ImageOutputFormat, Rgb, RgbImage};
 
 use crate::graph::{CompassDirection, Graph, GridBounds};
 
@@ -62,6 +63,7 @@ impl LineSegment {
     }
 }
 
+#[derive(Debug)]
 pub struct View {
     graph: Arc<RwLock<Graph>>,
     grid_bounds: GridBounds,
@@ -257,9 +259,14 @@ impl View {
         }
     }
 
-    /// Get the underlying RGB image
-    pub fn get_img(&self) -> &RgbImage {
-        &self.img_buf
+    /// Clones the underlying image buffer, transforms it into a PNG image and returns the image
+    /// as raw bytes
+    pub fn png_bytes(&self) -> Vec<u8> {
+        let mut buf = Cursor::new(Vec::new());
+        DynamicImage::ImageRgb8(self.img_buf.clone())
+            .write_to(&mut buf, ImageOutputFormat::Png)
+            .unwrap();
+        buf.into_inner()
     }
 
     /// Save the underlying image buffer to a file
