@@ -21,9 +21,12 @@ export class SimulationConfiguratorComponent implements OnInit {
 
   ngOnInit(): void {
     //retrieve Dropdown Options here
-    this.graphService.ping().subscribe(
-      data => (console.log('ping successfull' + data))
-    );
+    this.graphService.getGraphs().subscribe(
+      data => {
+        console.log(data);
+        this.graphOptions = data;
+      }
+    )
   }
 
   cancel() {
