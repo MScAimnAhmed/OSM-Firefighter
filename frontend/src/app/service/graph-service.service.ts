@@ -12,11 +12,14 @@ export class GraphServiceService {
 
 
   ping(): Observable<any> {
-    console.log("pinging backend");
     return this.http.get("http://localhost:8080/ping");
   }
 
   getGraphs(): Observable<any> {
     return this.http.get(this.path + "/graphs");
+  }
+
+  simulate(config: any): Observable<any> {
+    return this.http.post(this.path + "/simulate", config);
   }
 }
