@@ -125,16 +125,25 @@ impl View {
         // For every node, compute its respective pixel and color it
         for node in &graph.nodes {
             if node.is_located_in(&gb) {
-                let mut w_px = ((node.lat - gb.min_lat) / deg_per_px_hz) as u32;
-                let mut h_px = ((node.lon - gb.min_lon) / deg_per_px_vert) as u32;
-                if w_px > w_max {
-                    w_px = w_max
+                let mut w_px = ((node.lat - gb.min_lat) / deg_per_px_hz) as i64;
+                let mut h_px = ((node.lon - gb.min_lon) / deg_per_px_vert) as i64;
+                if w_px > w_max as i64 {
+                    w_px = w_max as i64
                 }
-                if h_px > h_max {
-                    h_px = h_max
+                if h_px > h_max as i64 {
+                    h_px = h_max as i64
                 }
 
-                self.img_buf.put_pixel(w_px, h_px, BLACK);
+                let r = ((h_max+1) as f64 * zoom / 300.0) as i64;
+                for w in w_px-r..=w_px+r {
+                    for h in h_px-r..=h_px+r {
+                        if (((w-w_px).pow(2) + (h-h_px).pow(2)) as f64).sqrt() as i64 <= r {
+                            if w >= 0 && w <= w_max as i64 && h >= 0 && h <= h_max as i64 {
+                                self.img_buf.put_pixel(w as u32, h as u32, BLACK);
+                            }
+                        }
+                    }
+                }
             }
         }
 
