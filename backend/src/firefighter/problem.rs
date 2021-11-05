@@ -8,6 +8,7 @@ use serde::Serialize;
 
 use crate::firefighter::{strategy::{OSMFStrategy, Strategy},
                          view::View};
+use crate::firefighter::view::Coords;
 use crate::graph::Graph;
 
 /// `u64` type alias to denote a time unit in the firefighter problem
@@ -56,12 +57,12 @@ impl NodeDataStorage {
     }
 
     /// Is node with id `node_id` burning?
-    fn is_burning(&self, node_id: &usize) -> bool {
+    pub fn is_burning(&self, node_id: &usize) -> bool {
         self.burning.contains_key(node_id)
     }
 
     /// Is node with id `node_id` defended?
-    fn is_defended(&self, node_id: &usize) -> bool {
+    pub fn is_defended(&self, node_id: &usize) -> bool {
         self.defended.contains_key(node_id)
     }
 
@@ -262,8 +263,15 @@ impl OSMFProblem {
         }
     }
 
-    /// Returns the raw bytes of this firefighter problem instance's view as a PNG image
-    pub fn view_bytes(&self) -> Vec<u8> {
+    /// Generate the view initialization response fore this firefighter problem instance
+    pub fn view_init_response(&mut self) -> Vec<u8> {
+        self.view.compute_initial(&self.node_data);
+        self.view.png_bytes()
+    }
+
+    /// Generate the view update response fore this firefighter problem instance
+    pub fn view_update_response(&mut self, zoom: f64, center: Coords) -> Vec<u8> {
+        self.view.compute(zoom, center, &self.node_data);
         self.view.png_bytes()
     }
 }

@@ -43,6 +43,15 @@ impl OSMFSession {
             None
         }
     }
+
+    /// Get a mutable reference to the attached firefighter problem instance of this `OSMFSession`
+    pub fn get_mut_problem(&mut self) -> Option<&mut OSMFProblem> {
+        if let Some(ref mut problem) = self.problem {
+            Some(problem)
+        } else {
+            None
+        }
+    }
 }
 
 /// Time, after which to prune unused `OSMFSession` instances

@@ -5,6 +5,7 @@ use std::{io::Cursor,
 
 use self::image::{DynamicImage, ImageBuffer, ImageOutputFormat, Rgb, RgbImage};
 
+use crate::firefighter::problem::NodeDataStorage;
 use crate::graph::{CompassDirection, Graph, GridBounds};
 
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
@@ -13,7 +14,7 @@ const RED: Rgb<u8> = Rgb([255, 0, 0]);
 const BLUE: Rgb<u8> = Rgb([0, 0, 255]);
 
 /// Type alias for a latitude/longitude tuple
-type Coords = (f64, f64);
+pub type Coords = (f64, f64);
 
 /// Orientation of an ordered triple of coordinates.
 /// # Returns
@@ -70,6 +71,8 @@ pub struct View {
     delta_horiz: f64,
     delta_vert: f64,
     img_buf: RgbImage,
+    initial_zoom: f64,
+    initial_center: Coords,
 }
 
 impl View {
@@ -80,26 +83,24 @@ impl View {
         let grid_bounds = graph.read().unwrap().get_grid_bounds();
         let delta_horiz = grid_bounds.max_lat - grid_bounds.min_lat;
         let delta_vert = grid_bounds.max_lon - grid_bounds.min_lon;
+        let initial_center= (grid_bounds.min_lat + (delta_horiz / 2.0),
+                             grid_bounds.min_lon + (delta_vert / 2.0));
 
-        let mut view = Self {
+        let view = Self {
             graph,
             grid_bounds,
             delta_horiz,
             delta_vert,
             img_buf: ImageBuffer::from_pixel(w, h, WHITE),
+            initial_zoom: 1.0,
+            initial_center,
         };
-
-        view.compute_initial();
 
         view
     }
 
-    fn compute_initial(&mut self) {
-        // Initial zoom and center
-        let zoom = 1.0;
-        let center = (self.grid_bounds.min_lat + (self.delta_horiz / 2.0),
-                      self.grid_bounds.min_lon + (self.delta_vert / 2.0));
-
+    /// Re-compute this view
+    pub fn compute(&mut self, zoom: f64, center: Coords, node_data: &NodeDataStorage) {
         // Maximum width and length
         let w_max = self.img_buf.width() - 1;
         let h_max = self.img_buf.height() - 1;
@@ -121,31 +122,6 @@ impl View {
         let deg_per_px_vert = d_vert / (h_max+1) as f64;
 
         let graph = self.graph.read().unwrap();
-
-        // For every node, compute its respective pixel and color it
-        for node in &graph.nodes {
-            if node.is_located_in(&gb) {
-                let mut w_px = ((node.lat - gb.min_lat) / deg_per_px_hz) as i64;
-                let mut h_px = ((node.lon - gb.min_lon) / deg_per_px_vert) as i64;
-                if w_px > w_max as i64 {
-                    w_px = w_max as i64
-                }
-                if h_px > h_max as i64 {
-                    h_px = h_max as i64
-                }
-
-                let r = ((h_max+1) as f64 * zoom / 300.0) as i64;
-                for w in w_px-r..=w_px+r {
-                    for h in h_px-r..=h_px+r {
-                        if (((w-w_px).pow(2) + (h-h_px).pow(2)) as f64).sqrt() as i64 <= r {
-                            if w >= 0 && w <= w_max as i64 && h >= 0 && h <= h_max as i64 {
-                                self.img_buf.put_pixel(w as u32, h as u32, BLACK);
-                            }
-                        }
-                    }
-                }
-            }
-        }
 
         // For every edge, compute the pixel of its respective source node and iteratively draw the
         // edge until we reach the pixel of the target node
@@ -266,6 +242,45 @@ impl View {
                 self.img_buf.put_pixel(w_px as u32, h_px as u32, BLACK);
             }
         }
+
+        // For every node, compute a circle around its respective pixel and color it
+        for node in &graph.nodes {
+            if node.is_located_in(&gb) {
+                let mut w_px = ((node.lat - gb.min_lat) / deg_per_px_hz) as i64;
+                let mut h_px = ((node.lon - gb.min_lon) / deg_per_px_vert) as i64;
+                if w_px > w_max as i64 {
+                    w_px = w_max as i64
+                }
+                if h_px > h_max as i64 {
+                    h_px = h_max as i64
+                }
+
+                let col_px;
+                if node_data.is_burning(&node.id) {
+                    col_px = RED;
+                } else if node_data.is_defended(&node.id) {
+                    col_px = BLUE;
+                } else {
+                    col_px = BLACK;
+                }
+
+                let r = ((h_max+1) as f64 * zoom / 300.0) as i64;
+                for w in w_px-r..=w_px+r {
+                    for h in h_px-r..=h_px+r {
+                        if (((w-w_px).pow(2) + (h-h_px).pow(2)) as f64).sqrt() as i64 <= r {
+                            if w >= 0 && w <= w_max as i64 && h >= 0 && h <= h_max as i64 {
+                                self.img_buf.put_pixel(w as u32, h as u32, col_px);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Compute the initial view
+    pub fn compute_initial(&mut self, node_data: &NodeDataStorage) {
+        self.compute(self.initial_zoom, self.initial_center, node_data);
     }
 
     /// Clones the underlying image buffer, transforms it into a PNG image and returns the image
@@ -284,23 +299,23 @@ impl View {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use std::sync::{Arc, RwLock};
-
-    use crate::firefighter::view::View;
-    use crate::graph::Graph;
-
-    #[test]
-    fn test_view() {
-        let graph = Arc::new(RwLock::new(Graph::from_files("data/stgcenter")));
-        let view = View::new(graph, 1920, 1080);
-
-        for px in view.img_buf.pixels() {
-            // TODO check pixel
-        }
-
-        view.save_to_file("data/stgcenter.png");
-    }
-
-}
+// #[cfg(test)]
+// mod test {
+//     use std::sync::{Arc, RwLock};
+//
+//     use crate::firefighter::view::View;
+//     use crate::graph::Graph;
+//
+//     #[test]
+//     fn test_view() {
+//         let graph = Arc::new(RwLock::new(Graph::from_files("data/stgcenter")));
+//         let view = View::new(graph, 1920, 1080);
+//
+//         for px in view.img_buf.pixels() {
+//             // TODO check pixel
+//         }
+//
+//         view.save_to_file("data/stgcenter.png");
+//     }
+//
+// }

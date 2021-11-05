@@ -170,8 +170,8 @@ async fn update_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
     let sid = res_sid.1;
 
     let mut sessions = data.sessions.lock().unwrap();
-    let session = sessions.get_session(&sid).unwrap();
-    let problem = match session.get_problem() {
+    let session = sessions.get_mut_session(&sid).unwrap();
+    let problem = match session.get_mut_problem() {
         Some(problem) => problem,
         None => {
             return Err(OSMFError::NoSimulation {
@@ -179,7 +179,8 @@ async fn update_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
             });
         }
     };
-    Ok(res.content_type("image/png").body(problem.view_bytes()))
+
+    Ok(res.content_type("image/png").body(problem.view_init_response()))
 }
 
 #[actix_web::main]
