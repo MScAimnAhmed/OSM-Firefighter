@@ -64,6 +64,7 @@ impl LineSegment {
     }
 }
 
+/// View of a specific firefighter simulation
 #[derive(Debug)]
 pub struct View {
     graph: Arc<RwLock<Graph>>,
@@ -76,6 +77,7 @@ pub struct View {
 }
 
 impl View {
+    /// Create a new firefighter simulation view
     pub fn new(graph: Arc<RwLock<Graph>>, width: u32, height: u32) -> Self {
         let w = if width > 0 { width } else { 1 };
         let h = if height > 0 { height } else { 1 };
