@@ -180,7 +180,19 @@ async fn update_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
         }
     };
 
-    Ok(res.content_type("image/png").body(problem.view_init_response()))
+    let query = Query::from(req.query_string());
+    match query.get_and_parse::<f64>("zoom") {
+        Ok(zoom) => {
+            log::debug!("Updating view with zoom {}", zoom);
+            Ok(res.content_type("image/png").body(problem.view_update_response(zoom)))
+        }
+        Err(_) => {
+            log::debug!("Computing initial view");
+            Ok(res.content_type("image/png").body(problem.view_init_response()))
+        }
+    }
+
+
 }
 
 #[actix_web::main]

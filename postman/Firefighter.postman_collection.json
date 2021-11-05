@@ -80,6 +80,30 @@
 				}
 			},
 			"response": []
+		},
+		{
+			"name": "View",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}:{{port}}/view?zoom={{zoom}}",
+					"host": [
+						"{{host}}"
+					],
+					"port": "{{port}}",
+					"path": [
+						"view"
+					],
+					"query": [
+						{
+							"key": "zoom",
+							"value": "{{zoom}}"
+						}
+					]
+				}
+			},
+			"response": []
 		}
 	]
 }

@@ -72,7 +72,7 @@ pub struct View {
     delta_vert: f64,
     img_buf: RgbImage,
     initial_zoom: f64,
-    initial_center: Coords,
+    pub initial_center: Coords, // TODO make private if center is implemented frontend-side
 }
 
 impl View {
@@ -91,7 +91,7 @@ impl View {
             grid_bounds,
             delta_horiz,
             delta_vert,
-            img_buf: ImageBuffer::from_pixel(w, h, WHITE),
+            img_buf: ImageBuffer::new(w, h),
             initial_zoom: 1.0,
             initial_center,
         };
@@ -99,15 +99,22 @@ impl View {
         view
     }
 
-    /// Re-compute this view
+    /// (Re-)compute this view
     pub fn compute(&mut self, zoom: f64, center: Coords, node_data: &NodeDataStorage) {
+        let mut z = if zoom < 1.0 { 1.0 } else { zoom };
+
+        // Reset view
+        for px in self.img_buf.pixels_mut() {
+            *px = WHITE;
+        }
+
         // Maximum width and length
         let w_max = self.img_buf.width() - 1;
         let h_max = self.img_buf.height() - 1;
 
         // Delta horizontal and vertical depending on zoom
-        let d_hz = self.delta_horiz / zoom;
-        let d_vert = self.delta_vert / zoom;
+        let d_hz = self.delta_horiz / z;
+        let d_vert = self.delta_vert / z;
 
         // Grid bounds depending on zoom
         let gb = GridBounds {
@@ -264,7 +271,7 @@ impl View {
                     col_px = BLACK;
                 }
 
-                let r = ((h_max+1) as f64 * zoom / 300.0) as i64;
+                let r = ((h_max+1) as f64 * z / 300.0) as i64;
                 for w in w_px-r..=w_px+r {
                     for h in h_px-r..=h_px+r {
                         if (((w-w_px).pow(2) + (h-h_px).pow(2)) as f64).sqrt() as i64 <= r {
