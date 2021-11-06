@@ -149,7 +149,7 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<
 
     let mut problem = OSMFProblem::new(
         graph.clone(),
-        OSMFSettings::new(num_roots, num_ffs),
+        OSMFSettings::new(num_roots, num_ffs, 10),
         strategy);
     problem.simulate();
     let sim_res = problem.simulation_response();

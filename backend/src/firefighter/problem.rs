@@ -18,14 +18,16 @@ pub type TimeUnit = u64;
 pub struct OSMFSettings {
     num_roots: usize,
     pub num_firefighters: usize,
+    exec_strategy_every: u64,
 }
 
 impl OSMFSettings {
     /// Create new settings for a firefighter problem instance
-    pub fn new(num_roots: usize, num_firefighters: usize) -> Self {
+    pub fn new(num_roots: usize, num_firefighters: usize, exec_strategy_every: u64) -> Self {
         Self {
             num_roots,
             num_firefighters,
+            exec_strategy_every,
         }
     }
 }
@@ -228,15 +230,17 @@ impl OSMFProblem {
             return;
         }
 
-        let defended = match self.strategy {
-            OSMFStrategy::Greedy(ref mut greedy_strategy) =>
-                greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
-            _ => 0
-        };
+        if (self.global_time-1) % self.settings.exec_strategy_every == 0 {
+            let defended = match self.strategy {
+                OSMFStrategy::Greedy(ref mut greedy_strategy) =>
+                    greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
+                _ => 0
+            };
 
-        if defended == 0
-            && matches!(self.strategy, OSMFStrategy::Greedy( .. )) { // TODO remove when shortest distance strategy is implemented
-            self.is_active = false;
+            if defended == 0
+                && matches!(self.strategy, OSMFStrategy::Greedy( .. )) { // TODO remove when shortest distance strategy is implemented
+                self.is_active = false;
+            }
         }
     }
 
@@ -313,7 +317,7 @@ mod test {
         let num_roots = 10;
         let strategy = OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone()));
         let mut problem = OSMFProblem::new(
-            graph.clone(), OSMFSettings::new(num_roots, 2), strategy);
+            graph.clone(), OSMFSettings::new(num_roots, 2, 10), strategy);
 
         assert_eq!(problem.node_data.burning.len(), num_roots);
         assert_eq!(problem.node_data.times.len(), (problem.global_time + 1) as usize);
@@ -348,7 +352,12 @@ mod test {
             assert_eq!(*sho_dist_strategy.sho_dists.get(&some_node).unwrap_or(&max_dist), *min_dist);
         }
 
-        problem.exec_step();
+        for _ in 0..10 {
+            problem.exec_step();
+            if !problem.is_active {
+                break;
+            }
+        }
 
         assert_eq!(problem.node_data.times.len(), (problem.global_time + 1) as usize);
 
