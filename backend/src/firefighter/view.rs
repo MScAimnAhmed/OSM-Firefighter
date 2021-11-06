@@ -10,6 +10,7 @@ use crate::graph::{CompassDirection, Graph, GridBounds};
 
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
 const BLACK: Rgb<u8> = Rgb([1, 1, 1]);
+const ORANGE: Rgb<u8> = Rgb([0xff, 0x88, 0]);
 const RED: Rgb<u8> = Rgb([255, 0, 0]);
 const BLUE: Rgb<u8> = Rgb([0, 0, 255]);
 
@@ -103,7 +104,7 @@ impl View {
 
     /// (Re-)compute this view
     pub fn compute(&mut self, zoom: f64, center: Coords, node_data: &NodeDataStorage) {
-        let mut z = if zoom < 1.0 { 1.0 } else { zoom };
+        let z = if zoom < 1.0 { 1.0 } else { zoom };
 
         // Reset view
         for px in self.img_buf.pixels_mut() {
@@ -265,7 +266,9 @@ impl View {
                 }
 
                 let col_px;
-                if node_data.is_burning(&node.id) {
+                if node_data.is_root(&node.id) {
+                    col_px = ORANGE;
+                } else if node_data.is_burning(&node.id) {
                     col_px = RED;
                 } else if node_data.is_defended(&node.id) {
                     col_px = BLUE;

@@ -55,6 +55,11 @@ impl NodeDataStorage {
         }
     }
 
+    /// Is node with id `node_id` a fire root?
+    pub fn is_root(&self, node_id: &usize) -> bool {
+        self.times.get(&0).unwrap().contains(node_id)
+    }
+
     /// Is node with id `node_id` burning?
     pub fn is_burning(&self, node_id: &usize) -> bool {
         self.burning.contains_key(node_id)
