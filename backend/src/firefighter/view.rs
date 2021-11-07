@@ -112,8 +112,8 @@ impl View {
         }
 
         // Maximum width and length
-        let w_max = self.img_buf.width() - 1;
-        let h_max = self.img_buf.height() - 1;
+        let w_max = (self.img_buf.width() - 1) as i64;
+        let h_max = (self.img_buf.height() - 1) as i64;
 
         // Delta horizontal and vertical depending on zoom
         let d_hz = self.delta_horiz / z;
@@ -139,14 +139,8 @@ impl View {
             let src = &graph.nodes[edge.src];
             let tgt = &graph.nodes[edge.tgt];
 
-            let mut w_px = ((src.lat - gb.min_lat) / deg_per_px_hz) as i32;
-            let mut h_px = ((src.lon - gb.min_lon) / deg_per_px_vert) as i32;
-            if w_px > w_max as i32 {
-                w_px = w_max as i32
-            }
-            if h_px > h_max as i32 {
-                h_px = h_max as i32
-            }
+            let mut w_px = ((src.lat - gb.min_lat) / deg_per_px_hz) as i64;
+            let mut h_px = ((src.lon - gb.min_lon) / deg_per_px_vert) as i64;
 
             let ls_edge = LineSegment {
                 a: (src.lat, src.lon),
@@ -163,7 +157,7 @@ impl View {
             };
 
             fn on_north(ls_edge: &LineSegment, gb_px: &mut GridBounds, deg_per_px_vert: f64,
-                        h_px: &mut i32) -> bool {
+                        h_px: &mut i64) -> bool {
                 let ls_px = LineSegment {
                     a: (gb_px.min_lat, gb_px.max_lon),
                     b: (gb_px.max_lat, gb_px.max_lon),
@@ -179,7 +173,7 @@ impl View {
             }
 
             fn on_east(ls_edge: &LineSegment, gb_px: &mut GridBounds, deg_per_px_hz: f64,
-                       w_px: &mut i32) -> bool {
+                       w_px: &mut i64) -> bool {
                 let ls_px = LineSegment {
                     a: (gb_px.max_lat, gb_px.min_lon),
                     b: (gb_px.max_lat, gb_px.max_lon),
@@ -195,7 +189,7 @@ impl View {
             }
 
             fn on_south(ls_edge: &LineSegment, gb_px: &mut GridBounds, deg_per_px_vert: f64,
-                        h_px: &mut i32) -> bool {
+                        h_px: &mut i64) -> bool {
                 let ls_px = LineSegment {
                     a: (gb_px.min_lat, gb_px.min_lon),
                     b: (gb_px.max_lat, gb_px.min_lon),
@@ -211,7 +205,7 @@ impl View {
             }
 
             fn on_west(ls_edge: &LineSegment, gb_px: &mut GridBounds, deg_per_px_hz: f64,
-                       w_px: &mut i32) -> bool {
+                       w_px: &mut i64) -> bool {
                 let ls_px = LineSegment {
                     a: (gb_px.min_lat, gb_px.min_lon),
                     b: (gb_px.min_lat, gb_px.max_lon),
@@ -243,7 +237,7 @@ impl View {
                     CompassDirection::Zero => false
                 };
 
-                if !has_next_px || tgt.is_located_in(&gb_px) {
+                if !has_next_px {
                     break;
                 } else if !gb_px.is_located_in(&gb) {
                     continue;
@@ -256,14 +250,8 @@ impl View {
         // For every node, compute a circle around its respective pixel and color it
         for node in &graph.nodes {
             if node.is_located_in(&gb) {
-                let mut w_px = ((node.lat - gb.min_lat) / deg_per_px_hz) as i64;
-                let mut h_px = ((node.lon - gb.min_lon) / deg_per_px_vert) as i64;
-                if w_px > w_max as i64 {
-                    w_px = w_max as i64
-                }
-                if h_px > h_max as i64 {
-                    h_px = h_max as i64
-                }
+                let w_px = ((node.lat - gb.min_lat) / deg_per_px_hz) as i64;
+                let h_px = ((node.lon - gb.min_lon) / deg_per_px_vert) as i64;
 
                 let col_px;
                 if node_data.is_root(&node.id) {
@@ -280,7 +268,7 @@ impl View {
                 for w in w_px-r..=w_px+r {
                     for h in h_px-r..=h_px+r {
                         if (((w-w_px).pow(2) + (h-h_px).pow(2)) as f64).sqrt() as i64 <= r {
-                            if w >= 0 && w <= w_max as i64 && h >= 0 && h <= h_max as i64 {
+                            if w >= 0 && w <= w_max && h >= 0 && h <= h_max {
                                 self.img_buf.put_pixel(w as u32, h as u32, col_px);
                             }
                         }
