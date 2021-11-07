@@ -86,7 +86,7 @@ impl View {
         let grid_bounds = graph.read().unwrap().get_grid_bounds();
         let delta_horiz = grid_bounds.max_lat - grid_bounds.min_lat;
         let delta_vert = grid_bounds.max_lon - grid_bounds.min_lon;
-        let initial_center= (grid_bounds.min_lat + (delta_horiz / 2.0),
+        let initial_center = (grid_bounds.min_lat + (delta_horiz / 2.0),
                              grid_bounds.min_lon + (delta_vert / 2.0));
 
         let view = Self {
