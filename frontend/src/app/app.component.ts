@@ -1,5 +1,6 @@
 import { Component, ViewChild } from '@angular/core';
 import { GraphViewerComponent } from './graph-viewer/graph-viewer.component';
+import { SimulationConfig } from './data/SimulationConfig';
 
 @Component({
   selector: 'app-root',
@@ -11,7 +12,7 @@ export class AppComponent {
 
   @ViewChild(GraphViewerComponent) viewer: GraphViewerComponent | undefined;
 
-  transferSimConfig(simConfig: any): void {
+  transferSimConfig(simConfig: SimulationConfig): void {
     if (this.viewer) {
       this.viewer.startSimulation(simConfig);
     }

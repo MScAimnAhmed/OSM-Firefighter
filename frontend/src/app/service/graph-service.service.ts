@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import {Observable} from "rxjs";
+import { SimulationConfig } from '../data/SimulationConfig';
 
 @Injectable({
   providedIn: 'root'
@@ -19,7 +20,7 @@ export class GraphServiceService {
     return this.http.get(this.path + "/graphs");
   }
 
-  simulate(config: any): Observable<any> {
+  simulate(config: SimulationConfig): Observable<any> {
     let params = new HttpParams()
       .append('graph', config.graph)
       .append('strategy', config.strategy)

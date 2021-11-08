@@ -1,6 +1,7 @@
 import { Component, EventEmitter, OnInit, Output } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { SimulationConfiguratorComponent } from '../simulation-configurator/simulation-configurator.component';
+import { SimulationConfig } from '../data/SimulationConfig';
 
 @Component({
   selector: 'app-header',
@@ -9,7 +10,7 @@ import { SimulationConfiguratorComponent } from '../simulation-configurator/simu
 })
 export class HeaderComponent implements OnInit {
 
-  @Output() simConfigEvent = new EventEmitter<any>();
+  @Output() simConfigEvent = new EventEmitter<SimulationConfig>();
 
   constructor(
     private dialog: MatDialog
@@ -24,7 +25,7 @@ export class HeaderComponent implements OnInit {
       width: '470px'
     });
 
-    dialogRef.afterClosed().subscribe(data => {
+    dialogRef.afterClosed().subscribe((data: SimulationConfig) => {
       this.simConfigEvent.emit(data);
     })
   }

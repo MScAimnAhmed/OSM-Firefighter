@@ -2,6 +2,7 @@ import {AfterViewInit, Component, OnInit} from '@angular/core';
 // @ts-ignore
 import * as L from 'leaflet';
 import { GraphServiceService } from '../service/graph-service.service';
+import { SimulationConfig } from '../data/SimulationConfig';
 
 @Component({
   selector: 'app-graph-viewer',
@@ -11,7 +12,7 @@ import { GraphServiceService } from '../service/graph-service.service';
 export class GraphViewerComponent implements OnInit, AfterViewInit {
   private map: any;
 
-  private simConfig: any;
+  private simConfig: SimulationConfig;
 
   constructor(private graphservice: GraphServiceService) { }
 
@@ -36,7 +37,7 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
     tiles.addTo(this.map);
   }
 
-  public startSimulation(input: any): void {
+  public startSimulation(input: SimulationConfig): void {
     this.simConfig = input;
     this.graphservice.simulate(this.simConfig).subscribe(response => {console.log(response)});
   }
