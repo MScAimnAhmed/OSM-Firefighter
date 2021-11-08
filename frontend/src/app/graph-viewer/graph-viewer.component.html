@@ -1,9 +1,9 @@
 <div class='control'>
   <button mat-raised-button color='primary' (click)='openSimulationConfigDialog()'>Start new Simulation</button>
   <div class='turn-input'>
-    <mat-slider aria-label='Turn'></mat-slider>
+    <mat-slider aria-label='Turn' min='0' [max]='maxTurn' [value]='currentTurn'></mat-slider>
     <mat-form-field>
-      <input matInput type='number' value='1'>
+      <input matInput type='number' [value]='currentTurn'>
     </mat-form-field>
   </div>
 </div>

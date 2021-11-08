@@ -5,6 +5,7 @@ import { GraphServiceService } from '../service/graph-service.service';
 import { SimulationConfig } from '../data/SimulationConfig';
 import { SimulationConfiguratorComponent } from '../simulation-configurator/simulation-configurator.component';
 import { MatDialog } from '@angular/material/dialog';
+import { FormControl, Validators } from '@angular/forms';
 
 @Component({
   selector: 'app-graph-viewer',
@@ -15,9 +16,14 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
   private map: any;
 
   private simConfig: SimulationConfig;
+  turnControl: FormControl;
+  currentTurn = 0;
+  maxTurn = 0;
 
   constructor(private graphservice: GraphServiceService,
-              private dialog: MatDialog) { }
+              private dialog: MatDialog) {
+    this.turnControl = new FormControl(0, [Validators.required]);
+  }
 
   ngOnInit(): void {
   }
@@ -34,7 +40,10 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
 
     dialogRef.afterClosed().subscribe((data: SimulationConfig) => {
       this.simConfig = data;
-      this.graphservice.simulate(this.simConfig).subscribe(response => {console.log(response)});
+      this.graphservice.simulate(this.simConfig).subscribe(response => {
+        console.log(response)
+        this.maxTurn = response.end_time;
+      });
     })
   }
 

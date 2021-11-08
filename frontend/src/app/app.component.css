@@ -1,16 +1,4 @@
-
-header {
-  position: fixed;
-  z-index: 99;
-  height: 15%;
-  width: 100%;
-  box-shadow: 0 5px 5px rgba(0, 0, 0, 0.1);
-  -webkit-box-shadow: 0 5px 5px rgba(0, 0, 0, 0.1);
-  background-color: #ffffff;
-}
-
 .content {
   box-sizing: border-box;
-  padding: 80px 0 0 0;
   height: 100%;
 }
