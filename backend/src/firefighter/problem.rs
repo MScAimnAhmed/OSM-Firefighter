@@ -304,10 +304,8 @@ mod test {
     use std::{collections::BTreeMap,
               sync::{Arc, RwLock}};
 
-    use rand::prelude::*;
-
     use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
-                             strategy::{OSMFStrategy, ShoDistStrategy, Strategy}};
+                             strategy::{OSMFStrategy, GreedyStrategy, Strategy}};
     use crate::graph::Graph;
 
     #[test]
@@ -315,7 +313,7 @@ mod test {
         let graph = Arc::new(RwLock::new(
             Graph::from_files("data/bbgrund")));
         let num_roots = 10;
-        let strategy = OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone()));
+        let strategy = OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone()));
         let mut problem = OSMFProblem::new(
             graph.clone(), OSMFSettings::new(num_roots, 2, 10), strategy);
 
@@ -336,20 +334,6 @@ mod test {
             for root in &roots {
                 assert!(*root < num_nodes);
             }
-        }
-
-        let mut rng = thread_rng();
-        let some_node = rng.gen_range(0..num_nodes);
-        let mut dists_from_roots = Vec::with_capacity(num_roots);
-        let max_dist = usize::MAX;
-        for root in &roots {
-            dists_from_roots.push(graph_.get_shortest_dist(*root, some_node)
-                .unwrap_or(max_dist));
-        }
-        let min_dist = dists_from_roots.iter().min().unwrap();
-
-        if let OSMFStrategy::ShortestDistance(sho_dist_strategy) = &problem.strategy {
-            assert_eq!(*sho_dist_strategy.sho_dists.get(&some_node).unwrap_or(&max_dist), *min_dist);
         }
 
         for _ in 0..10 {
