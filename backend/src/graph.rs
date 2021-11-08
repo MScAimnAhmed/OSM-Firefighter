@@ -52,7 +52,7 @@ pub enum CompassDirection {
 }
 
 /// A graph node with id, latitude and longitude
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct Node {
     pub id: usize,
     pub lat: f64,
@@ -93,7 +93,7 @@ impl Node {
 }
 
 /// A directed graph edge with source and target
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct Edge {
     pub src: usize,
     pub tgt: usize,
@@ -101,7 +101,7 @@ pub struct Edge {
 }
 
 /// A directed graph with nodes, edges and node offsets
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct Graph {
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,

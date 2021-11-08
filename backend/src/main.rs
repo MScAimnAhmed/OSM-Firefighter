@@ -103,6 +103,13 @@ async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
     }
 }
 
+/// List all available firefighter containment strategies
+#[get("/strategies")]
+async fn list_strategies(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
+    let mut res = init_response(&data, &req, HttpResponse::Ok()).0;
+    res.json(json!(OSMFStrategy::available_strategies()))
+}
+
 /// Simulate a new firefighter problem instance
 #[post("/simulate")]
 async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
@@ -126,7 +133,7 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<
     let strategy_name = query.get("strategy")?;
     let strategy = match strategy_name {
         "greedy" => OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone())),
-        "sho_dist" => OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone())),
+        "shortest_distance" => OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone())),
         _ => {
             log::warn!("Unknown strategy {}", strategy_name);
             return Err(OSMFError::BadRequest {
@@ -137,10 +144,11 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<
 
     let num_roots = query.get_and_parse::<usize>("num_roots")?;
     let num_ffs = query.get_and_parse::<usize>("num_ffs")?;
+    let strategy_every = query.get_and_parse::<u64>("strategy_every")?;
 
     let mut problem = OSMFProblem::new(
         graph.clone(),
-        OSMFSettings::new(num_roots, num_ffs, 10),
+        OSMFSettings::new(num_roots, num_ffs, strategy_every),
         strategy);
     problem.simulate();
     let sim_res = problem.simulation_response();
@@ -154,6 +162,7 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<
     Ok(res.json(sim_res))
 }
 
+/// Update the view of a firefighter simulation
 #[get("/view")]
 async fn update_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
     let res_sid = init_response(&data, &req, HttpResponse::Ok());
@@ -241,6 +250,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .service(ping)
             .service(list_graphs)
+            .service(list_strategies)
             .service(simulate_problem)
             .service(update_view)
     });

@@ -42,12 +42,30 @@
 			"response": []
 		},
 		{
+			"name": "List strategies",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}:{{port}}/strategies",
+					"host": [
+						"{{host}}"
+					],
+					"port": "{{port}}",
+					"path": [
+						"strategies"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "Simulate problem",
 			"request": {
 				"method": "POST",
 				"header": [],
 				"url": {
-					"raw": "{{host}}:{{port}}/simulate?graph={{graph}}&strategy={{strategy}}&num_ffs={{num_firefighters}}&num_roots={{num_roots}}",
+					"raw": "{{host}}:{{port}}/simulate?graph={{graph}}&strategy={{strategy}}&num_ffs={{num_firefighters}}&num_roots={{num_roots}}&strategy_every={{strategy_every}}",
 					"host": [
 						"{{host}}"
 					],
@@ -75,6 +93,11 @@
 							"key": "num_roots",
 							"value": "{{num_roots}}",
 							"description": "The number of fire roots"
+						},
+						{
+							"key": "strategy_every",
+							"value": "{{strategy_every}}",
+							"description": "The number of steps between two consecutive containment strategy executions"
 						}
 					]
 				}

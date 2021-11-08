@@ -3,14 +3,27 @@ use std::{cmp::min,
           fmt::Debug,
           sync::{Arc, RwLock}};
 
+use strum::VariantNames;
+use strum_macros::{EnumString, EnumVariantNames};
+
 use crate::firefighter::problem::{NodeDataStorage, OSMFSettings, TimeUnit};
 use crate::graph::Graph;
 
 /// Strategy to contain the fire in the firefighter problem
-#[derive(Debug)]
+#[derive(Debug, EnumString, EnumVariantNames)]
+#[strum(serialize_all = "snake_case")]
 pub enum OSMFStrategy {
     Greedy(GreedyStrategy),
     ShortestDistance(ShoDistStrategy),
+}
+
+impl OSMFStrategy {
+    /// Returns a list of available fire containment strategies
+    pub fn available_strategies() -> Vec<String> {
+        Self::VARIANTS.iter()
+            .map(<&str>::to_string)
+            .collect::<Vec<_>>()
+    }
 }
 
 /// Strategy trait that each strategy needs to implement
@@ -23,7 +36,7 @@ pub trait Strategy {
 }
 
 /// Greedy fire containment strategy
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct GreedyStrategy {
     graph: Arc<RwLock<Graph>>,
 }
@@ -72,7 +85,7 @@ impl Strategy for GreedyStrategy {
 }
 
 /// Shortest distance based fire containment strategy
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ShoDistStrategy {
     graph: Arc<RwLock<Graph>>,
     pub sho_dists: BTreeMap<usize, usize>,
