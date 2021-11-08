@@ -1,6 +1,4 @@
-import { Component, ViewChild } from '@angular/core';
-import { GraphViewerComponent } from './graph-viewer/graph-viewer.component';
-import { SimulationConfig } from './data/SimulationConfig';
+import { Component } from '@angular/core';
 
 @Component({
   selector: 'app-root',
@@ -9,12 +7,4 @@ import { SimulationConfig } from './data/SimulationConfig';
 })
 export class AppComponent {
   title = 'frontend';
-
-  @ViewChild(GraphViewerComponent) viewer: GraphViewerComponent | undefined;
-
-  transferSimConfig(simConfig: SimulationConfig): void {
-    if (this.viewer) {
-      this.viewer.startSimulation(simConfig);
-    }
-  }
 }

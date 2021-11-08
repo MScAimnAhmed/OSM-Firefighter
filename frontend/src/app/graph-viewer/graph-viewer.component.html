@@ -1,3 +1,13 @@
+<div class='control'>
+  <button mat-raised-button color='primary' (click)='openSimulationConfigDialog()'>Start new Simulation</button>
+  <div class='turn-input'>
+    <mat-slider aria-label='Turn'></mat-slider>
+    <mat-form-field>
+      <input matInput type='number' value='1'>
+    </mat-form-field>
+  </div>
+</div>
+
 <div class="map-container">
   <div class="map-frame">
     <div id="map"></div>

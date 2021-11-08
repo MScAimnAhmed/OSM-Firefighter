@@ -1,9 +1,5 @@
 .map-container {
-  position: absolute;
-  top: 15%;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  height: 90%;
   margin: 10px;
 }
 
@@ -16,4 +12,18 @@
 #map {
   z-index: 90;
   height: 100%;
+}
+button {
+  padding: 5px;
+  margin: 15px;
+}
+.control {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+mat-form-field {
+  width: 50px;
 }

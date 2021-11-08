@@ -3,6 +3,8 @@ import {AfterViewInit, Component, OnInit} from '@angular/core';
 import * as L from 'leaflet';
 import { GraphServiceService } from '../service/graph-service.service';
 import { SimulationConfig } from '../data/SimulationConfig';
+import { SimulationConfiguratorComponent } from '../simulation-configurator/simulation-configurator.component';
+import { MatDialog } from '@angular/material/dialog';
 
 @Component({
   selector: 'app-graph-viewer',
@@ -14,13 +16,26 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
 
   private simConfig: SimulationConfig;
 
-  constructor(private graphservice: GraphServiceService) { }
+  constructor(private graphservice: GraphServiceService,
+              private dialog: MatDialog) { }
 
   ngOnInit(): void {
   }
 
   ngAfterViewInit(): void {
     this.initMap();
+  }
+
+  openSimulationConfigDialog() {
+
+    const dialogRef = this.dialog.open(SimulationConfiguratorComponent, {
+      width: '470px'
+    });
+
+    dialogRef.afterClosed().subscribe((data: SimulationConfig) => {
+      this.simConfig = data;
+      this.graphservice.simulate(this.simConfig).subscribe(response => {console.log(response)});
+    })
   }
 
   private initMap(): void {
@@ -36,10 +51,4 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
 
     tiles.addTo(this.map);
   }
-
-  public startSimulation(input: SimulationConfig): void {
-    this.simConfig = input;
-    this.graphservice.simulate(this.simConfig).subscribe(response => {console.log(response)});
-  }
-
 }

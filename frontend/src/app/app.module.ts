@@ -2,7 +2,6 @@ import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 
 import { AppComponent } from './app.component';
-import { HeaderComponent } from './header/header.component';
 import {MatListModule} from "@angular/material/list";
 import {MatButtonModule} from "@angular/material/button";
 import {MatIconModule} from "@angular/material/icon";
@@ -15,27 +14,28 @@ import {MatInputModule} from "@angular/material/input";
 import { GraphViewerComponent } from './graph-viewer/graph-viewer.component';
 import { HttpClientModule } from '@angular/common/http';
 import {ReactiveFormsModule} from "@angular/forms";
+import { MatSliderModule } from '@angular/material/slider';
 
 @NgModule({
   declarations: [
     AppComponent,
-    HeaderComponent,
     SimulationConfiguratorComponent,
     GraphViewerComponent
   ],
-    imports: [
-        BrowserModule,
-        MatListModule,
-        HttpClientModule,
-        MatButtonModule,
-        MatIconModule,
-        MatDialogModule,
-        MatSelectModule,
-        MatInputModule,
-        MatOptionModule,
-        BrowserAnimationsModule,
-        ReactiveFormsModule
-    ],
+  imports: [
+    BrowserModule,
+    MatListModule,
+    HttpClientModule,
+    MatButtonModule,
+    MatIconModule,
+    MatDialogModule,
+    MatSelectModule,
+    MatInputModule,
+    MatOptionModule,
+    BrowserAnimationsModule,
+    ReactiveFormsModule,
+    MatSliderModule
+  ],
   providers: [],
   bootstrap: [AppComponent]
 })
