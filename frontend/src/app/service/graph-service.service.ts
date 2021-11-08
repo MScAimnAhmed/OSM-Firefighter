@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import {HttpClient} from "@angular/common/http";
+import { HttpClient, HttpParams } from '@angular/common/http';
 import {Observable} from "rxjs";
 
 @Injectable({
@@ -20,6 +20,11 @@ export class GraphServiceService {
   }
 
   simulate(config: any): Observable<any> {
-    return this.http.post(this.path + "/simulate", config);
+    let params = new HttpParams()
+      .append('graph', config.graph)
+      .append('strategy', config.strategy)
+      .append('num_ffs', String(config.num_ffs))
+      .append('num_roots', String(config.num_roots));
+    return this.http.post(this.path + "/simulate",null ,{ params: params });
   }
 }

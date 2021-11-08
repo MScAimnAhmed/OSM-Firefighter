@@ -12,7 +12,7 @@ export class SimulationConfiguratorComponent implements OnInit {
 
   //TODO: load Options from backend on Dialog Open
   graphOptions: string[] = ['someTestGraph.fmi', 'another One'];
-  strategyOptions: string[] = ['Greedy'];
+  strategyOptions: string[] = ['greedy'];
 
   graphFormControl: FormControl;
   fireSourceFormControl: FormControl;
