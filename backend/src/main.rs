@@ -112,6 +112,13 @@ async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
     }
 }
 
+/// List all available firefighter containment strategies
+#[get("/strategies")]
+async fn list_strategies(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
+    let mut res = init_response(&data, &req, HttpResponse::Ok()).0;
+    res.json(json!(OSMFStrategy::variants()))
+}
+
 /// Simulate a new firefighter problem instance
 #[post("/simulate")]
 async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
@@ -135,7 +142,7 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<
     let strategy_name = query.get("strategy")?;
     let strategy = match strategy_name {
         "greedy" => OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone())),
-        "sho_dist" => OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone())),
+        "shortest_distance" => OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone())),
         _ => {
             log::warn!("Unknown strategy {}", strategy_name);
             return Err(OSMFError::BadRequest {
@@ -164,6 +171,7 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<
     Ok(res.json(sim_res))
 }
 
+/// Update the view of a firefighter simulation
 #[get("/view")]
 async fn update_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
     let res_sid = init_response(&data, &req, HttpResponse::Ok());
@@ -244,6 +252,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::default())
             .service(ping)
             .service(list_graphs)
+            .service(list_strategies)
             .service(simulate_problem)
             .service(update_view)
     });

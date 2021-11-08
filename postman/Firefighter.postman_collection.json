@@ -42,6 +42,24 @@
 			"response": []
 		},
 		{
+			"name": "List strategies",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}:{{port}}/strategies",
+					"host": [
+						"{{host}}"
+					],
+					"port": "{{port}}",
+					"path": [
+						"strategies"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "Simulate problem",
 			"request": {
 				"method": "POST",
