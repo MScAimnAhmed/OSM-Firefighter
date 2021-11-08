@@ -10,6 +10,8 @@ import * as L from 'leaflet';
 export class GraphViewerComponent implements OnInit, AfterViewInit {
   private map: any;
 
+  private simConfig: any;
+
   constructor() { }
 
   ngOnInit(): void {
@@ -31,6 +33,10 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
     });
 
     tiles.addTo(this.map);
+  }
+
+  public startSimulation(input: any): void {
+    this.simConfig = input;
   }
 
 }
