@@ -308,8 +308,8 @@ impl Graph {
     }
 
     /// Get the shortest distance between the node with id `src_id` and the node with id `tgt_id`.
-    /// Returns error if no path exists.
-    pub fn get_shortest_dist(&self, src_id: usize, tgt_id: usize) -> Result<usize, ComputationError> {
+    /// Returns `usize::MAX` if no path exists.
+    pub fn unchecked_get_shortest_dist(&self, src_id: usize, tgt_id: usize) -> usize {
         let src = &self.nodes[src_id];
         let tgt = &self.nodes[tgt_id];
 
@@ -342,6 +342,13 @@ impl Graph {
             }
         }
 
+        best_dist
+    }
+
+    /// Get the shortest distance between the node with id `src_id` and the node with id `tgt_id`.
+    /// Returns error if no path exists.
+    pub fn get_shortest_dist(&self, src_id: usize, tgt_id: usize) -> Result<usize, ComputationError> {
+        let best_dist = self.unchecked_get_shortest_dist(src_id, tgt_id);
         if best_dist < usize::MAX {
             Ok(best_dist)
         } else {

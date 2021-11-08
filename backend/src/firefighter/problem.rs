@@ -160,7 +160,7 @@ impl OSMFProblem {
 
         if let OSMFStrategy::ShortestDistance(ref mut sho_dist_strategy) = problem.strategy {
             let roots = problem.node_data.times.get(&0).unwrap();
-            sho_dist_strategy.compute_shortest_dists(roots);
+            sho_dist_strategy.group_nodes_by_sho_dist(roots);
         }
 
         problem

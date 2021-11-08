@@ -2,6 +2,7 @@ use std::{cmp::min,
           collections::BTreeMap,
           fmt::Debug,
           sync::{Arc, RwLock}};
+use std::collections::HashMap;
 
 use strum::VariantNames;
 use strum_macros::{EnumString, EnumVariantNames};
@@ -88,30 +89,37 @@ impl Strategy for GreedyStrategy {
 #[derive(Debug, Default)]
 pub struct ShoDistStrategy {
     graph: Arc<RwLock<Graph>>,
-    pub sho_dists: BTreeMap<usize, usize>,
+    nodes_by_sho_dist: BTreeMap<usize, Vec<usize>>,
 }
 
 impl ShoDistStrategy {
-    /// For every node, calculate the minimum shortest distance between the node and
-    /// any fire root in `roots`
-    pub fn compute_shortest_dists(&mut self, roots: &Vec<usize>) {
+
+    pub fn group_nodes_by_sho_dist(&mut self, roots: &Vec<usize>) {
         let graph = self.graph.read().unwrap();
+
+        // For every node, compute the minimum shortest distance between the node and
+        // any fire root
+        let mut sho_dists: HashMap<usize, usize> = HashMap::with_capacity(graph.num_nodes);
         for root in roots {
             for node in &graph.nodes {
-                match graph.get_shortest_dist(*root, node.id) {
-                    Ok(new_dist) => {
-                        self.sho_dists.entry(node.id)
-                            .and_modify(|cur_dist| if new_dist < *cur_dist { *cur_dist = new_dist })
-                            .or_insert(new_dist);
-                    }
-                    Err(err) => {
-                        log::warn!("{}", err.to_string());
-                    }
-                }
+                let new_dist = graph.unchecked_get_shortest_dist(*root, node.id);
+                sho_dists.entry(node.id)
+                    .and_modify(|cur_dist| if new_dist < *cur_dist { *cur_dist = new_dist })
+                    .or_insert(new_dist);
             }
 
             log::debug!("Computed shortest distances to fire root {}", root);
         }
+
+        // Group all nodes by their minimum shortest distance to any fire root
+        for (&node_id, &dist) in sho_dists.iter() {
+            self.nodes_by_sho_dist.entry(dist)
+                .and_modify(|nodes| nodes.push(node_id))
+                .or_insert(Vec::new());
+        }
+
+        log::debug!("Grouped nodes by minimum shortest distance to any fire root {:#?}",
+            self.nodes_by_sho_dist);
     }
 }
 
@@ -119,7 +127,7 @@ impl Strategy for ShoDistStrategy {
     fn new(graph: Arc<RwLock<Graph>>) -> Self {
         Self {
             graph,
-            sho_dists: BTreeMap::new(),
+            nodes_by_sho_dist: BTreeMap::new(),
         }
     }
 
