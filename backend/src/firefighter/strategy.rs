@@ -3,7 +3,7 @@ use std::{cmp::min,
           fmt::Debug,
           sync::{Arc, RwLock}};
 
-use crate::firefighter::problem::{NodeDataStorage, OSMFSettings, TimeUnit, NodeState};
+use crate::firefighter::problem::{NodeDataStorage, OSMFSettings, TimeUnit};
 use crate::graph::Graph;
 
 /// Strategy to contain the fire in the firefighter problem
@@ -19,7 +19,7 @@ pub trait Strategy {
     fn new (graph: Arc<RwLock<Graph>>) -> Self;
 
     /// Execute the fire containment strategy
-    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) -> Vec<usize>;
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) -> usize;
 }
 
 /// Greedy fire containment strategy
@@ -35,17 +35,17 @@ impl Strategy for GreedyStrategy {
         }
     }
 
-    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) -> Vec<usize> {
-        let graph = self.graph.read().unwrap();
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) -> usize {
+        let burning = node_data.get_burning();
 
-        let burning = node_data.get_all_burning();
+        let graph = self.graph.read().unwrap();
 
         // Get all edges with targets that are not burned or defended yet
         let mut edges = Vec::new();
         for nd in burning {
             for i in graph.offsets[nd.node_id]..graph.offsets[nd.node_id+1] {
                 let edge = &graph.edges[i];
-                if !node_data.is_node_data_attached(&edge.tgt) {
+                if node_data.is_undefended(&edge.tgt) {
                     edges.push(edge);
                 }
             }
@@ -60,15 +60,14 @@ impl Strategy for GreedyStrategy {
             }));
 
         // Defend as many targets as firefighters are available
-        let num_defended = min(edges.len(), settings.num_firefighters);
-        let mut defended = Vec::with_capacity(num_defended);
-        for edge in &edges[0..num_defended] {
-            node_data.attach_node_data(edge.tgt, NodeState::Defended, global_time);
-            defended.push(edge.tgt);
+        let num_to_defend = min(edges.len(), settings.num_firefighters);
+        let to_defend: Vec<_> = edges[0..num_to_defend].iter()
+            .map(|&e| e.tgt)
+            .collect();
+        log::debug!("Defending nodes {:?}", &to_defend);
+        node_data.mark_defended(to_defend, global_time);
 
-            log::debug!("Node {} is defended", edge.tgt);
-        }
-        defended
+        num_to_defend
     }
 }
 
@@ -111,7 +110,7 @@ impl Strategy for ShoDistStrategy {
         }
     }
 
-    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) -> Vec<usize> {
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) -> usize {
         todo!()
     }
 }

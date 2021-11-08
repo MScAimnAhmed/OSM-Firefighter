@@ -147,21 +147,52 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<
     let num_roots = query.get_and_parse::<usize>("num_roots")?;
     let num_ffs = query.get_and_parse::<usize>("num_ffs")?;
 
-    let problem = Arc::new(RwLock::new(OSMFProblem::new(
+    let mut problem = OSMFProblem::new(
         graph.clone(),
-        OSMFSettings::new(num_roots, num_ffs),
-        strategy)));
+        OSMFSettings::new(num_roots, num_ffs, 10),
+        strategy);
+    problem.simulate();
+    let sim_res = problem.simulation_response();
 
     {
         let mut sessions = data.sessions.lock().unwrap();
         let session = sessions.get_mut_session(&sid).unwrap();
-        session.attach_problem(problem.clone());
+        session.attach_problem(problem);
     }
 
-    let mut problem_ = problem.write().unwrap();
-    problem_.simulate();
+    Ok(res.json(sim_res))
+}
 
-    Ok(res.json(problem_.simulation_response()))
+#[get("/view")]
+async fn update_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
+    let res_sid = init_response(&data, &req, HttpResponse::Ok());
+    let mut res = res_sid.0;
+    let sid = res_sid.1;
+
+    let mut sessions = data.sessions.lock().unwrap();
+    let session = sessions.get_mut_session(&sid).unwrap();
+    let problem = match session.get_mut_problem() {
+        Some(problem) => problem,
+        None => {
+            return Err(OSMFError::NoSimulation {
+                message: "No simulation has been started yet".to_string()
+            });
+        }
+    };
+
+    let query = Query::from(req.query_string());
+    match query.get_and_parse::<f64>("zoom") {
+        Ok(zoom) => {
+            log::debug!("Updating view with zoom {}", zoom);
+            Ok(res.content_type("image/png").body(problem.view_update_response(zoom)))
+        }
+        Err(_) => {
+            log::debug!("Computing initial view");
+            Ok(res.content_type("image/png").body(problem.view_init_response()))
+        }
+    }
+
+
 }
 
 #[actix_web::main]
@@ -213,6 +244,7 @@ async fn main() -> std::io::Result<()> {
             .service(ping)
             .service(list_graphs)
             .service(simulate_problem)
+            .service(update_view)
     });
     server.bind("0.0.0.0:8080")?
         .run()

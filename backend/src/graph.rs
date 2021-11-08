@@ -21,14 +21,75 @@ struct HubLabel {
     dir: HubDirection,
 }
 
+/// Struct to hold the grid bounds of a graph or part of a graph
+#[derive(Debug)]
+pub struct GridBounds {
+    pub min_lat: f64,
+    pub max_lat: f64,
+    pub min_lon: f64,
+    pub max_lon: f64,
+}
+
+impl GridBounds {
+    /// Returns true if this grid bounds are located within `other`
+    pub fn is_located_in(&self, other: &GridBounds) -> bool {
+        self.min_lat >= other.min_lat && self.max_lat <= other.max_lat
+            && self.min_lon >= other.min_lon && self.max_lon <= other.max_lon
+    }
+}
+
+/// Compass directions related to grid bounds
+pub enum CompassDirection {
+    North,
+    NorthEast,
+    East,
+    SouthEast,
+    South,
+    SouthWest,
+    West,
+    NorthWest,
+    Zero,
+}
+
 /// A graph node with id, latitude and longitude
 #[derive(Debug, Serialize)]
 pub struct Node {
     pub id: usize,
-    lat: f64,
-    lon: f64,
+    pub lat: f64,
+    pub lon: f64,
     bwd_hubs: Vec<HubLabel>,
     fwd_hubs: Vec<HubLabel>,
+}
+
+impl Node {
+    /// Returns true if this node is located within the given grid bounds
+    pub fn is_located_in(&self, gb: &GridBounds) -> bool {
+        self.lat >= gb.min_lat && self.lat <= gb.max_lat
+            && self.lon >= gb.min_lon && self.lon  <= gb.max_lon
+    }
+
+    /// Get the compass direction of this node relative to the given grid bounds
+    pub fn get_relative_compass_direction(&self, gb: &GridBounds) -> CompassDirection {
+        if self.lat >= gb.min_lat && self.lat <= gb.max_lat && self.lon > gb.max_lon {
+            CompassDirection::North
+        } else if self.lat > gb.max_lat && self.lon > gb.max_lon {
+            CompassDirection::NorthEast
+        } else if self.lat > gb.max_lat && self.lon >= gb.min_lon && self.lon <= gb.max_lon {
+            CompassDirection::East
+        } else if self.lat > gb.max_lat && self.lon < gb.min_lon {
+            CompassDirection::SouthEast
+        } else if self.lat >= gb.min_lat && self.lat <= gb.max_lat && self.lon < gb.min_lon {
+            CompassDirection::South
+        } else if self.lat < gb.min_lat && self.lon < gb.min_lon {
+            CompassDirection::SouthWest
+        } else if self.lat < gb.min_lat && self.lon >= gb.min_lon && self.lon <= gb.max_lon {
+            CompassDirection::West
+        } else if self.lat < gb.min_lat && self.lon > gb.max_lon {
+            CompassDirection::NorthWest
+        } else {
+            CompassDirection::Zero
+        }
+    }
 }
 
 /// A directed graph edge with source and target
@@ -47,6 +108,14 @@ pub struct Graph {
     pub offsets: Vec<usize>,
     pub num_nodes: usize,
     pub num_edges: usize,
+}
+
+/// Unstable float comparison.
+/// # Returns
+/// * `a < b`: `Ordering::Less`
+/// * `a >= b`: `Ordering::Greater`
+fn unstable_cmp_f64(a: f64, b: f64) -> Ordering {
+    if a < b { Ordering::Less } else { Ordering::Greater }
 }
 
 impl Graph {
@@ -279,6 +348,32 @@ impl Graph {
             Err(ComputationError::NoPath(src_id, tgt_id))
         }
     }
+
+    /// Returns this graphs grid bounds, i.e. the minimal/maximal latitude/longitude
+    /// of this graph
+    pub fn get_grid_bounds(&self) -> GridBounds {
+        let latitudes: Vec<_> = self.nodes.iter()
+            .map(|n| n.lat)
+            .collect();
+        let longitudes: Vec<_> = self.nodes.iter()
+            .map(|n| n.lon)
+            .collect();
+
+        GridBounds {
+            min_lat: *latitudes.iter()
+                .min_by(|&lat1, &lat2| unstable_cmp_f64(*lat1, *lat2))
+                .unwrap_or(&f64::NAN),
+            max_lat: *latitudes.iter()
+                .max_by(|&lat1, &lat2| unstable_cmp_f64(*lat1, *lat2))
+                .unwrap_or(&f64::NAN),
+            min_lon: *longitudes.iter()
+                .min_by(|&lon1, &lon2| unstable_cmp_f64(*lon1, *lon2))
+                .unwrap_or(&f64::NAN),
+            max_lon: *longitudes.iter()
+                .max_by(|&lon1, &lon2| unstable_cmp_f64(*lon1, *lon2))
+                .unwrap_or(&f64::NAN),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -353,6 +448,12 @@ mod test {
 
         assert_eq!(graph.nodes.len(), 350);
         assert_eq!(graph.edges.len(), 685);
+
+        let gb = graph.get_grid_bounds();
+        assert!(gb.min_lat >= 48.67);
+        assert!(gb.max_lat < 48.68);
+        assert!(gb.min_lon >= 8.99);
+        assert!(gb.max_lon < 9.02);
 
         for i in 0..graph.nodes.len() {
             let node = graph.nodes.get(i).unwrap();

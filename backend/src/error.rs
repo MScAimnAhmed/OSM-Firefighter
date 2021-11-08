@@ -28,6 +28,8 @@ pub enum OSMFError {
     Internal { message: String },
     #[display(fmt = "{}", message)]
     BadRequest { message: String },
+    #[display(fmt = "{}", message)]
+    NoSimulation { message: String },
 }
 
 impl OSMFError {
@@ -35,7 +37,8 @@ impl OSMFError {
     pub fn name(&self) -> String {
         match self {
             Self::Internal { .. } => "Internal Server Error".to_string(),
-            Self::BadRequest { .. } => "Bad Request".to_string()
+            Self::BadRequest { .. } => "Bad Request".to_string(),
+            Self::NoSimulation { .. } => "No Simulation".to_string()
         }
     }
 }
@@ -44,7 +47,8 @@ impl ResponseError for OSMFError {
     fn status_code(&self) -> StatusCode {
         match *self {
             Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::BadRequest { .. } => StatusCode::BAD_REQUEST
+            Self::BadRequest { .. } => StatusCode::BAD_REQUEST,
+            Self::NoSimulation { .. } => StatusCode::CONFLICT
         }
     }
     fn error_response(&self) -> HttpResponse {
