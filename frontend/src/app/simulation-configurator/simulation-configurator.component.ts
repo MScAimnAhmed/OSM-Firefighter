@@ -65,7 +65,8 @@ export class SimulationConfiguratorComponent implements OnInit {
         graph: this.selectedGraph,
         strategy: this.selectedStrategy,
         num_ffs: this.fireFighters,
-        num_roots: this.fireSources
+        num_roots: this.fireSources,
+        strategy_every: this.fireFighterFrequency
       }
     );
   }
