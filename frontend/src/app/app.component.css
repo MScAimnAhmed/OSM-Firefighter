@@ -1,10 +1,14 @@
 
-header {
-  position: fixed;
+.header {
+
   z-index: 99;
   height: 120px;
   width: 100%;
   box-shadow: 0 5px 5px rgba(0, 0, 0, 0.1);
   -webkit-box-shadow: 0 5px 5px rgba(0, 0, 0, 0.1);
   background-color: #ffffff;
+}
+
+content {
+  margin-top: 120px;
 }

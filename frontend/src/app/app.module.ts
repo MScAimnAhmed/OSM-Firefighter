@@ -14,6 +14,7 @@ import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import {MatInputModule} from "@angular/material/input";
 import { GraphViewerComponent } from './graph-viewer/graph-viewer.component';
 import { HttpClientModule } from '@angular/common/http';
+import {ReactiveFormsModule} from "@angular/forms";
 
 @NgModule({
   declarations: [
@@ -22,18 +23,19 @@ import { HttpClientModule } from '@angular/common/http';
     SimulationConfiguratorComponent,
     GraphViewerComponent
   ],
-  imports: [
-    BrowserModule,
-    MatListModule,
-    HttpClientModule,
-    MatButtonModule,
-    MatIconModule,
-    MatDialogModule,
-    MatSelectModule,
-    MatInputModule,
-    MatOptionModule,
-    BrowserAnimationsModule
-  ],
+    imports: [
+        BrowserModule,
+        MatListModule,
+        HttpClientModule,
+        MatButtonModule,
+        MatIconModule,
+        MatDialogModule,
+        MatSelectModule,
+        MatInputModule,
+        MatOptionModule,
+        BrowserAnimationsModule,
+        ReactiveFormsModule
+    ],
   providers: [],
   bootstrap: [AppComponent]
 })

@@ -9,17 +9,8 @@ use std::{collections::HashMap,
           fs,
           sync::{Arc, Mutex, RwLock}};
 
-use actix_web::{App,
-                dev::HttpResponseBuilder,
-                get,
-                HttpMessage,
-                HttpRequest,
-                HttpResponse,
-                HttpServer,
-                middleware::Logger,
-                post,
-                Responder,
-                web};
+use actix_cors::Cors;
+use actix_web::{App, dev::HttpResponseBuilder, get, HttpMessage, HttpRequest, HttpResponse, HttpServer, middleware::Logger, post, Responder, web, http};
 use log;
 use serde_json::json;
 
@@ -238,15 +229,22 @@ async fn main() -> std::io::Result<()> {
 
     // Initialize and start server
     let server = HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allowed_methods(vec!["GET", "POST"])
+            .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+            .allowed_header(http::header::CONTENT_TYPE)
+            .max_age(3600);
         App::new()
             .app_data(data.clone())
+            .wrap(cors)
             .wrap(Logger::default())
             .service(ping)
             .service(list_graphs)
             .service(simulate_problem)
             .service(update_view)
     });
-    server.bind("0.0.0.0:8080")?
+    server.bind("localhost:8080")?
         .run()
         .await
 }
