@@ -146,10 +146,11 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<
 
     let num_roots = query.get_and_parse::<usize>("num_roots")?;
     let num_ffs = query.get_and_parse::<usize>("num_ffs")?;
+    let strategy_every = query.get_and_parse::<u64>("strategy_every")?;
 
     let mut problem = OSMFProblem::new(
         graph.clone(),
-        OSMFSettings::new(num_roots, num_ffs, 10),
+        OSMFSettings::new(num_roots, num_ffs, strategy_every),
         strategy);
     problem.simulate();
     let sim_res = problem.simulation_response();
