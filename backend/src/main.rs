@@ -116,7 +116,7 @@ async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
 #[get("/strategies")]
 async fn list_strategies(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
     let mut res = init_response(&data, &req, HttpResponse::Ok()).0;
-    res.json(json!(OSMFStrategy::variants()))
+    res.json(json!(OSMFStrategy::available_strategies()))
 }
 
 /// Simulate a new firefighter problem instance

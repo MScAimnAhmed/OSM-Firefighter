@@ -18,7 +18,8 @@ pub enum OSMFStrategy {
 }
 
 impl OSMFStrategy {
-    pub fn variants() -> Vec<String> {
+    /// Returns a list of available fire containment strategies
+    pub fn available_strategies() -> Vec<String> {
         Self::VARIANTS.iter()
             .map(<&str>::to_string)
             .collect::<Vec<_>>()
