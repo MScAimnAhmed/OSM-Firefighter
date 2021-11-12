@@ -15,6 +15,7 @@ use crate::graph::Graph;
 pub enum OSMFStrategy {
     Greedy(GreedyStrategy),
     ShortestDistance(ShoDistStrategy),
+    //Priority(PriorityStrategy),
 }
 
 impl OSMFStrategy {
@@ -89,6 +90,10 @@ impl Strategy for GreedyStrategy {
 pub struct ShoDistStrategy {
     graph: Arc<RwLock<Graph>>,
     nodes_by_sho_dist: BTreeMap<usize, Vec<usize>>,
+    residual_firefighter: usize,
+    nodes_to_defend: Vec<usize>,
+    dist_to_defend: usize,
+    total_defended_nodes: usize
 }
 
 impl ShoDistStrategy {
@@ -127,13 +132,48 @@ impl Strategy for ShoDistStrategy {
         Self {
             graph,
             nodes_by_sho_dist: BTreeMap::new(),
+            residual_firefighter: 0,
+            nodes_to_defend: vec![],
+            dist_to_defend: 0,
+            total_defended_nodes: 0
         }
     }
 
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) -> usize {
-        todo!()
+        if self.nodes_to_defend.is_empty() {
+            for dist in self.dist_to_defend + 1 .. self.nodes_by_sho_dist.len() {
+                let nodes = self.nodes_by_sho_dist.get(&dist).unwrap();
+                if dist > 0 {
+                    let n = settings.num_firefighters;
+                    let e = settings.exec_strategy_every as usize;
+                    let num = ((((dist - 1) / e) + 1) * n) + self.residual_firefighter - self.total_defended_nodes;
+
+                    if nodes.len() <= num as usize && nodes.len() > 0{
+                        self.nodes_to_defend = nodes.clone();
+                        self.residual_firefighter = num - nodes.len();
+                        self.total_defended_nodes += nodes.len();
+                        self.dist_to_defend = dist;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Defend as many targets as firefighters are available
+        let num_to_defend = min(self.nodes_to_defend.len(), settings.num_firefighters);
+        let mut to_defend = Vec::with_capacity(num_to_defend);
+        for _ in 0..num_to_defend {
+            let node = self.nodes_to_defend.pop().unwrap();
+            to_defend.push(node);
+        }
+        log::debug!("Defending nodes {:?}", &to_defend);
+        node_data.mark_defended(to_defend, global_time);
+
+        num_to_defend
     }
 }
+
+
 
 #[cfg(test)]
 mod test {

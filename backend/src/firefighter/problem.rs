@@ -18,7 +18,7 @@ pub type TimeUnit = u64;
 pub struct OSMFSettings {
     num_roots: usize,
     pub num_firefighters: usize,
-    exec_strategy_every: u64,
+    pub exec_strategy_every: u64,
 }
 
 impl OSMFSettings {
