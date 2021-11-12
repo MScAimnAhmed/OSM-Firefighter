@@ -141,18 +141,18 @@ impl Strategy for ShoDistStrategy {
 
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) -> usize {
         if self.nodes_to_defend.is_empty() {
-            for dist in self.dist_to_defend + 1 .. self.nodes_by_sho_dist.len() {
-                let nodes = self.nodes_by_sho_dist.get(&dist).unwrap();
-                if dist > 0 {
-                    let n = settings.num_firefighters;
-                    let e = settings.exec_strategy_every as usize;
-                    let num = ((((dist - 1) / e) + 1) * n) + self.residual_firefighter - self.total_defended_nodes;
+            let next_dist = self.dist_to_defend + 1;
+            for dist in next_dist..=*self.nodes_by_sho_dist.keys().max().unwrap_or(&next_dist) {
+                if let Some(nodes) = self.nodes_by_sho_dist.get(&dist) {
+                    let n = settings.num_firefighters as isize;
+                    let e = settings.exec_strategy_every as isize;
+                    let num = ((((dist as isize - 1) / e) + 1) * n) + self.residual_firefighter as isize - self.total_defended_nodes as isize;
 
-                    if nodes.len() <= num as usize && nodes.len() > 0{
+                    if nodes.len() as isize <= num && nodes.len() > 0 {
                         self.nodes_to_defend = nodes.clone();
-                        self.residual_firefighter = num - nodes.len();
-                        self.total_defended_nodes += nodes.len();
+                        self.residual_firefighter = num as usize - nodes.len();
                         self.dist_to_defend = dist;
+                        self.total_defended_nodes += nodes.len();
                         break;
                     }
                 }

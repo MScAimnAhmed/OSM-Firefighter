@@ -250,11 +250,11 @@ impl OSMFProblem {
             let defended = match self.strategy {
                 OSMFStrategy::Greedy(ref mut greedy_strategy) =>
                     greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
-                _ => 0
+                OSMFStrategy::ShortestDistance(ref mut shodist_strategy) =>
+                    shodist_strategy.execute(&self.settings, &mut self.node_data, self.global_time)
             };
 
-            if defended == 0
-                && matches!(self.strategy, OSMFStrategy::Greedy( .. )) { // TODO remove when shortest distance strategy is implemented
+            if defended == 0 {
                 self.is_active = false;
             }
         }
