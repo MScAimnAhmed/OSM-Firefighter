@@ -90,7 +90,7 @@ impl Strategy for GreedyStrategy {
 pub struct ShoDistStrategy {
     graph: Arc<RwLock<Graph>>,
     nodes_by_sho_dist: BTreeMap<usize, Vec<usize>>,
-    residual_firefighter: usize,
+    residual_firefighters: usize,
     nodes_to_defend: Vec<usize>,
     dist_to_defend: usize,
     total_defended_nodes: usize
@@ -132,7 +132,7 @@ impl Strategy for ShoDistStrategy {
         Self {
             graph,
             nodes_by_sho_dist: BTreeMap::new(),
-            residual_firefighter: 0,
+            residual_firefighters: 0,
             nodes_to_defend: vec![],
             dist_to_defend: 0,
             total_defended_nodes: 0
@@ -146,11 +146,11 @@ impl Strategy for ShoDistStrategy {
                 if let Some(nodes) = self.nodes_by_sho_dist.get(&dist) {
                     let n = settings.num_firefighters as isize;
                     let e = settings.exec_strategy_every as isize;
-                    let num = ((((dist as isize - 1) / e) + 1) * n) + self.residual_firefighter as isize - self.total_defended_nodes as isize;
+                    let num = ((((dist as isize - 1) / e) + 1) * n) + self.residual_firefighters as isize - self.total_defended_nodes as isize;
 
                     if nodes.len() as isize <= num && nodes.len() > 0 {
                         self.nodes_to_defend = nodes.clone();
-                        self.residual_firefighter = num as usize - nodes.len();
+                        self.residual_firefighters = num as usize - nodes.len();
                         self.dist_to_defend = dist;
                         self.total_defended_nodes += nodes.len();
                         break;
