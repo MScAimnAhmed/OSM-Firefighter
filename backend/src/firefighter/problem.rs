@@ -174,9 +174,9 @@ impl OSMFProblem {
 
         problem.gen_fire_roots();
 
-        if let OSMFStrategy::ShortestDistance(ref mut sho_dist_strategy) = problem.strategy {
+        if let OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) = problem.strategy {
             let roots = problem.node_data.times.get(&0).unwrap();
-            sho_dist_strategy.group_nodes_by_sho_dist(roots);
+            mindistgroup_strategy.group_nodes_by_sho_dist(roots);
         }
 
         problem
@@ -250,8 +250,8 @@ impl OSMFProblem {
             let defended = match self.strategy {
                 OSMFStrategy::Greedy(ref mut greedy_strategy) =>
                     greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
-                OSMFStrategy::ShortestDistance(ref mut shodist_strategy) =>
-                    shodist_strategy.execute(&self.settings, &mut self.node_data, self.global_time)
+                OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) =>
+                    mindistgroup_strategy.execute(&self.settings, &mut self.node_data, self.global_time)
             };
 
             if defended == 0 {

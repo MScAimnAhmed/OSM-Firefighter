@@ -25,7 +25,7 @@ use serde_json::json;
 
 use crate::error::OSMFError;
 use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
-                         strategy::{GreedyStrategy, OSMFStrategy, ShoDistStrategy, Strategy}};
+                         strategy::{GreedyStrategy, OSMFStrategy, MinDistGroupStrategy, Strategy}};
 use crate::firefighter::problem::TimeUnit;
 use crate::graph::Graph;
 use crate::session::OSMFSessionStorage;
@@ -143,7 +143,7 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<
     let strategy_name = query.get("strategy")?;
     let strategy = match strategy_name {
         "greedy" => OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone())),
-        "shortest_distance" => OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone())),
+        "shortest_distance" => OSMFStrategy::MinDistanceGroup(MinDistGroupStrategy::new(graph.clone())),
         _ => {
             log::warn!("Unknown strategy {}", strategy_name);
             return Err(OSMFError::BadRequest {

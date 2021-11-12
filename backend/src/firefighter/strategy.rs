@@ -14,7 +14,7 @@ use crate::graph::Graph;
 #[strum(serialize_all = "snake_case")]
 pub enum OSMFStrategy {
     Greedy(GreedyStrategy),
-    ShortestDistance(ShoDistStrategy),
+    MinDistanceGroup(MinDistGroupStrategy),
     //Priority(PriorityStrategy),
 }
 
@@ -87,7 +87,7 @@ impl Strategy for GreedyStrategy {
 
 /// Shortest distance based fire containment strategy
 #[derive(Debug, Default)]
-pub struct ShoDistStrategy {
+pub struct MinDistGroupStrategy {
     graph: Arc<RwLock<Graph>>,
     nodes_by_sho_dist: BTreeMap<usize, Vec<usize>>,
     residual_firefighters: usize,
@@ -96,7 +96,7 @@ pub struct ShoDistStrategy {
     total_defended_nodes: usize
 }
 
-impl ShoDistStrategy {
+impl MinDistGroupStrategy {
     /// Group all nodes by their minimum shortest distance to any fire root
     pub fn group_nodes_by_sho_dist(&mut self, roots: &Vec<usize>) {
         let graph = self.graph.read().unwrap();
@@ -127,7 +127,7 @@ impl ShoDistStrategy {
     }
 }
 
-impl Strategy for ShoDistStrategy {
+impl Strategy for MinDistGroupStrategy {
     fn new(graph: Arc<RwLock<Graph>>) -> Self {
         Self {
             graph,
@@ -181,7 +181,7 @@ mod test {
 
     use rand::prelude::*;
 
-    use crate::firefighter::strategy::{OSMFStrategy, ShoDistStrategy, Strategy};
+    use crate::firefighter::strategy::{OSMFStrategy, MinDistGroupStrategy, Strategy};
     use crate::graph::Graph;
 
     #[test]
@@ -189,7 +189,7 @@ mod test {
         let graph = Arc::new(RwLock::new(
             Graph::from_files("data/bbgrund")));
         let num_roots = 10;
-        let mut strategy = OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone()));
+        let mut strategy = OSMFStrategy::MinDistanceGroup(MinDistGroupStrategy::new(graph.clone()));
 
         let graph_ = graph.read().unwrap();
         let num_nodes = graph_.num_nodes;
@@ -203,8 +203,8 @@ mod test {
             }
         }
 
-        if let OSMFStrategy::ShortestDistance(ref mut sd_strategy) = strategy {
-            sd_strategy.group_nodes_by_sho_dist(&roots);
+        if let OSMFStrategy::MinDistanceGroup(ref mut mdg_strategy) = strategy {
+            mdg_strategy.group_nodes_by_sho_dist(&roots);
         }
 
         let some_node = rng.gen_range(0..num_nodes);
@@ -215,8 +215,8 @@ mod test {
         let min_dist = dists_from_roots.iter().min().unwrap();
 
         let default = Vec::new();
-        if let OSMFStrategy::ShortestDistance(sd_strategy) = &strategy {
-            let group = sd_strategy.nodes_by_sho_dist.get(min_dist)
+        if let OSMFStrategy::MinDistanceGroup(mdg_strategy) = &strategy {
+            let group = mdg_strategy.nodes_by_sho_dist.get(min_dist)
                 .unwrap_or(&default);
             assert!(group.contains(&some_node), "min_dist = {}, group = {:?}, some_node = {}",
                     min_dist, group, some_node);
