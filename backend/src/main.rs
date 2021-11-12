@@ -26,6 +26,7 @@ use serde_json::json;
 use crate::error::OSMFError;
 use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
                          strategy::{GreedyStrategy, OSMFStrategy, ShoDistStrategy, Strategy}};
+use crate::firefighter::problem::TimeUnit;
 use crate::graph::Graph;
 use crate::session::OSMFSessionStorage;
 use crate::query::Query;
@@ -190,18 +191,23 @@ async fn update_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
     };
 
     let query = Query::from(req.query_string());
-    match query.get_and_parse::<f64>("zoom") {
-        Ok(zoom) => {
-            log::debug!("Updating view with zoom {}", zoom);
-            Ok(res.content_type("image/png").body(problem.view_update_response(zoom)))
-        }
-        Err(_) => {
-            log::debug!("Computing initial view");
-            Ok(res.content_type("image/png").body(problem.view_init_response()))
-        }
+
+    let maybe_zoom = query.try_get_and_parse::<f64>("zoom");
+    let maybe_time = query.try_get_and_parse::<TimeUnit>("time");
+
+    if maybe_zoom.is_some() && maybe_time.is_some() {
+        let zoom = maybe_zoom.unwrap()?;
+        let time = maybe_time.unwrap()?;
+
+        log::debug!("Computing view for zoom: {} and time: {}", zoom, time);
+
+        Ok(res.content_type("image/png")
+            .body(problem.view_update_response(zoom, &time)))
+    } else {
+        log::debug!("Computing initial view / Resetting view");
+
+        Ok(res.content_type("image/png").body(problem.view_init_response()))
     }
-
-
 }
 
 #[actix_web::main]

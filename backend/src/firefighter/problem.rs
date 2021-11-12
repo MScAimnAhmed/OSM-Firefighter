@@ -63,13 +63,29 @@ impl NodeDataStorage {
     }
 
     /// Is node with id `node_id` burning?
-    pub fn is_burning(&self, node_id: &usize) -> bool {
+    fn is_burning(&self, node_id: &usize) -> bool {
         self.burning.contains_key(node_id)
     }
 
+    /// Is node with id `node_id` burning by `time`?
+    pub fn is_burning_by(&self, node_id: &usize, time: &TimeUnit) -> bool {
+        match self.burning.get(node_id) {
+            Some(nd) => nd.time <= *time,
+            None => false
+        }
+    }
+
     /// Is node with id `node_id` defended?
-    pub fn is_defended(&self, node_id: &usize) -> bool {
+    fn is_defended(&self, node_id: &usize) -> bool {
         self.defended.contains_key(node_id)
+    }
+
+    /// Is node with id `node_id` defended by time `time`?
+    pub fn is_defended_by(&self, node_id: &usize, time: &TimeUnit) -> bool {
+        match self.defended.get(node_id) {
+            Some(nd) => nd.time <= *time,
+            None => false
+        }
     }
 
     /// Is node with id `node_id` undefended?
@@ -273,13 +289,13 @@ impl OSMFProblem {
 
     /// Generate the view initialization response fore this firefighter problem instance
     pub fn view_init_response(&mut self) -> Vec<u8> {
-        self.view.compute_initial(&self.node_data);
+        self.view.compute_initial(&self.node_data, &self.global_time);
         self.view.png_bytes()
     }
 
     /// Generate the view update response fore this firefighter problem instance
-    pub fn view_update_response(&mut self, zoom: f64) -> Vec<u8> { // TODO add center to params if it is implemented frontend-side
-        self.view.compute(zoom, self.view.initial_center, &self.node_data);
+    pub fn view_update_response(&mut self, zoom: f64, time: &TimeUnit) -> Vec<u8> { // TODO add center to params if it is implemented frontend-side
+        self.view.compute(zoom, self.view.initial_center, &self.node_data, time);
         self.view.png_bytes()
     }
 }
