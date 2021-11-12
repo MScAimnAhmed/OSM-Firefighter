@@ -246,7 +246,7 @@ impl OSMFProblem {
             return;
         }
 
-        if (self.global_time-1) % self.settings.exec_strategy_every == 0 {
+        if self.global_time % self.settings.exec_strategy_every == 0 {
             let defended = match self.strategy {
                 OSMFStrategy::Greedy(ref mut greedy_strategy) =>
                     greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
