@@ -1,4 +1,4 @@
-use std::{cmp::min,
+use std::{cmp::{min, max},
           collections::{BTreeMap, HashMap},
           fmt::Debug,
           sync::{Arc, RwLock}};
@@ -90,10 +90,8 @@ impl Strategy for GreedyStrategy {
 pub struct MinDistGroupStrategy {
     graph: Arc<RwLock<Graph>>,
     nodes_by_sho_dist: BTreeMap<usize, Vec<usize>>,
-    residual_firefighters: usize,
     nodes_to_defend: Vec<usize>,
     dist_to_defend: usize,
-    total_defended_nodes: usize
 }
 
 impl MinDistGroupStrategy {
@@ -132,44 +130,69 @@ impl Strategy for MinDistGroupStrategy {
         Self {
             graph,
             nodes_by_sho_dist: BTreeMap::new(),
-            residual_firefighters: 0,
             nodes_to_defend: vec![],
             dist_to_defend: 0,
-            total_defended_nodes: 0
         }
     }
 
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) -> usize {
-        if self.nodes_to_defend.is_empty() {
-            let next_dist = self.dist_to_defend + 1;
-            for dist in next_dist..=*self.nodes_by_sho_dist.keys().max().unwrap_or(&next_dist) {
-                if let Some(nodes) = self.nodes_by_sho_dist.get(&dist) {
-                    let n = settings.num_firefighters as isize;
-                    let e = settings.exec_strategy_every as isize;
-                    let num = ((((dist as isize - 1) / e) + 1) * n) + self.residual_firefighters as isize - self.total_defended_nodes as isize;
+        // Try to defend as many nodes, as firefighters are available
+        let mut total_defended = 0;
+        while total_defended < settings.num_firefighters {
+            // (Re-)compute nodes to defend
+            if self.nodes_to_defend.is_empty() {
+                let next_dist = max(self.dist_to_defend + 1, global_time as usize);
 
-                    if nodes.len() as isize <= num && nodes.len() > 0 {
-                        self.nodes_to_defend = nodes.clone();
-                        self.residual_firefighters = num as usize - nodes.len();
-                        self.dist_to_defend = dist;
-                        self.total_defended_nodes += nodes.len();
-                        break;
+                log::debug!("Next dist: {}", next_dist);
+
+                for dist in next_dist..=*self.nodes_by_sho_dist.keys().max().unwrap_or(&next_dist) {
+                    let remaining_dist = dist + 1 - next_dist;
+                    if let Some(nodes) = self.nodes_by_sho_dist.get(&dist) {
+                        let n = settings.num_firefighters;
+                        let e = settings.exec_strategy_every as usize;
+                        let num = remaining_dist * n / e;
+
+                        if nodes.len() <= num && nodes.len() > 0 {
+                            //log::debug!("num computed by Aimn: {}", num);
+                            log::debug!("num computed by Samu: {}", num);
+
+                            self.nodes_to_defend = nodes.clone();
+                            self.dist_to_defend = dist;
+                            break;
+                        }
                     }
                 }
+
+                log::debug!("Computed nodes to defend {:?}", &self.nodes_to_defend);
+            }
+
+            // If nodes to defend are empty, even after (re-)computation,
+            // then there are no nodes left to defend
+            if self.nodes_to_defend.is_empty() {
+                break;
+            }
+
+            // Filter all nodes from nodes to defend that are NOT undefended
+            self.nodes_to_defend.retain(|n| node_data.is_undefended(n));
+
+            // If there are any undefended nodes, defend them and update the total number of
+            // defended nodes
+            if !self.nodes_to_defend.is_empty() {
+                let current_defended = min(self.nodes_to_defend.len(), settings.num_firefighters - total_defended);
+                let mut to_defend = Vec::with_capacity(current_defended);
+                for _ in 0..current_defended {
+                    to_defend.push(self.nodes_to_defend.remove(0));
+                }
+                log::debug!("Defending nodes {:?}", &to_defend);
+                node_data.mark_defended(to_defend, global_time);
+
+                total_defended += current_defended;
             }
         }
 
-        // Defend as many targets as firefighters are available
-        let num_to_defend = min(self.nodes_to_defend.len(), settings.num_firefighters);
-        let mut to_defend = Vec::with_capacity(num_to_defend);
-        for _ in 0..num_to_defend {
-            let node = self.nodes_to_defend.pop().unwrap();
-            to_defend.push(node);
-        }
-        log::debug!("Defending nodes {:?}", &to_defend);
-        node_data.mark_defended(to_defend, global_time);
+        log::debug!("Total defended nodes in execution step: {}", total_defended);
 
-        num_to_defend
+        total_defended
     }
 }
 
