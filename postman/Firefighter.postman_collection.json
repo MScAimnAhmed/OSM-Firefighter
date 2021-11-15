@@ -105,12 +105,30 @@
 			"response": []
 		},
 		{
+			"name": "Init View",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}:{{port}}/view",
+					"host": [
+						"{{host}}"
+					],
+					"port": "{{port}}",
+					"path": [
+						"view"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "View",
 			"request": {
 				"method": "GET",
 				"header": [],
 				"url": {
-					"raw": "{{host}}:{{port}}/view?zoom={{zoom}}",
+					"raw": "{{host}}:{{port}}/view?zoom={{zoom}}&time={{time}}",
 					"host": [
 						"{{host}}"
 					],
@@ -121,7 +139,13 @@
 					"query": [
 						{
 							"key": "zoom",
-							"value": "{{zoom}}"
+							"value": "{{zoom}}",
+							"description": "The users zoom"
+						},
+						{
+							"key": "time",
+							"value": "{{time}}",
+							"description": "The time for which the simulation state should be drawn"
 						}
 					]
 				}

@@ -5,7 +5,7 @@ use std::{io::Cursor,
 
 use self::image::{DynamicImage, ImageBuffer, ImageOutputFormat, Rgb, RgbImage};
 
-use crate::firefighter::problem::NodeDataStorage;
+use crate::firefighter::problem::{NodeDataStorage, TimeUnit};
 use crate::graph::{CompassDirection, Graph, GridBounds};
 
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
@@ -103,7 +103,7 @@ impl View {
     }
 
     /// (Re-)compute this view
-    pub fn compute(&mut self, zoom: f64, center: Coords, node_data: &NodeDataStorage) {
+    pub fn compute(&mut self, zoom: f64, center: Coords, node_data: &NodeDataStorage, time: &TimeUnit) {
         let z = if zoom < 1.0 { 1.0 } else { zoom };
 
         // Reset view
@@ -256,9 +256,9 @@ impl View {
                 let col_px;
                 if node_data.is_root(&node.id) {
                     col_px = ORANGE;
-                } else if node_data.is_burning(&node.id) {
+                } else if node_data.is_burning_by(&node.id, time) {
                     col_px = RED;
-                } else if node_data.is_defended(&node.id) {
+                } else if node_data.is_defended_by(&node.id, time) {
                     col_px = BLUE;
                 } else {
                     col_px = BLACK;
@@ -279,8 +279,8 @@ impl View {
     }
 
     /// Compute the initial view
-    pub fn compute_initial(&mut self, node_data: &NodeDataStorage) {
-        self.compute(self.initial_zoom, self.initial_center, node_data);
+    pub fn compute_initial(&mut self, node_data: &NodeDataStorage, time: &TimeUnit) {
+        self.compute(self.initial_zoom, self.initial_center, node_data, time);
     }
 
     /// Clones the underlying image buffer, transforms it into a PNG image and returns the image

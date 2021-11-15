@@ -18,7 +18,7 @@ pub type TimeUnit = u64;
 pub struct OSMFSettings {
     num_roots: usize,
     pub num_firefighters: usize,
-    exec_strategy_every: u64,
+    pub exec_strategy_every: u64,
 }
 
 impl OSMFSettings {
@@ -63,13 +63,29 @@ impl NodeDataStorage {
     }
 
     /// Is node with id `node_id` burning?
-    pub fn is_burning(&self, node_id: &usize) -> bool {
+    fn is_burning(&self, node_id: &usize) -> bool {
         self.burning.contains_key(node_id)
     }
 
+    /// Is node with id `node_id` burning by `time`?
+    pub fn is_burning_by(&self, node_id: &usize, time: &TimeUnit) -> bool {
+        match self.burning.get(node_id) {
+            Some(nd) => nd.time <= *time,
+            None => false
+        }
+    }
+
     /// Is node with id `node_id` defended?
-    pub fn is_defended(&self, node_id: &usize) -> bool {
+    fn is_defended(&self, node_id: &usize) -> bool {
         self.defended.contains_key(node_id)
+    }
+
+    /// Is node with id `node_id` defended by time `time`?
+    pub fn is_defended_by(&self, node_id: &usize, time: &TimeUnit) -> bool {
+        match self.defended.get(node_id) {
+            Some(nd) => nd.time <= *time,
+            None => false
+        }
     }
 
     /// Is node with id `node_id` undefended?
@@ -158,9 +174,9 @@ impl OSMFProblem {
 
         problem.gen_fire_roots();
 
-        if let OSMFStrategy::ShortestDistance(ref mut sho_dist_strategy) = problem.strategy {
+        if let OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) = problem.strategy {
             let roots = problem.node_data.times.get(&0).unwrap();
-            sho_dist_strategy.compute_shortest_dists(roots);
+            mindistgroup_strategy.group_nodes_by_sho_dist(roots);
         }
 
         problem
@@ -230,15 +246,15 @@ impl OSMFProblem {
             return;
         }
 
-        if (self.global_time-1) % self.settings.exec_strategy_every == 0 {
+        if self.global_time % self.settings.exec_strategy_every == 0 {
             let defended = match self.strategy {
                 OSMFStrategy::Greedy(ref mut greedy_strategy) =>
                     greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
-                _ => 0
+                OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) =>
+                    mindistgroup_strategy.execute(&self.settings, &mut self.node_data, self.global_time)
             };
 
-            if defended == 0
-                && matches!(self.strategy, OSMFStrategy::Greedy( .. )) { // TODO remove when shortest distance strategy is implemented
+            if defended == 0 {
                 self.is_active = false;
             }
         }
@@ -273,13 +289,13 @@ impl OSMFProblem {
 
     /// Generate the view initialization response fore this firefighter problem instance
     pub fn view_init_response(&mut self) -> Vec<u8> {
-        self.view.compute_initial(&self.node_data);
+        self.view.compute_initial(&self.node_data, &self.global_time);
         self.view.png_bytes()
     }
 
     /// Generate the view update response fore this firefighter problem instance
-    pub fn view_update_response(&mut self, zoom: f64) -> Vec<u8> { // TODO add center to params if it is implemented frontend-side
-        self.view.compute(zoom, self.view.initial_center, &self.node_data);
+    pub fn view_update_response(&mut self, zoom: f64, time: &TimeUnit) -> Vec<u8> { // TODO add center to params if it is implemented frontend-side
+        self.view.compute(zoom, self.view.initial_center, &self.node_data, time);
         self.view.png_bytes()
     }
 }
@@ -304,10 +320,8 @@ mod test {
     use std::{collections::BTreeMap,
               sync::{Arc, RwLock}};
 
-    use rand::prelude::*;
-
     use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
-                             strategy::{OSMFStrategy, ShoDistStrategy, Strategy}};
+                             strategy::{OSMFStrategy, GreedyStrategy, Strategy}};
     use crate::graph::Graph;
 
     #[test]
@@ -315,7 +329,7 @@ mod test {
         let graph = Arc::new(RwLock::new(
             Graph::from_files("data/bbgrund")));
         let num_roots = 10;
-        let strategy = OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone()));
+        let strategy = OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone()));
         let mut problem = OSMFProblem::new(
             graph.clone(), OSMFSettings::new(num_roots, 2, 10), strategy);
 
@@ -336,20 +350,6 @@ mod test {
             for root in &roots {
                 assert!(*root < num_nodes);
             }
-        }
-
-        let mut rng = thread_rng();
-        let some_node = rng.gen_range(0..num_nodes);
-        let mut dists_from_roots = Vec::with_capacity(num_roots);
-        let max_dist = usize::MAX;
-        for root in &roots {
-            dists_from_roots.push(graph_.get_shortest_dist(*root, some_node)
-                .unwrap_or(max_dist));
-        }
-        let min_dist = dists_from_roots.iter().min().unwrap();
-
-        if let OSMFStrategy::ShortestDistance(sho_dist_strategy) = &problem.strategy {
-            assert_eq!(*sho_dist_strategy.sho_dists.get(&some_node).unwrap_or(&max_dist), *min_dist);
         }
 
         for _ in 0..10 {
