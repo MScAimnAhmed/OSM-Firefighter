@@ -90,6 +90,7 @@ pub struct MinDistGroupStrategy {
     nodes_by_sho_dist: BTreeMap<usize, Vec<usize>>,
     nodes_to_defend: Vec<usize>,
     dist_to_defend: usize,
+    remaining_ffs: usize,
 }
 
 impl MinDistGroupStrategy {
@@ -103,9 +104,11 @@ impl MinDistGroupStrategy {
         for &root in roots {
             for node in &graph.nodes {
                 let new_dist = graph.unchecked_get_shortest_dist(root, node.id);
-                sho_dists.entry(node.id)
-                    .and_modify(|cur_dist| if new_dist < *cur_dist { *cur_dist = new_dist })
-                    .or_insert(new_dist);
+                if new_dist < usize::MAX {
+                    sho_dists.entry(node.id)
+                        .and_modify(|cur_dist| if new_dist < *cur_dist { *cur_dist = new_dist })
+                        .or_insert(new_dist);
+                }
             }
 
             log::debug!("Computed shortest distances to fire root {}", root);
@@ -130,6 +133,7 @@ impl Strategy for MinDistGroupStrategy {
             nodes_by_sho_dist: BTreeMap::new(),
             nodes_to_defend: vec![],
             dist_to_defend: 0,
+            remaining_ffs: 0,
         }
     }
 
@@ -140,19 +144,7 @@ impl Strategy for MinDistGroupStrategy {
             // (Re-)compute nodes to defend
             if self.nodes_to_defend.is_empty() {
                 let next_dist = max(self.dist_to_defend + 1, global_time as usize);
-                let max_dist = *self.nodes_by_sho_dist.keys()
-                    .reduce(|a, b| {
-                        if *a == usize::MAX {
-                            b
-                        } else if *b == usize::MAX {
-                            a
-                        } else if *a <= *b {
-                            b
-                        } else {
-                            a
-                        }
-                    })
-                    .unwrap_or(&next_dist);
+                let max_dist = *self.nodes_by_sho_dist.keys().max().unwrap_or(&next_dist);
 
                 log::debug!("Next dist: {}", next_dist);
                 log::debug!("Max dist: {}", max_dist);
@@ -162,7 +154,7 @@ impl Strategy for MinDistGroupStrategy {
                     if let Some(nodes) = self.nodes_by_sho_dist.get(&dist) {
                         let n = settings.num_firefighters;
                         let e = settings.exec_strategy_every as usize;
-                        let num = remaining_dist * n / e;
+                        let num = remaining_dist / e * n + self.remaining_ffs;
 
                         if nodes.len() <= num && nodes.len() > 0 {
                             //log::debug!("num computed by Aimn: {}", num);
@@ -170,6 +162,7 @@ impl Strategy for MinDistGroupStrategy {
 
                             self.nodes_to_defend = nodes.clone();
                             self.dist_to_defend = dist;
+                            self.remaining_ffs = num - nodes.len();
                             break;
                         }
                     }
