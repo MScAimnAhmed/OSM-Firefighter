@@ -33,7 +33,7 @@ pub trait Strategy {
     fn new (graph: Arc<RwLock<Graph>>) -> Self;
 
     /// Execute the fire containment strategy
-    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) -> usize;
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit);
 }
 
 /// Greedy fire containment strategy
@@ -49,7 +49,7 @@ impl Strategy for GreedyStrategy {
         }
     }
 
-    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) -> usize {
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
         let burning = node_data.get_burning();
 
         let graph = self.graph.read().unwrap();
@@ -80,8 +80,6 @@ impl Strategy for GreedyStrategy {
             .collect();
         log::debug!("Defending nodes {:?}", &to_defend);
         node_data.mark_defended(to_defend, global_time);
-
-        num_to_defend
     }
 }
 
@@ -135,7 +133,7 @@ impl Strategy for MinDistGroupStrategy {
         }
     }
 
-    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) -> usize {
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
         // Try to defend as many nodes, as firefighters are available
         let mut total_defended = 0;
         while total_defended < settings.num_firefighters {
@@ -192,7 +190,7 @@ impl Strategy for MinDistGroupStrategy {
                 // then there are no nodes left to defend
                 if self.nodes_to_defend.is_empty() {
                     log::debug!("Total defended nodes in execution step: {}", total_defended);
-                    return total_defended;
+                    return;
                 }
             }
 
@@ -210,8 +208,6 @@ impl Strategy for MinDistGroupStrategy {
         }
 
         log::debug!("Total defended nodes in execution step: {}", total_defended);
-
-        total_defended
     }
 }
 

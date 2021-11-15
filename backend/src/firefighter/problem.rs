@@ -200,10 +200,6 @@ impl OSMFProblem {
     /// Spread the fire to all nodes that are adjacent to burning nodes.
     /// Defended nodes will remain defended.
     fn spread_fire(&mut self) {
-        if !self.is_active {
-            return;
-        }
-
         let mut to_burn = Vec::new();
         {
             let burning = self.node_data.get_burning();
@@ -242,20 +238,12 @@ impl OSMFProblem {
     /// Execute the containment strategy to prevent as much nodes as
     /// possible from catching fire
     fn contain_fire(&mut self) {
-        if !self.is_active {
-            return;
-        }
-
         if self.global_time % self.settings.exec_strategy_every == 0 {
-            let defended = match self.strategy {
+            match self.strategy {
                 OSMFStrategy::Greedy(ref mut greedy_strategy) =>
                     greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
                 OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) =>
                     mindistgroup_strategy.execute(&self.settings, &mut self.node_data, self.global_time)
-            };
-
-            if defended == 0 {
-                self.is_active = false;
             }
         }
     }
