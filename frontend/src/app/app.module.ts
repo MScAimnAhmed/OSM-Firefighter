@@ -13,7 +13,7 @@ import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import {MatInputModule} from "@angular/material/input";
 import { GraphViewerComponent } from './graph-viewer/graph-viewer.component';
 import { HttpClientModule } from '@angular/common/http';
-import {ReactiveFormsModule} from "@angular/forms";
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatSliderModule } from '@angular/material/slider';
 
 @NgModule({
@@ -34,7 +34,8 @@ import { MatSliderModule } from '@angular/material/slider';
     MatOptionModule,
     BrowserAnimationsModule,
     ReactiveFormsModule,
-    MatSliderModule
+    MatSliderModule,
+    FormsModule
   ],
   providers: [],
   bootstrap: [AppComponent]

@@ -19,26 +19,26 @@
         <h4>Configure the Fire</h4>
         <mat-form-field appearance='fill'>
           <mat-label>Fire sources</mat-label>
-          <input matInput type='number' [formControl]='fireSourceFormControl'>
+          <input matInput type='number' min='1' [formControl]='fireSourceFormControl'>
         </mat-form-field>
         <mat-form-field appearance='fill'>
           <mat-label>Turns between fire spread</mat-label>
-          <input matInput type='number' value='1' disabled>
+          <input matInput type='number' value='1' min='1' disabled>
         </mat-form-field>
         <mat-form-field appearance='fill'>
           <mat-label>Spawn fire at Turn</mat-label>
-          <input matInput type='number' value='0' disabled>
+          <input matInput type='number' value='0' min='0' disabled>
         </mat-form-field>
       </td>
       <td>
         <h4>Configure the Firefighters</h4>
         <mat-form-field appearance='fill'>
           <mat-label>Place Firefighter every X turn</mat-label>
-          <input matInput type='number' [formControl]='fireFighterFrequencyFormControl'>
+          <input matInput type='number' min='1' [formControl]='fireFighterFrequencyFormControl'>
         </mat-form-field>
         <mat-form-field appearance='fill'>
           <mat-label>Available Firefighters</mat-label>
-          <input matInput type='number' [formControl]='fireFighterFormControl'>
+          <input matInput type='number' min='1' [formControl]='fireFighterFormControl'>
         </mat-form-field>
         <mat-form-field appearance='fill'>
           <mat-label>Strategy</mat-label>

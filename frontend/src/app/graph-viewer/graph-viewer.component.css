@@ -13,7 +13,7 @@
   z-index: 90;
   height: 100%;
 }
-button {
+.control > button {
   padding: 5px;
 }
 .control {
@@ -21,9 +21,22 @@ button {
   flex-direction: row;
   align-items: center;
   gap: 10px;
-  padding: 10px;
+  padding: 5px 10px;
 }
 
 mat-form-field {
-  width: 50px;
+  width: 60px;
+  padding: 5px;
+}
+
+/* Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type=number] {
+  -moz-appearance: textfield;
 }
