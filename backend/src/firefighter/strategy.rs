@@ -142,10 +142,24 @@ impl Strategy for MinDistGroupStrategy {
             // (Re-)compute nodes to defend
             if self.nodes_to_defend.is_empty() {
                 let next_dist = max(self.dist_to_defend + 1, global_time as usize);
+                let max_dist = *self.nodes_by_sho_dist.keys()
+                    .reduce(|a, b| {
+                        if *a == usize::MAX {
+                            b
+                        } else if *b == usize::MAX {
+                            a
+                        } else if *a <= *b {
+                            b
+                        } else {
+                            a
+                        }
+                    })
+                    .unwrap_or(&next_dist);
 
                 log::debug!("Next dist: {}", next_dist);
+                log::debug!("Max dist: {}", max_dist);
 
-                for dist in next_dist..=*self.nodes_by_sho_dist.keys().max().unwrap_or(&next_dist) {
+                for dist in next_dist..=max_dist {
                     let remaining_dist = dist + 1 - next_dist;
                     if let Some(nodes) = self.nodes_by_sho_dist.get(&dist) {
                         let n = settings.num_firefighters;
@@ -164,30 +178,35 @@ impl Strategy for MinDistGroupStrategy {
                 }
 
                 log::debug!("Computed nodes to defend {:?}", &self.nodes_to_defend);
-            }
 
-            // If nodes to defend are empty, even after (re-)computation,
-            // then there are no nodes left to defend
-            if self.nodes_to_defend.is_empty() {
-                break;
-            }
+                let len1 = self.nodes_to_defend.len();
 
-            // Filter all nodes from nodes to defend that are NOT undefended
-            self.nodes_to_defend.retain(|n| node_data.is_undefended(n));
+                // Filter all nodes from nodes to defend that are NOT undefended
+                self.nodes_to_defend.retain(|n| node_data.is_undefended(n));
+
+                let len2 = self.nodes_to_defend.len();
+
+                assert_eq!(len1, len2, "Tried to defend NOT undefended nodes");
+
+                // If nodes to defend are empty, even after (re-)computation,
+                // then there are no nodes left to defend
+                if self.nodes_to_defend.is_empty() {
+                    log::debug!("Total defended nodes in execution step: {}", total_defended);
+                    return total_defended;
+                }
+            }
 
             // If there are any undefended nodes, defend them and update the total number of
             // defended nodes
-            if !self.nodes_to_defend.is_empty() {
-                let current_defended = min(self.nodes_to_defend.len(), settings.num_firefighters - total_defended);
-                let mut to_defend = Vec::with_capacity(current_defended);
-                for _ in 0..current_defended {
-                    to_defend.push(self.nodes_to_defend.remove(0));
-                }
-                log::debug!("Defending nodes {:?}", &to_defend);
-                node_data.mark_defended(to_defend, global_time);
-
-                total_defended += current_defended;
+            let current_defended = min(self.nodes_to_defend.len(), settings.num_firefighters - total_defended);
+            let mut to_defend = Vec::with_capacity(current_defended);
+            for _ in 0..current_defended {
+                to_defend.push(self.nodes_to_defend.remove(0));
             }
+            log::debug!("Defending nodes {:?}", &to_defend);
+            node_data.mark_defended(to_defend, global_time);
+
+            total_defended += current_defended;
         }
 
         log::debug!("Total defended nodes in execution step: {}", total_defended);
