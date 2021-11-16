@@ -70,7 +70,7 @@ impl Strategy for GreedyStrategy {
             e1.dist.cmp(&e2.dist).then_with(|| {
                 let tgt1_deg = graph.get_out_degree(e1.tgt);
                 let tgt2_deg = graph.get_out_degree(e2.tgt);
-                tgt1_deg.cmp(&tgt2_deg)
+                tgt2_deg.cmp(&tgt1_deg)
             }));
 
         // Defend as many targets as firefighters are available
@@ -143,46 +143,87 @@ impl Strategy for MinDistGroupStrategy {
         while total_defended < settings.num_firefighters {
             // (Re-)compute nodes to defend
             if self.nodes_to_defend.is_empty() {
+                let graph = self.graph.read().unwrap();
+
                 let next_dist = max(self.dist_to_defend + 1, global_time as usize);
-                let max_dist = *self.nodes_by_sho_dist.keys().max().unwrap_or(&next_dist);
 
                 log::debug!("Next dist: {}", next_dist);
-                log::debug!("Max dist: {}", max_dist);
 
-                for dist in next_dist..=max_dist {
+                // Filter by relevant distances, i.e. distances that the fire did not reach yet
+                self.nodes_by_sho_dist.retain(|&dist, _| dist >= next_dist);
+
+                let mut best_diff = isize::MIN;
+                let mut best_dist = 0;
+                for (&dist, nodes) in self.nodes_by_sho_dist.iter() {
                     let remaining_dist = dist + 1 - next_dist;
-                    if let Some(nodes) = self.nodes_by_sho_dist.get(&dist) {
-                        let n = settings.num_firefighters;
-                        let e = settings.exec_strategy_every as usize;
-                        let num = remaining_dist / e * n + self.remaining_ffs;
+                    let num_ffs = settings.num_firefighters;
+                    let strategy_every = settings.exec_strategy_every as usize;
+                    let num_to_defend = remaining_dist / strategy_every * num_ffs + self.remaining_ffs;
 
-                        if nodes.len() <= num && nodes.len() > 0 {
-                            //log::debug!("num computed by Aimn: {}", num);
-                            log::debug!("num computed by Samu: {}", num);
+                    if nodes.len() > 0 {
+                        let diff = num_to_defend as isize - nodes.len() as isize;
+                        if diff >= 0 {
+                            log::debug!("Num to defend: {}, num nodes: {}", num_to_defend, nodes.len());
 
-                            self.nodes_to_defend = nodes.clone();
-                            self.dist_to_defend = dist;
-                            self.remaining_ffs = num - nodes.len();
+                            best_dist = dist;
+                            best_diff = diff;
                             break;
+                        } else if diff > best_diff {
+                            best_diff = diff;
+                            best_dist = dist;
                         }
                     }
                 }
+                if let Some(nodes) = self.nodes_by_sho_dist.get(&best_dist) {
+                    self.nodes_to_defend = nodes.clone();
+                    if best_diff < 0 {
+                        self.nodes_to_defend.sort_unstable_by(|&n1, &n2| {
+                            let deg1 = graph.get_out_degree(n1);
+                            let deg2 = graph.get_out_degree(n2);
+                            deg2.cmp(&deg1)
+                        });
+                        let d = best_diff.abs() as usize;
+                        self.nodes_to_defend = self.nodes_to_defend[0..d].to_vec();
+                    }
+                    self.dist_to_defend = best_dist;
+                    self.remaining_ffs = max(best_diff, 0) as usize;
 
-                log::debug!("Computed nodes to defend {:?}", &self.nodes_to_defend);
+                    log::debug!("Computed nodes to defend {:?}", &self.nodes_to_defend);
+                } else {
+                    // If nodes to defend are empty, even after (re-)computation,
+                    // then use a greedy approach
 
-                let len1 = self.nodes_to_defend.len();
+                    let burning = node_data.get_burning();
 
-                // Filter all nodes from nodes to defend that are NOT undefended
-                self.nodes_to_defend.retain(|n| node_data.is_undefended(n));
+                    let graph = self.graph.read().unwrap();
 
-                let len2 = self.nodes_to_defend.len();
+                    // Get all edges with targets that are not burned or defended yet
+                    let mut edges = Vec::new();
+                    for nd in burning {
+                        for i in graph.offsets[nd.node_id]..graph.offsets[nd.node_id+1] {
+                            let edge = &graph.edges[i];
+                            if node_data.is_undefended(&edge.tgt) {
+                                edges.push(edge);
+                            }
+                        }
+                    }
 
-                assert_eq!(len1, len2, "Tried to defend NOT undefended nodes");
+                    // Sort the edges by their weight and by the _out degree_ of their targets
+                    edges.sort_unstable_by(|&e1, &e2|
+                        e1.dist.cmp(&e2.dist).then_with(|| {
+                            let tgt1_deg = graph.get_out_degree(e1.tgt);
+                            let tgt2_deg = graph.get_out_degree(e2.tgt);
+                            tgt2_deg.cmp(&tgt1_deg)
+                        }));
 
-                // If nodes to defend are empty, even after (re-)computation,
-                // then there are no nodes left to defend
-                if self.nodes_to_defend.is_empty() {
-                    log::debug!("Total defended nodes in execution step: {}", total_defended);
+                    // Defend as many targets as firefighters are available
+                    let num_to_defend = min(edges.len(), settings.num_firefighters);
+                    let to_defend: Vec<_> = edges[0..num_to_defend].iter()
+                        .map(|&e| e.tgt)
+                        .collect();
+                    log::debug!("Defending nodes {:?}", &to_defend);
+                    node_data.mark_defended(to_defend, global_time);
+
                     return;
                 }
             }
