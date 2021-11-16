@@ -5,6 +5,7 @@ import { GraphServiceService } from '../service/graph-service.service';
 import { SimulationConfig } from '../data/SimulationConfig';
 import { SimulationConfiguratorComponent } from '../simulation-configurator/simulation-configurator.component';
 import { MatDialog } from '@angular/material/dialog';
+import { CookieService } from 'ngx-cookie-service';
 
 @Component({
   selector: 'app-graph-viewer',
@@ -14,7 +15,7 @@ import { MatDialog } from '@angular/material/dialog';
 export class GraphViewerComponent implements OnInit, AfterViewInit {
   private map: any;
 
-  private simConfig: SimulationConfig;
+  simConfig: SimulationConfig;
   currentTurn = 0;
   maxTurn = 0;
 
@@ -24,7 +25,8 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
   currentZoom = 100;
 
   constructor(private graphservice: GraphServiceService,
-              private dialog: MatDialog) {
+              private dialog: MatDialog,
+              private cookieService: CookieService) {
   }
 
   @HostListener('window:keydown', ['$event'])
@@ -62,8 +64,8 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
       this.simConfig = data;
       this.graphservice.simulate(this.simConfig).subscribe(response => {
         console.log(response)
+        console.log(this.cookieService.getAll());
         this.maxTurn = response.end_time;
-
       });
     })
   }
@@ -84,6 +86,11 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
 
   public refreshView() {
     console.log('so fresh!')
+    // Zoom Level shouldnt only be displayed in percent but not stored as such
+    this.graphservice.refreshView(this.currentTurn, this.currentZoom / 100).subscribe(data => {
+      console.log('What a View!');
+      console.log(data);
+    });
   }
 }
 

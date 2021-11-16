@@ -5,7 +5,7 @@
       <mat-label>Turn</mat-label>
       <input matInput type='number' min='0' [max]='maxTurn' [(ngModel)]='currentTurn'>
     </mat-form-field>
-    <mat-slider [thumbLabel]="true" min='0' [max]='maxTurn' [(ngModel)]='currentTurn'></mat-slider>
+    <mat-slider [thumbLabel]='true' min='0' [max]='maxTurn' [(ngModel)]='currentTurn'></mat-slider>
   </div>
   <div class='view-input'>
     <table>
@@ -21,14 +21,22 @@
           </mat-form-field>
         </td>
         <td>
-          <button mat-raised-button (click)='this.currentLat = this.currentLat - 1;' ><mat-icon>keyboard_arrow_left</mat-icon></button>
+          <button mat-raised-button (click)='this.currentLat = this.currentLat - 1;'>
+            <mat-icon>keyboard_arrow_left</mat-icon>
+          </button>
         </td>
         <td style='display: flex; flex-direction: column; gap: 5px'>
-          <button mat-raised-button (click)='this.currentLon = this.currentLon + 1;'><mat-icon>keyboard_arrow_up</mat-icon></button>
-          <button mat-raised-button (click)='this.currentLon = this.currentLon - 1;'><mat-icon>keyboard_arrow_down</mat-icon></button>
+          <button mat-raised-button (click)='this.currentLon = this.currentLon + 1;'>
+            <mat-icon>keyboard_arrow_up</mat-icon>
+          </button>
+          <button mat-raised-button (click)='this.currentLon = this.currentLon - 1;'>
+            <mat-icon>keyboard_arrow_down</mat-icon>
+          </button>
         </td>
         <td>
-          <button mat-raised-button (click)='this.currentLat = this.currentLat + 1;'><mat-icon>keyboard_arrow_right</mat-icon></button>
+          <button mat-raised-button (click)='this.currentLat = this.currentLat + 1;'>
+            <mat-icon>keyboard_arrow_right</mat-icon>
+          </button>
         </td>
       </tr>
     </table>
@@ -43,19 +51,25 @@
           </mat-form-field>
         </td>
         <td style='display: flex; flex-direction: column'>
-          <button mat-icon-button (click)='this.currentZoom = this.currentZoom + 10;'><mat-icon>zoom_in</mat-icon></button>
-          <button mat-icon-button (click)='this.currentZoom = this.currentZoom - 10;'><mat-icon>zoom_out</mat-icon></button>
+          <button mat-icon-button (click)='this.currentZoom = this.currentZoom + 10;'>
+            <mat-icon>zoom_in</mat-icon>
+          </button>
+          <button mat-icon-button [disabled]='this.currentZoom < 10'
+                  (click)='this.currentZoom = this.currentZoom - 10;'>
+            <mat-icon>zoom_out</mat-icon>
+          </button>
         </td>
       </tr>
     </table>
   </div>
-  <button mat-raised-button color='primary' (click)='refreshView()'>
-    Refresh View <mat-icon>refresh</mat-icon>
+  <button mat-raised-button color='primary' [disabled]='!simConfig' (click)='refreshView()'>
+    Refresh View
+    <mat-icon>refresh</mat-icon>
   </button>
 </div>
 
-<div class="map-container">
-  <div class="map-frame">
-    <div id="map"></div>
+<div class='map-container'>
+  <div class='map-frame'>
+    <div id='map'></div>
   </div>
 </div>

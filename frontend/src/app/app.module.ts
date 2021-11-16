@@ -15,6 +15,7 @@ import { GraphViewerComponent } from './graph-viewer/graph-viewer.component';
 import { HttpClientModule } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatSliderModule } from '@angular/material/slider';
+import { CookieService } from 'ngx-cookie-service';
 
 @NgModule({
   declarations: [
@@ -37,7 +38,9 @@ import { MatSliderModule } from '@angular/material/slider';
     MatSliderModule,
     FormsModule
   ],
-  providers: [],
+  providers: [
+    CookieService
+  ],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

@@ -54,6 +54,11 @@ export class SimulationConfiguratorComponent implements OnInit {
         this.graphOptions = data;
       }
     );
+    this.graphService.getStrategies().subscribe(
+      data => {
+        this.strategyOptions = data;
+      }
+    )
   }
 
   cancel() {
