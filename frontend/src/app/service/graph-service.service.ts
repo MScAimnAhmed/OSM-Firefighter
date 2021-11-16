@@ -34,7 +34,7 @@ export class GraphServiceService {
     return this.http.post(this.path + "/simulate",null ,{ params: params, withCredentials: true});
   }
 
-  refreshView(turnNumber?: number, zoomLevel? : number){
+  refreshView(turnNumber?: number, zoomLevel? : number) : Observable<Blob>{
     let params = new HttpParams();
     if(turnNumber) {
       params.append('time', turnNumber);
@@ -42,6 +42,6 @@ export class GraphServiceService {
     if(zoomLevel) {
       params.append('zoom', zoomLevel)
     }
-    return this.http.get(this.path + "/view", {params: params, withCredentials: true});
+    return this.http.get(this.path + "/view", {params: params, withCredentials: true, responseType: 'blob'});
   }
 }

@@ -5,7 +5,6 @@ import { GraphServiceService } from '../service/graph-service.service';
 import { SimulationConfig } from '../data/SimulationConfig';
 import { SimulationConfiguratorComponent } from '../simulation-configurator/simulation-configurator.component';
 import { MatDialog } from '@angular/material/dialog';
-import { CookieService } from 'ngx-cookie-service';
 
 @Component({
   selector: 'app-graph-viewer',
@@ -13,7 +12,6 @@ import { CookieService } from 'ngx-cookie-service';
   styleUrls: ['./graph-viewer.component.css']
 })
 export class GraphViewerComponent implements OnInit, AfterViewInit {
-  private map: any;
 
   simConfig: SimulationConfig;
   currentTurn = 0;
@@ -24,24 +22,25 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
 
   currentZoom = 100;
 
+  thumbnail: any;
+
   constructor(private graphservice: GraphServiceService,
-              private dialog: MatDialog,
-              private cookieService: CookieService) {
+              private dialog: MatDialog) {
   }
 
   @HostListener('window:keydown', ['$event'])
   keyEvent(event: KeyboardEvent) {
-    if(event.code == KEY_CODE.DOWN_ARROW){
+    if (event.code == KEY_CODE.DOWN_ARROW) {
       //preventDefault to prevent scrolling with arrowkeys
       event.preventDefault();
       this.currentLon--;
-    } else if(event.code == KEY_CODE.UP_ARROW){
+    } else if (event.code == KEY_CODE.UP_ARROW) {
       event.preventDefault();
       this.currentLon++;
-    } else if(event.code == KEY_CODE.RIGHT_ARROW){
+    } else if (event.code == KEY_CODE.RIGHT_ARROW) {
       event.preventDefault();
       this.currentLat++;
-    } else if(event.code == KEY_CODE.LEFT_ARROW){
+    } else if (event.code == KEY_CODE.LEFT_ARROW) {
       event.preventDefault();
       this.currentLat--;
     }
@@ -51,7 +50,6 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    this.initMap();
   }
 
   openSimulationConfigDialog() {
@@ -63,34 +61,30 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
     dialogRef.afterClosed().subscribe((data: SimulationConfig) => {
       this.simConfig = data;
       this.graphservice.simulate(this.simConfig).subscribe(response => {
-        console.log(response)
-        console.log(this.cookieService.getAll());
+        console.log(response);
         this.maxTurn = response.end_time;
       });
-    })
-  }
-
-  private initMap(): void {
-    this.map = L.map('map', {
-      center: [39.8282, -98.5795],
-      zoom: 3
     });
-    const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 18,
-      minZoom: 3,
-      attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    });
-
-    tiles.addTo(this.map);
   }
 
   public refreshView() {
-    console.log('so fresh!')
+    console.log('so fresh!');
     // Zoom Level shouldnt only be displayed in percent but not stored as such
-    this.graphservice.refreshView(this.currentTurn, this.currentZoom / 100).subscribe(data => {
+    this.graphservice.refreshView(this.currentTurn, this.currentZoom / 100).subscribe((data: Blob) => {
       console.log('What a View!');
-      console.log(data);
+      this.createImageFromBlob(data);
     });
+  }
+
+  createImageFromBlob(image: Blob) {
+    let reader = new FileReader();
+    reader.addEventListener('load', () => {
+      this.thumbnail = reader.result;
+    }, false);
+
+    if (image) {
+      reader.readAsDataURL(image);
+    }
   }
 }
 

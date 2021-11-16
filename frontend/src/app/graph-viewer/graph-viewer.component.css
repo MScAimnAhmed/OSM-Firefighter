@@ -1,12 +1,15 @@
 .map-container {
-  height: 85%;
-  margin: 10px;
+  height: calc(80% - 10px);
+  margin: 5px;
+  width: calc(100% - 10px);
 }
 
 .map-frame {
   border: 2px solid;
   border-color: indigo;
   height: 100%;
+  width: 100%;
+  overflow: auto;
 }
 
 #map {
@@ -22,6 +25,8 @@
   align-items: center;
   gap: 10px;
   padding: 5px 10px;
+  height: 15%;
+  overflow: auto;
 }
 
 mat-form-field {
