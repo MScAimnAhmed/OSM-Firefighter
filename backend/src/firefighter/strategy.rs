@@ -91,6 +91,7 @@ pub struct MinDistGroupStrategy {
     nodes_to_defend: Vec<usize>,
     dist_to_defend: usize,
     remaining_ffs: usize,
+    total_defended: usize,
 }
 
 impl MinDistGroupStrategy {
@@ -121,8 +122,8 @@ impl MinDistGroupStrategy {
                 .or_insert(vec![node_id]);
         }
 
-        log::debug!("Grouped nodes by minimum shortest distance to any fire root {:#?}",
-            self.nodes_by_sho_dist);
+        //log::debug!("Grouped nodes by minimum shortest distance to any fire root {:#?}",
+            //self.nodes_by_sho_dist);
     }
 }
 
@@ -134,13 +135,14 @@ impl Strategy for MinDistGroupStrategy {
             nodes_to_defend: vec![],
             dist_to_defend: 0,
             remaining_ffs: 0,
+            total_defended: 0,
         }
     }
 
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
         // Try to defend as many nodes, as firefighters are available
-        let mut total_defended = 0;
-        while total_defended < settings.num_firefighters {
+        let mut step_defended = 0;
+        while step_defended < settings.num_firefighters {
             // (Re-)compute nodes to defend
             if self.nodes_to_defend.is_empty() {
                 let graph = self.graph.read().unwrap();
@@ -155,10 +157,17 @@ impl Strategy for MinDistGroupStrategy {
                 let mut best_diff = isize::MIN;
                 let mut best_dist = 0;
                 for (&dist, nodes) in self.nodes_by_sho_dist.iter() {
-                    let remaining_dist = dist + 1 - next_dist;
+                    let remaining_dist = dist + 1 - global_time as usize;
                     let num_ffs = settings.num_firefighters;
                     let strategy_every = settings.exec_strategy_every as usize;
-                    let num_to_defend = remaining_dist / strategy_every * num_ffs + self.remaining_ffs;
+                    let num_to_defend = dist / strategy_every * num_ffs + self.remaining_ffs - self.total_defended;
+
+                    log::debug!("dist / strategy_every: {}", dist / strategy_every);
+                    log::debug!("num to defend: {}", num_to_defend);
+                    log::debug!("dist: {}", dist);
+                    log::debug!("global time: {}", global_time);
+
+
 
                     if nodes.len() > 0 {
                         let diff = num_to_defend as isize - nodes.len() as isize;
@@ -218,21 +227,21 @@ impl Strategy for MinDistGroupStrategy {
                         }));
 
                     // Defend as many targets as firefighters are available
-                    let num_to_defend = min(edges.len(), settings.num_firefighters - total_defended);
+                    let num_to_defend = min(edges.len(), settings.num_firefighters - step_defended);
                     let to_defend: Vec<_> = edges[0..num_to_defend].iter()
                         .map(|&e| e.tgt)
                         .collect();
                     log::debug!("Defending nodes {:?}", &to_defend);
                     node_data.mark_defended(to_defend, global_time);
 
-                    log::debug!("Total defended nodes in execution step: {}", total_defended + num_to_defend);
+                    log::debug!("Total defended nodes in execution step: {}", step_defended + num_to_defend);
                     return;
                 }
             }
 
             // If there are any undefended nodes, defend them and update the total number of
             // defended nodes
-            let current_defended = min(self.nodes_to_defend.len(), settings.num_firefighters - total_defended);
+            let current_defended = min(self.nodes_to_defend.len(), settings.num_firefighters - step_defended);
             let mut to_defend = Vec::with_capacity(current_defended);
             for _ in 0..current_defended {
                 to_defend.push(self.nodes_to_defend.remove(0));
@@ -240,10 +249,11 @@ impl Strategy for MinDistGroupStrategy {
             log::debug!("Defending nodes {:?}", &to_defend);
             node_data.mark_defended(to_defend, global_time);
 
-            total_defended += current_defended;
+            step_defended += current_defended;
         }
-
-        log::debug!("Total defended nodes in execution step: {}", total_defended);
+        self.total_defended += step_defended;
+        log::debug!("Step defended nodes in one execution step: {}", step_defended);
+        log::debug!("Total defended nodes yet: {}", self.total_defended);
     }
 }
 
