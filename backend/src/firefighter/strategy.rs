@@ -90,8 +90,8 @@ pub struct MinDistGroupStrategy {
     nodes_by_sho_dist: BTreeMap<usize, Vec<usize>>,
     nodes_to_defend: Vec<usize>,
     dist_to_defend: usize,
-    remaining_ffs: usize,
     total_defended: usize,
+    last_group_defended: bool,
 }
 
 impl MinDistGroupStrategy {
@@ -134,8 +134,8 @@ impl Strategy for MinDistGroupStrategy {
             nodes_by_sho_dist: BTreeMap::new(),
             nodes_to_defend: vec![],
             dist_to_defend: 0,
-            remaining_ffs: 0,
             total_defended: 0,
+            last_group_defended: false,
         }
     }
 
@@ -147,28 +147,40 @@ impl Strategy for MinDistGroupStrategy {
             if self.nodes_to_defend.is_empty() {
                 let graph = self.graph.read().unwrap();
 
-                let next_dist = max(self.dist_to_defend + 1, global_time as usize);
+                let next_dist;
+                // reset the next dist to global time, in order to find the next best group where best diff < 0
+                if self.last_group_defended {
+                    next_dist = global_time as usize;
+                } else {
+                    next_dist = max(self.dist_to_defend + 1, global_time as usize);
+                }
 
                 log::debug!("Next dist: {}", next_dist);
+                log::debug!("dist_to_defend: {}", self.dist_to_defend);
+                log::debug!("global_time: {}", global_time);
 
                 // Filter by relevant distances, i.e. distances that the fire did not reach yet
-                self.nodes_by_sho_dist.retain(|&dist, _| dist >= next_dist);
+                self.nodes_by_sho_dist.retain(|&dist, _| dist >= global_time as usize);
 
                 let mut best_diff = isize::MIN;
                 let mut best_dist = 0;
                 for (&dist, nodes) in self.nodes_by_sho_dist.iter() {
-                    let remaining_dist = dist + 1 - global_time as usize;
-                    let num_ffs = settings.num_firefighters;
-                    let strategy_every = settings.exec_strategy_every as usize;
-                    let num_to_defend = dist / strategy_every * num_ffs + self.remaining_ffs - self.total_defended;
-
-                    log::debug!("dist / strategy_every: {}", dist / strategy_every);
-                    log::debug!("num to defend: {}", num_to_defend);
+                    if dist < next_dist {
+                        continue;
+                    }
                     log::debug!("dist: {}", dist);
                     log::debug!("global time: {}", global_time);
 
+                    let num_ffs = settings.num_firefighters;
+                    let strategy_every = settings.exec_strategy_every as usize;
+                    let num_to_defend = dist / strategy_every * num_ffs - self.total_defended;
 
+                    log::debug!("dist / strategy_every: {}", dist / strategy_every);
+                    log::debug!("num_ffs: {}", num_ffs);
+                    log::debug!("total_defended: {}", self.total_defended);
+                    log::debug!("num to defend: {}", num_to_defend);
 
+                    log::debug!("nodes.len(): {}", nodes.len());
                     if nodes.len() > 0 {
                         let diff = num_to_defend as isize - nodes.len() as isize;
                         if diff >= 0 {
@@ -185,57 +197,22 @@ impl Strategy for MinDistGroupStrategy {
                 }
                 if let Some(nodes) = self.nodes_by_sho_dist.get(&best_dist) {
                     self.nodes_to_defend = nodes.clone();
+                    self.dist_to_defend = best_dist;
                     if best_diff < 0 {
                         self.nodes_to_defend.sort_unstable_by(|&n1, &n2| {
                             let deg1 = graph.get_out_degree(n1);
                             let deg2 = graph.get_out_degree(n2);
                             deg2.cmp(&deg1)
                         });
-                        let d = best_diff.abs() as usize;
-                        self.nodes_to_defend = self.nodes_to_defend[0..d].to_vec();
+                        let num_to_defend = self.nodes_to_defend.len() - best_diff.abs() as usize;
+                        self.nodes_to_defend = self.nodes_to_defend[0..num_to_defend].to_vec();
+                        log::debug!("num_to_defend where best diff < 0: {}", num_to_defend);
                     }
-                    self.dist_to_defend = best_dist;
-                    self.remaining_ffs = max(best_diff, 0) as usize;
-
                     log::debug!("Computed nodes to defend {:?}", &self.nodes_to_defend);
                 } else {
-                    // If nodes to defend are empty, even after (re-)computation,
-                    // then use a greedy approach
-                    log::debug!("Using greedy approach");
-
-                    let burning = node_data.get_burning();
-
-                    let graph = self.graph.read().unwrap();
-
-                    // Get all edges with targets that are not burned or defended yet
-                    let mut edges = Vec::new();
-                    for nd in burning {
-                        for i in graph.offsets[nd.node_id]..graph.offsets[nd.node_id+1] {
-                            let edge = &graph.edges[i];
-                            if node_data.is_undefended(&edge.tgt) {
-                                edges.push(edge);
-                            }
-                        }
-                    }
-
-                    // Sort the edges by their weight and by the _out degree_ of their targets
-                    edges.sort_unstable_by(|&e1, &e2|
-                        e1.dist.cmp(&e2.dist).then_with(|| {
-                            let tgt1_deg = graph.get_out_degree(e1.tgt);
-                            let tgt2_deg = graph.get_out_degree(e2.tgt);
-                            tgt2_deg.cmp(&tgt1_deg)
-                        }));
-
-                    // Defend as many targets as firefighters are available
-                    let num_to_defend = min(edges.len(), settings.num_firefighters - step_defended);
-                    let to_defend: Vec<_> = edges[0..num_to_defend].iter()
-                        .map(|&e| e.tgt)
-                        .collect();
-                    log::debug!("Defending nodes {:?}", &to_defend);
-                    node_data.mark_defended(to_defend, global_time);
-
-                    log::debug!("Total defended nodes in execution step: {}", step_defended + num_to_defend);
-                    return;
+                    // last group reached, reset next dist to global time
+                    self.last_group_defended = true;
+                    log::debug!("last group reached: {}", self.last_group_defended);
                 }
             }
 
@@ -250,8 +227,8 @@ impl Strategy for MinDistGroupStrategy {
             node_data.mark_defended(to_defend, global_time);
 
             step_defended += current_defended;
+            self.total_defended += current_defended;
         }
-        self.total_defended += step_defended;
         log::debug!("Step defended nodes in one execution step: {}", step_defended);
         log::debug!("Total defended nodes yet: {}", self.total_defended);
     }
