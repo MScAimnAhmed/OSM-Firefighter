@@ -192,6 +192,7 @@ impl Strategy for MinDistGroupStrategy {
                 } else {
                     // If nodes to defend are empty, even after (re-)computation,
                     // then use a greedy approach
+                    log::debug!("Using greedy approach");
 
                     let burning = node_data.get_burning();
 
@@ -217,13 +218,14 @@ impl Strategy for MinDistGroupStrategy {
                         }));
 
                     // Defend as many targets as firefighters are available
-                    let num_to_defend = min(edges.len(), settings.num_firefighters);
+                    let num_to_defend = min(edges.len(), settings.num_firefighters - total_defended);
                     let to_defend: Vec<_> = edges[0..num_to_defend].iter()
                         .map(|&e| e.tgt)
                         .collect();
                     log::debug!("Defending nodes {:?}", &to_defend);
                     node_data.mark_defended(to_defend, global_time);
 
+                    log::debug!("Total defended nodes in execution step: {}", total_defended + num_to_defend);
                     return;
                 }
             }
