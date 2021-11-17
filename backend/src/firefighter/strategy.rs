@@ -87,21 +87,18 @@ impl Strategy for GreedyStrategy {
 #[derive(Debug, Default)]
 pub struct MinDistGroupStrategy {
     graph: Arc<RwLock<Graph>>,
-    nodes_by_sho_dist: BTreeMap<usize, Vec<usize>>,
     nodes_to_defend: Vec<usize>,
-    dist_to_defend: usize,
-    total_defended: usize,
-    last_group_defended: bool,
+    current_defended: usize,
 }
 
 impl MinDistGroupStrategy {
-    /// Group all nodes by their minimum shortest distance to any fire root
-    pub fn group_nodes_by_sho_dist(&mut self, roots: &Vec<usize>) {
+    /// Compute nodes to defend and order in which nodes should be defended
+    pub fn compute_nodes_to_defend(&mut self, roots: &Vec<usize>, settings: &OSMFSettings) {
         let graph = self.graph.read().unwrap();
 
         // For every node, compute the minimum shortest distance between the node and
         // any fire root
-        let mut sho_dists: HashMap<usize, usize> = HashMap::with_capacity(graph.num_nodes);
+        let mut sho_dists = HashMap::with_capacity(graph.num_nodes);
         for &root in roots {
             for node in &graph.nodes {
                 let new_dist = graph.unchecked_get_shortest_dist(root, node.id);
@@ -116,14 +113,74 @@ impl MinDistGroupStrategy {
         }
 
         // Group nodes by minimum shortest distance
+        let mut nodes_by_sho_dist: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
         for (&node_id, &dist) in sho_dists.iter() {
-            self.nodes_by_sho_dist.entry(dist)
+            nodes_by_sho_dist.entry(dist)
                 .and_modify(|nodes| nodes.push(node_id))
                 .or_insert(vec![node_id]);
         }
 
-        //log::debug!("Grouped nodes by minimum shortest distance to any fire root {:#?}",
-            //self.nodes_by_sho_dist);
+        log::debug!("Grouped nodes by minimum shortest distance to any fire root");
+
+        let strategy_every = settings.exec_strategy_every as usize;
+        let num_ffs = settings.num_firefighters;
+        let mut total_defended = 0;
+
+        // Node groups that can be defended completely
+        let defend_completely: Vec<_> = nodes_by_sho_dist.iter()
+            .filter(|(&dist, nodes)| {
+                let must_defend = nodes.len();
+                let can_defend = dist / strategy_every * num_ffs - total_defended;
+                if can_defend >= must_defend {
+                    total_defended += must_defend;
+                    true
+                } else {
+                    false
+                }
+            })
+            .map(|(_, nodes)| nodes)
+            .collect();
+
+        // Node groups that can be defended partially
+        let mut defend_partially = Vec::with_capacity(
+            nodes_by_sho_dist.len() - defend_completely.len());
+        for (&dist, nodes) in nodes_by_sho_dist.iter() {
+            let must_defend = nodes.len();
+            let could_defend_total = dist / strategy_every * num_ffs;
+            if could_defend_total > total_defended {
+                let can_defend = could_defend_total - total_defended;
+                if can_defend < must_defend  {
+                    total_defended += can_defend;
+                    defend_partially.push((must_defend - can_defend, nodes));
+                }
+            }
+        }
+        defend_partially.sort_unstable_by(|&(diff1, _), (diff2, _)|
+            diff1.cmp(diff2));
+
+        self.nodes_to_defend.reserve_exact(total_defended);
+
+        for nodes in defend_completely {
+            for &node in nodes {
+                self.nodes_to_defend.push(node);
+            }
+        }
+
+        for (diff, nodes) in defend_partially {
+            let can_defend = nodes.len() - diff;
+            // Sort by out degree
+            let mut nodes = nodes.clone();
+            nodes.sort_unstable_by(|&n1, &n2| {
+                let deg1 = graph.get_out_degree(n1);
+                let deg2 = graph.get_out_degree(n2);
+                deg2.cmp(&deg1)
+            });
+            // Take first 'can_defend' number of nodes
+            let nodes = nodes[0..can_defend].to_vec();
+            for node in nodes {
+                self.nodes_to_defend.push(node);
+            }
+        }
     }
 }
 
@@ -131,157 +188,69 @@ impl Strategy for MinDistGroupStrategy {
     fn new(graph: Arc<RwLock<Graph>>) -> Self {
         Self {
             graph,
-            nodes_by_sho_dist: BTreeMap::new(),
             nodes_to_defend: vec![],
-            dist_to_defend: 0,
-            total_defended: 0,
-            last_group_defended: false,
+            current_defended: 0,
         }
     }
 
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
-        // Try to defend as many nodes, as firefighters are available
-        let mut step_defended = 0;
-        while step_defended < settings.num_firefighters {
-            // (Re-)compute nodes to defend
-            if self.nodes_to_defend.is_empty() {
-                let graph = self.graph.read().unwrap();
+        let num_to_defend = min(settings.num_firefighters, self.nodes_to_defend.len() - self.current_defended);
+        let to_defend = &self.nodes_to_defend[self.current_defended..self.current_defended + num_to_defend];
+        log::debug!("Defending nodes {:?}", to_defend);
+        node_data.mark_defended2(to_defend, global_time);
 
-                let next_dist;
-                // reset the next dist to global time, in order to find the next best group where best diff < 0
-                if self.last_group_defended {
-                    next_dist = global_time as usize;
-                } else {
-                    next_dist = max(self.dist_to_defend + 1, global_time as usize);
-                }
-
-                log::debug!("Next dist: {}", next_dist);
-                log::debug!("dist_to_defend: {}", self.dist_to_defend);
-                log::debug!("global_time: {}", global_time);
-
-                // Filter by relevant distances, i.e. distances that the fire did not reach yet
-                self.nodes_by_sho_dist.retain(|&dist, _| dist >= global_time as usize);
-
-                let mut best_diff = isize::MIN;
-                let mut best_dist = 0;
-                for (&dist, nodes) in self.nodes_by_sho_dist.iter() {
-                    if dist < next_dist {
-                        continue;
-                    }
-                    log::debug!("dist: {}", dist);
-                    log::debug!("global time: {}", global_time);
-
-                    let num_ffs = settings.num_firefighters;
-                    let strategy_every = settings.exec_strategy_every as usize;
-                    let num_to_defend = dist / strategy_every * num_ffs - self.total_defended;
-
-                    log::debug!("dist / strategy_every: {}", dist / strategy_every);
-                    log::debug!("num_ffs: {}", num_ffs);
-                    log::debug!("total_defended: {}", self.total_defended);
-                    log::debug!("num to defend: {}", num_to_defend);
-
-                    log::debug!("nodes.len(): {}", nodes.len());
-                    if nodes.len() > 0 {
-                        let diff = num_to_defend as isize - nodes.len() as isize;
-                        if diff >= 0 {
-                            log::debug!("Num to defend: {}, num nodes: {}", num_to_defend, nodes.len());
-
-                            best_dist = dist;
-                            best_diff = diff;
-                            break;
-                        } else if diff > best_diff {
-                            best_diff = diff;
-                            best_dist = dist;
-                        }
-                    }
-                }
-                if let Some(nodes) = self.nodes_by_sho_dist.get(&best_dist) {
-                    self.nodes_to_defend = nodes.clone();
-                    self.dist_to_defend = best_dist;
-                    if best_diff < 0 {
-                        self.nodes_to_defend.sort_unstable_by(|&n1, &n2| {
-                            let deg1 = graph.get_out_degree(n1);
-                            let deg2 = graph.get_out_degree(n2);
-                            deg2.cmp(&deg1)
-                        });
-                        let num_to_defend = self.nodes_to_defend.len() - best_diff.abs() as usize;
-                        self.nodes_to_defend = self.nodes_to_defend[0..num_to_defend].to_vec();
-                        log::debug!("num_to_defend where best diff < 0: {}", num_to_defend);
-                    }
-                    log::debug!("Computed nodes to defend {:?}", &self.nodes_to_defend);
-                } else {
-                    // last group reached, reset next dist to global time
-                    self.last_group_defended = true;
-                    log::debug!("last group reached: {}", self.last_group_defended);
-                }
-            }
-
-            // If there are any undefended nodes, defend them and update the total number of
-            // defended nodes
-            let current_defended = min(self.nodes_to_defend.len(), settings.num_firefighters - step_defended);
-            let mut to_defend = Vec::with_capacity(current_defended);
-            for _ in 0..current_defended {
-                to_defend.push(self.nodes_to_defend.remove(0));
-            }
-            log::debug!("Defending nodes {:?}", &to_defend);
-            node_data.mark_defended(to_defend, global_time);
-
-            step_defended += current_defended;
-            self.total_defended += current_defended;
-        }
-        log::debug!("Step defended nodes in one execution step: {}", step_defended);
-        log::debug!("Total defended nodes yet: {}", self.total_defended);
+        self.current_defended += num_to_defend;
     }
 }
 
 
 
-#[cfg(test)]
-mod test {
-    use std::sync::{Arc, RwLock};
-
-    use rand::prelude::*;
-
-    use crate::firefighter::strategy::{OSMFStrategy, MinDistGroupStrategy, Strategy};
-    use crate::graph::Graph;
-
-    #[test]
-    fn test() {
-        let graph = Arc::new(RwLock::new(
-            Graph::from_files("data/bbgrund")));
-        let num_roots = 10;
-        let mut strategy = OSMFStrategy::MinDistanceGroup(MinDistGroupStrategy::new(graph.clone()));
-
-        let graph_ = graph.read().unwrap();
-        let num_nodes = graph_.num_nodes;
-
-        let mut rng = thread_rng();
-        let mut roots = Vec::with_capacity(num_roots);
-        while roots.len() < num_roots {
-            let root = rng.gen_range(0..num_nodes);
-            if !roots.contains(&root) {
-                roots.push(root);
-            }
-        }
-
-        if let OSMFStrategy::MinDistanceGroup(ref mut mdg_strategy) = strategy {
-            mdg_strategy.group_nodes_by_sho_dist(&roots);
-        }
-
-        let some_node = rng.gen_range(0..num_nodes);
-        let mut dists_from_roots = Vec::with_capacity(num_roots);
-        for root in roots {
-            dists_from_roots.push(graph_.unchecked_get_shortest_dist(root, some_node));
-        }
-        let min_dist = dists_from_roots.iter().min().unwrap();
-
-        let default = Vec::new();
-        if let OSMFStrategy::MinDistanceGroup(mdg_strategy) = &strategy {
-            let group = mdg_strategy.nodes_by_sho_dist.get(min_dist)
-                .unwrap_or(&default);
-            assert!(group.contains(&some_node), "min_dist = {}, group = {:?}, some_node = {}",
-                    min_dist, group, some_node);
-        }
-    }
-
-}
+// #[cfg(test)]
+// mod test {
+//     use std::sync::{Arc, RwLock};
+//
+//     use rand::prelude::*;
+//
+//     use crate::firefighter::strategy::{OSMFStrategy, MinDistGroupStrategy, Strategy};
+//     use crate::graph::Graph;
+//
+//     #[test]
+//     fn test() {
+//         let graph = Arc::new(RwLock::new(
+//             Graph::from_files("data/bbgrund")));
+//         let num_roots = 10;
+//         let mut strategy = OSMFStrategy::MinDistanceGroup(MinDistGroupStrategy::new(graph.clone()));
+//
+//         let graph_ = graph.read().unwrap();
+//         let num_nodes = graph_.num_nodes;
+//
+//         let mut rng = thread_rng();
+//         let mut roots = Vec::with_capacity(num_roots);
+//         while roots.len() < num_roots {
+//             let root = rng.gen_range(0..num_nodes);
+//             if !roots.contains(&root) {
+//                 roots.push(root);
+//             }
+//         }
+//
+//         if let OSMFStrategy::MinDistanceGroup(ref mut mdg_strategy) = strategy {
+//             mdg_strategy.compute_nodes_to_defend(&roots);
+//         }
+//
+//         let some_node = rng.gen_range(0..num_nodes);
+//         let mut dists_from_roots = Vec::with_capacity(num_roots);
+//         for root in roots {
+//             dists_from_roots.push(graph_.unchecked_get_shortest_dist(root, some_node));
+//         }
+//         let min_dist = dists_from_roots.iter().min().unwrap();
+//
+//         let default = Vec::new();
+//         if let OSMFStrategy::MinDistanceGroup(mdg_strategy) = &strategy {
+//             let group = mdg_strategy.nodes_by_sho_dist.get(min_dist)
+//                 .unwrap_or(&default);
+//             assert!(group.contains(&some_node), "min_dist = {}, group = {:?}, some_node = {}",
+//                     min_dist, group, some_node);
+//         }
+//     }
+//
+// }

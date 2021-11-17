@@ -105,6 +105,18 @@ impl NodeDataStorage {
             .or_insert(updated);
     }
 
+    /// Update `self.times` for given time with given nodes
+    fn update_times2(&mut self, time: TimeUnit, updated: &[usize]) {
+        self.times.entry(time)
+            .and_modify(|nodes| {
+                nodes.reserve(updated.len());
+                for node_id in updated {
+                    nodes.push(*node_id);
+                }
+            })
+            .or_insert(updated.to_vec());
+    }
+
     /// Mark all nodes in `nodes` as burning at time `time`
     pub fn mark_burning(&mut self, nodes: Vec<usize>, time: TimeUnit) {
         for node_id in &nodes {
@@ -125,6 +137,17 @@ impl NodeDataStorage {
             });
         }
         self.update_times(time, nodes);
+    }
+
+    /// Mark all nodes in `nodes` as defended at time `time`
+    pub fn mark_defended2(&mut self, nodes: &[usize], time: TimeUnit) {
+        for node_id in nodes {
+            self.defended.insert(*node_id, NodeData {
+                node_id: *node_id,
+                time,
+            });
+        }
+        self.update_times2(time, nodes);
     }
 
     /// Get the node data of all burning vertices
@@ -176,7 +199,7 @@ impl OSMFProblem {
 
         if let OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) = problem.strategy {
             let roots = problem.node_data.times.get(&0).unwrap();
-            mindistgroup_strategy.group_nodes_by_sho_dist(roots);
+            mindistgroup_strategy.compute_nodes_to_defend(roots, &problem.settings);
         }
 
         problem
