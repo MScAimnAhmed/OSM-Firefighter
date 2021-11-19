@@ -18,18 +18,18 @@ use actix_web::{App,
                 HttpServer,
                 middleware::Logger,
                 post,
+                put,
                 Responder,
                 web};
 use log;
 use serde_json::json;
 
 use crate::error::OSMFError;
-use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
-                         strategy::{GreedyStrategy, OSMFStrategy, MinDistGroupStrategy, Strategy}};
-use crate::firefighter::problem::TimeUnit;
+use crate::firefighter::{ViewRequest,
+                         problem::{OSMFProblem, OSMFSettings},
+                         strategy::{GreedyStrategy,OSMFStrategy, MinDistGroupStrategy, Strategy}};
 use crate::graph::Graph;
 use crate::session::OSMFSessionStorage;
-use crate::query::Query;
 
 /// Storage for data associated to the web app
 struct AppData {
@@ -153,7 +153,8 @@ async fn simulate_problem(data: web::Data<AppData>, settings: web::Json<OSMFSett
         settings.into_inner(),
         strategy);
     problem.simulate();
-    let sim_res = problem.simulation_response();
+
+    let res = res.json(problem.simulation_response());
 
     {
         let mut sessions = data.sessions.lock().unwrap();
@@ -161,12 +162,12 @@ async fn simulate_problem(data: web::Data<AppData>, settings: web::Json<OSMFSett
         session.attach_problem(problem);
     }
 
-    Ok(res.json(sim_res))
+    Ok(res)
 }
 
 /// Update the view of a firefighter simulation
-#[get("/view")]
-async fn update_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
+#[put("/view")]
+async fn display_view(data: web::Data<AppData>, payload: web::Json<ViewRequest>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
     let res_sid = init_response(&data, &req, HttpResponse::Ok());
     let mut res = res_sid.0;
     let sid = res_sid.1;
@@ -182,24 +183,10 @@ async fn update_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
         }
     };
 
-    let query = Query::from(req.query_string());
+    log::debug!("Computing view for zoom: {} and time: {}", payload.zoom, payload.time);
 
-    let maybe_zoom = query.try_get_and_parse::<f64>("zoom");
-    let maybe_time = query.try_get_and_parse::<TimeUnit>("time");
-
-    if maybe_zoom.is_some() && maybe_time.is_some() {
-        let zoom = maybe_zoom.unwrap()?;
-        let time = maybe_time.unwrap()?;
-
-        log::debug!("Computing view for zoom: {} and time: {}", zoom, time);
-
-        Ok(res.content_type("image/png")
-            .body(problem.view_update_response(zoom, &time)))
-    } else {
-        log::debug!("Computing initial view / Resetting view");
-
-        Ok(res.content_type("image/png").body(problem.view_init_response()))
-    }
+    Ok(res.content_type("image/png")
+        .body(problem.view_response(payload.into_inner())))
 }
 
 #[actix_web::main]
@@ -252,7 +239,7 @@ async fn main() -> std::io::Result<()> {
             .service(list_graphs)
             .service(list_strategies)
             .service(simulate_problem)
-            .service(update_view)
+            .service(display_view)
     });
     server.bind("0.0.0.0:8080")?
         .run()

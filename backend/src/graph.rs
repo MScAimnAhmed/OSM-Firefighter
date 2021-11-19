@@ -22,7 +22,7 @@ struct HubLabel {
 }
 
 /// Struct to hold the grid bounds of a graph or part of a graph
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct GridBounds {
     pub min_lat: f64,
     pub max_lat: f64,

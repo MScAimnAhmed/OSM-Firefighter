@@ -6,7 +6,8 @@ use std::{cmp::min,
 use strum::VariantNames;
 use strum_macros::{EnumString, EnumVariantNames};
 
-use crate::firefighter::problem::{NodeDataStorage, OSMFSettings, TimeUnit};
+use crate::firefighter::{problem::{NodeDataStorage, OSMFSettings},
+                         TimeUnit};
 use crate::graph::Graph;
 
 /// Strategy to contain the fire in the firefighter problem

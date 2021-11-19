@@ -7,11 +7,10 @@ use rand::prelude::*;
 use serde::{Serialize, Deserialize};
 
 use crate::firefighter::{strategy::{OSMFStrategy, Strategy},
-                         view::{View, Coords}};
-use crate::graph::Graph;
-
-/// `u64` type alias to denote a time unit in the firefighter problem
-pub type TimeUnit = u64;
+                         TimeUnit,
+                         view::{View, Coords},
+                         ViewRequest};
+use crate::graph::{Graph, GridBounds};
 
 /// Settings for a firefighter problem instance
 #[derive(Debug, Deserialize)]
@@ -149,11 +148,12 @@ impl NodeDataStorage {
 
 /// Container for data about the simulation of a firefighter problem instance
 #[derive(Serialize)]
-pub struct OSMFSimulationResponse {
+pub struct OSMFSimulationResponse<'a> {
     nodes_burned: usize,
     nodes_defended: usize,
     nodes_total: usize,
     end_time: TimeUnit,
+    view_bounds: &'a GridBounds,
     view_center: Coords,
 }
 
@@ -287,19 +287,14 @@ impl OSMFProblem {
             nodes_defended: self.node_data.defended.len(),
             nodes_total: self.graph.read().unwrap().num_nodes,
             end_time: self.global_time,
+            view_bounds: &self.view.grid_bounds,
             view_center: self.view.initial_center,
         }
     }
 
-    /// Generate the view initialization response fore this firefighter problem instance
-    pub fn view_init_response(&mut self) -> Vec<u8> {
-        self.view.compute_initial(&self.node_data, &self.global_time);
-        self.view.png_bytes()
-    }
-
-    /// Generate the view update response fore this firefighter problem instance
-    pub fn view_update_response(&mut self, zoom: f64, time: &TimeUnit) -> Vec<u8> { // TODO add center to params if it is implemented frontend-side
-        self.view.compute(zoom, self.view.initial_center, &self.node_data, time);
+    /// Generate the view response fore this firefighter problem instance
+    pub fn view_response(&mut self, view_req: ViewRequest) -> Vec<u8> {
+        self.view.compute(self.view.initial_center, view_req, &self.node_data);
         self.view.png_bytes()
     }
 }
