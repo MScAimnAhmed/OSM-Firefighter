@@ -151,7 +151,6 @@ impl MinDistGroupStrategy {
                 let can_defend = could_defend_total - total_defended;
                 if can_defend < must_defend  {
                     total_defended += can_defend;
-
                     // Sort by out degree
                     let mut nodes = nodes.clone();
                     nodes.sort_unstable_by(|&n1, &n2| {
@@ -160,7 +159,7 @@ impl MinDistGroupStrategy {
                         deg2.cmp(&deg1)
                     });
                     // Take first 'can_defend' number of nodes
-                    defend_partially.push(nodes[0..can_defend]);
+                    defend_partially.push(nodes[0..can_defend].to_vec());
                 }
             }
         }
@@ -174,7 +173,7 @@ impl MinDistGroupStrategy {
         }
 
         for nodes in defend_partially {
-            for &node in nodes {
+            for node in nodes {
                 self.nodes_to_defend.push(node);
             }
         }
