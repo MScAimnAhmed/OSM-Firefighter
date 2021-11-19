@@ -4,32 +4,23 @@ use std::{collections::BTreeMap,
 
 use log;
 use rand::prelude::*;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
 use crate::firefighter::{strategy::{OSMFStrategy, Strategy},
-                         view::View};
+                         view::{View, Coords}};
 use crate::graph::Graph;
 
 /// `u64` type alias to denote a time unit in the firefighter problem
 pub type TimeUnit = u64;
 
 /// Settings for a firefighter problem instance
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 pub struct OSMFSettings {
+    pub graph_name: String,
+    pub strategy_name: String,
     num_roots: usize,
-    pub num_firefighters: usize,
-    pub exec_strategy_every: u64,
-}
-
-impl OSMFSettings {
-    /// Create new settings for a firefighter problem instance
-    pub fn new(num_roots: usize, num_firefighters: usize, exec_strategy_every: u64) -> Self {
-        Self {
-            num_roots,
-            num_firefighters,
-            exec_strategy_every,
-        }
-    }
+    pub num_ffs: usize,
+    pub strategy_every: u64,
 }
 
 /// Node data related to the firefighter problem
@@ -163,6 +154,7 @@ pub struct OSMFSimulationResponse {
     nodes_defended: usize,
     nodes_total: usize,
     end_time: TimeUnit,
+    view_center: Coords,
 }
 
 /// A firefighter problem instance
@@ -261,7 +253,7 @@ impl OSMFProblem {
     /// Execute the containment strategy to prevent as much nodes as
     /// possible from catching fire
     fn contain_fire(&mut self) {
-        if self.global_time % self.settings.exec_strategy_every == 0 {
+        if self.global_time % self.settings.strategy_every == 0 {
             match self.strategy {
                 OSMFStrategy::Greedy(ref mut greedy_strategy) =>
                     greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
@@ -295,6 +287,7 @@ impl OSMFProblem {
             nodes_defended: self.node_data.defended.len(),
             nodes_total: self.graph.read().unwrap().num_nodes,
             end_time: self.global_time,
+            view_center: self.view.initial_center,
         }
     }
 
@@ -342,7 +335,8 @@ mod test {
         let num_roots = 10;
         let strategy = OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone()));
         let mut problem = OSMFProblem::new(
-            graph.clone(), OSMFSettings::new(num_roots, 2, 10), strategy);
+            graph.clone(), OSMFSettings::new("bbgrund".to_string(),"greedy".to_string(),
+                                             num_roots, 2, 10), strategy);
 
         assert_eq!(problem.node_data.burning.len(), num_roots);
         assert_eq!(problem.node_data.times.len(), (problem.global_time + 1) as usize);

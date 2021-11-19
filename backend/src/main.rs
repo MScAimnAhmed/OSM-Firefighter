@@ -122,43 +122,35 @@ async fn list_strategies(data: web::Data<AppData>, req: HttpRequest) -> impl Res
 
 /// Simulate a new firefighter problem instance
 #[post("/simulate")]
-async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
+async fn simulate_problem(data: web::Data<AppData>, settings: web::Json<OSMFSettings>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
     let res_sid = init_response(&data, &req, HttpResponse::Created());
     let mut res = res_sid.0;
     let sid = res_sid.1;
 
-    let query = Query::from(req.query_string());
-
-    let graph_name = query.get("graph")?;
-    let graph = match data.graphs.get(graph_name) {
+    let graph = match data.graphs.get(&settings.graph_name) {
         Some(graph) => graph,
         None => {
-            log::warn!("Unknown graph {}", graph_name);
+            log::warn!("Unknown graph {}", settings.graph_name);
             return Err(OSMFError::BadRequest {
-                message: format!("Unknown value for parameter 'graph': '{}'", graph_name)
+                message: format!("Unknown value for parameter 'graph': '{}'", settings.graph_name)
             });
         }
     };
 
-    let strategy_name = query.get("strategy")?;
-    let strategy = match strategy_name {
+    let strategy = match settings.strategy_name.as_str() {
         "greedy" => OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone())),
         "min_distance_group" => OSMFStrategy::MinDistanceGroup(MinDistGroupStrategy::new(graph.clone())),
         _ => {
-            log::warn!("Unknown strategy {}", strategy_name);
+            log::warn!("Unknown strategy {}", settings.strategy_name);
             return Err(OSMFError::BadRequest {
-                message: format!("Unknown value for parameter 'strategy': '{}'", strategy_name)
+                message: format!("Unknown value for parameter 'strategy': '{}'", settings.strategy_name)
             });
         }
     };
 
-    let num_roots = query.get_and_parse::<usize>("num_roots")?;
-    let num_ffs = query.get_and_parse::<usize>("num_ffs")?;
-    let strategy_every = query.get_and_parse::<u64>("strategy_every")?;
-
     let mut problem = OSMFProblem::new(
         graph.clone(),
-        OSMFSettings::new(num_roots, num_ffs, strategy_every),
+        settings.into_inner(),
         strategy);
     problem.simulate();
     let sim_res = problem.simulation_response();

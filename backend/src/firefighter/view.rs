@@ -74,7 +74,7 @@ pub struct View {
     delta_vert: f64,
     img_buf: RgbImage,
     initial_zoom: f64,
-    pub initial_center: Coords, // TODO make private if center is implemented frontend-side
+    pub initial_center: Coords,
 }
 
 impl View {

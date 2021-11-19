@@ -1,4 +1,4 @@
-use std::{cmp::{min, max},
+use std::{cmp::min,
           collections::{BTreeMap, HashMap},
           fmt::Debug,
           sync::{Arc, RwLock}};
@@ -74,7 +74,7 @@ impl Strategy for GreedyStrategy {
             }));
 
         // Defend as many targets as firefighters are available
-        let num_to_defend = min(edges.len(), settings.num_firefighters);
+        let num_to_defend = min(edges.len(), settings.num_ffs);
         let to_defend: Vec<_> = edges[0..num_to_defend].iter()
             .map(|&e| e.tgt)
             .collect();
@@ -122,8 +122,8 @@ impl MinDistGroupStrategy {
 
         log::debug!("Grouped nodes by minimum shortest distance to any fire root");
 
-        let strategy_every = settings.exec_strategy_every as usize;
-        let num_ffs = settings.num_firefighters;
+        let strategy_every = settings.strategy_every as usize;
+        let num_ffs = settings.num_ffs;
         let mut total_defended = 0;
 
         // Node groups that can be defended completely
@@ -194,7 +194,7 @@ impl Strategy for MinDistGroupStrategy {
     }
 
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
-        let num_to_defend = min(settings.num_firefighters, self.nodes_to_defend.len() - self.current_defended);
+        let num_to_defend = min(settings.num_ffs, self.nodes_to_defend.len() - self.current_defended);
         let to_defend = &self.nodes_to_defend[self.current_defended..self.current_defended + num_to_defend];
         log::debug!("Defending nodes {:?}", to_defend);
         node_data.mark_defended2(to_defend, global_time);
