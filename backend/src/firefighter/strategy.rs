@@ -151,12 +151,19 @@ impl MinDistGroupStrategy {
                 let can_defend = could_defend_total - total_defended;
                 if can_defend < must_defend  {
                     total_defended += can_defend;
-                    defend_partially.push((must_defend - can_defend, nodes));
+
+                    // Sort by out degree
+                    let mut nodes = nodes.clone();
+                    nodes.sort_unstable_by(|&n1, &n2| {
+                        let deg1 = graph.get_out_degree(n1);
+                        let deg2 = graph.get_out_degree(n2);
+                        deg2.cmp(&deg1)
+                    });
+                    // Take first 'can_defend' number of nodes
+                    defend_partially.push(nodes[0..can_defend]);
                 }
             }
         }
-        defend_partially.sort_unstable_by(|&(diff1, _), (diff2, _)|
-            diff1.cmp(diff2));
 
         self.nodes_to_defend.reserve_exact(total_defended);
 
@@ -166,18 +173,8 @@ impl MinDistGroupStrategy {
             }
         }
 
-        for (diff, nodes) in defend_partially {
-            let can_defend = nodes.len() - diff;
-            // Sort by out degree
-            let mut nodes = nodes.clone();
-            nodes.sort_unstable_by(|&n1, &n2| {
-                let deg1 = graph.get_out_degree(n1);
-                let deg2 = graph.get_out_degree(n2);
-                deg2.cmp(&deg1)
-            });
-            // Take first 'can_defend' number of nodes
-            let nodes = nodes[0..can_defend].to_vec();
-            for node in nodes {
+        for nodes in defend_partially {
+            for &node in nodes {
                 self.nodes_to_defend.push(node);
             }
         }
