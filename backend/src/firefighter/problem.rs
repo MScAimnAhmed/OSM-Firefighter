@@ -8,8 +8,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::firefighter::{strategy::{OSMFStrategy, Strategy},
                          TimeUnit,
-                         view::{View, Coords},
-                         ViewRequest};
+                         view::{View, Coords}};
 use crate::graph::{Graph, GridBounds};
 
 /// Settings for a firefighter problem instance
@@ -292,9 +291,15 @@ impl OSMFProblem {
         }
     }
 
-    /// Generate the view response fore this firefighter problem instance
-    pub fn view_response(&mut self, view_req: ViewRequest) -> Vec<u8> {
-        self.view.compute(self.view.initial_center, view_req, &self.node_data);
+    /// Generate the view response for this firefighter problem instance
+    pub fn view_response(&mut self, center: Coords, zoom: f64, time: &TimeUnit) -> Vec<u8> {
+        self.view.compute(center, zoom, time, &self.node_data);
+        self.view.png_bytes()
+    }
+
+    /// Generate the alternative view response for this firefighter problem instance
+    pub fn view_reponse_alt(&mut self, zoom: f64, time: &TimeUnit) -> Vec<u8> {
+        self.view.compute_alt(zoom, time, &self.node_data);
         self.view.png_bytes()
     }
 }

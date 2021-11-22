@@ -2,10 +2,9 @@ extern crate image;
 
 use std::{io::Cursor,
           sync::{Arc, RwLock}};
+use std::cmp::Ordering;
 
 use self::image::{DynamicImage, ImageBuffer, ImageOutputFormat, Rgb, RgbImage};
-
-use serde::Deserialize;
 
 use crate::firefighter::{problem::NodeDataStorage, TimeUnit};
 use crate::graph::{CompassDirection, Graph, GridBounds};
@@ -18,6 +17,23 @@ const BLUE: Rgb<u8> = Rgb([0, 0, 255]);
 
 /// Type alias for a latitude/longitude tuple
 pub type Coords = (f64, f64);
+
+/// Get an ordering as `i32` for an `Rgb<u8>` value
+fn get_col_ord(col: &Rgb<u8>) -> i32 {
+    match *col {
+        WHITE => 0,
+        BLACK => 1,
+        RED => 2,
+        BLUE => 3,
+        ORANGE => 4,
+        _ => 0
+    }
+}
+
+/// Compare two `Rgb<u8>` values
+fn cmp_col(col1: &Rgb<u8>, col2: &Rgb<u8>) -> Ordering {
+    get_col_ord(col1).cmp(&get_col_ord(col2))
+}
 
 /// Orientation of an ordered triple of coordinates.
 /// # Returns
@@ -67,14 +83,6 @@ impl LineSegment {
     }
 }
 
-/// Payload of a view request
-#[derive(Deserialize)]
-pub struct ViewRequest {
-    pub zoom: f64,
-    // TODO add center to params if it is implemented frontend-side
-    pub time: TimeUnit,
-}
-
 /// View of a specific firefighter simulation
 #[derive(Debug)]
 pub struct View {
@@ -111,8 +119,8 @@ impl View {
     }
 
     /// (Re-)compute this view
-    pub fn compute(&mut self, center: Coords, view_req: ViewRequest, node_data: &NodeDataStorage) {
-        let z = if view_req.zoom < 1.0 { 1.0 } else { view_req.zoom };
+    pub fn compute(&mut self, center: Coords, zoom: f64, time: &TimeUnit, node_data: &NodeDataStorage) {
+        let z = if zoom < 1.0 { 1.0 } else { zoom };
 
         // Reset view
         for px in self.img_buf.pixels_mut() {
@@ -256,6 +264,7 @@ impl View {
         }
 
         // For every node, compute a circle around its respective pixel and color it
+        let mut pxs_to_draw = Vec::with_capacity(graph.num_nodes);
         for node in &graph.nodes {
             if node.is_located_in(&gb) {
                 let w_px = ((node.lat - gb.min_lat) / deg_per_px_hz) as i64;
@@ -264,9 +273,9 @@ impl View {
                 let col_px;
                 if node_data.is_root(&node.id) {
                     col_px = ORANGE;
-                } else if node_data.is_burning_by(&node.id, &view_req.time) {
+                } else if node_data.is_burning_by(&node.id, time) {
                     col_px = RED;
-                } else if node_data.is_defended_by(&node.id, &view_req.time) {
+                } else if node_data.is_defended_by(&node.id, time) {
                     col_px = BLUE;
                 } else {
                     col_px = BLACK;
@@ -277,13 +286,22 @@ impl View {
                     for h in h_px-r..=h_px+r {
                         if (((w-w_px).pow(2) + (h-h_px).pow(2)) as f64).sqrt() as i64 <= r {
                             if w >= 0 && w <= w_max && h >= 0 && h <= h_max {
-                                self.img_buf.put_pixel(w as u32, h as u32, col_px);
+                                pxs_to_draw.push((w as u32, h as u32, col_px));
                             }
                         }
                     }
                 }
             }
         }
+        pxs_to_draw.sort_unstable_by(|(_, _, col1), (_, _, col2)| cmp_col(col1, col2));
+        for (w, h, col) in pxs_to_draw {
+            self.img_buf.put_pixel(w, h, col);
+        }
+    }
+
+    /// (Re-)compute this view, using the initial center
+    pub fn compute_alt(&mut self, zoom: f64, time: &TimeUnit, node_data: &NodeDataStorage) {
+        self.compute(self.initial_center, zoom, time, node_data)
     }
 
     /// Clones the underlying image buffer, transforms it into a PNG image and returns the image
