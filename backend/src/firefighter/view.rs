@@ -2,6 +2,7 @@ extern crate image;
 
 use std::{io::Cursor,
           sync::{Arc, RwLock}};
+use std::cmp::Ordering;
 
 use self::image::{DynamicImage, ImageBuffer, ImageOutputFormat, Rgb, RgbImage};
 
@@ -18,6 +19,23 @@ const BLUE: Rgb<u8> = Rgb([0, 0, 255]);
 
 /// Type alias for a latitude/longitude tuple
 pub type Coords = (f64, f64);
+
+/// Get an ordering as `i32` for an `Rgb<u8>` value
+fn get_col_ord(col: &Rgb<u8>) -> i32 {
+    match *col {
+        WHITE => 0,
+        BLACK => 1,
+        RED => 2,
+        BLUE => 3,
+        ORANGE => 4,
+        _ => 0
+    }
+}
+
+/// Compare two `Rgb<u8>` values
+fn cmp_col(col1: &Rgb<u8>, col2: &Rgb<u8>) -> Ordering {
+    get_col_ord(col1).cmp(&get_col_ord(col2))
+}
 
 /// Orientation of an ordered triple of coordinates.
 /// # Returns
@@ -256,6 +274,7 @@ impl View {
         }
 
         // For every node, compute a circle around its respective pixel and color it
+        let mut pxs_to_draw = Vec::with_capacity(graph.num_nodes);
         for node in &graph.nodes {
             if node.is_located_in(&gb) {
                 let w_px = ((node.lat - gb.min_lat) / deg_per_px_hz) as i64;
@@ -277,12 +296,16 @@ impl View {
                     for h in h_px-r..=h_px+r {
                         if (((w-w_px).pow(2) + (h-h_px).pow(2)) as f64).sqrt() as i64 <= r {
                             if w >= 0 && w <= w_max && h >= 0 && h <= h_max {
-                                self.img_buf.put_pixel(w as u32, h as u32, col_px);
+                                pxs_to_draw.push((w as u32, h as u32, col_px));
                             }
                         }
                     }
                 }
             }
+        }
+        pxs_to_draw.sort_unstable_by(|(_, _, col1), (_, _, col2)| cmp_col(col1, col2));
+        for (w, h, col) in pxs_to_draw {
+            self.img_buf.put_pixel(w, h, col);
         }
     }
 
