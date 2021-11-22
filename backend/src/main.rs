@@ -10,18 +10,7 @@ use std::{collections::HashMap,
           sync::{Arc, Mutex, RwLock}};
 
 use actix_cors::Cors;
-use actix_web::{App,
-                dev::HttpResponseBuilder,
-                get,
-                HttpMessage,
-                HttpRequest,
-                HttpResponse,
-                HttpServer,
-                middleware::Logger,
-                post,
-                put,
-                Responder,
-                web};
+use actix_web::{App, dev::HttpResponseBuilder, get, http, HttpMessage, HttpRequest, HttpResponse, HttpServer, middleware::Logger, post, put, Responder, web};
 use log;
 use serde_json::json;
 
