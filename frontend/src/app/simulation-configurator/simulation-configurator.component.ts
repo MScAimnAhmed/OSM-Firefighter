@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { MatDialogRef } from '@angular/material/dialog';
 import { GraphServiceService } from '../service/graph-service.service';
 import { FormControl, Validators } from '@angular/forms';
+import { SimulationConfig } from '../data/SimulationConfig';
 
 @Component({
   selector: 'app-simulation-configurator',
@@ -27,7 +28,7 @@ export class SimulationConfiguratorComponent implements OnInit {
   selectedStrategy = '';
 
   constructor(
-    public dialogRef: MatDialogRef<SimulationConfiguratorComponent>,
+    public dialogRef: MatDialogRef<SimulationConfiguratorComponent, SimulationConfig>,
     private graphService: GraphServiceService
   ) {
     this.graphFormControl = new FormControl(this.selectedGraph, [Validators.required]);
@@ -66,9 +67,10 @@ export class SimulationConfiguratorComponent implements OnInit {
   }
 
   confirm() {
+    this.dialogRef.close()
     this.dialogRef.close({
-        graph: this.selectedGraph,
-        strategy: this.selectedStrategy,
+        graph_name: this.selectedGraph,
+        strategy_name: this.selectedStrategy,
         num_ffs: this.fireFighters,
         num_roots: this.fireSources,
         strategy_every: this.fireFighterFrequency

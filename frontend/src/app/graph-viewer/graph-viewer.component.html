@@ -3,7 +3,7 @@
   <div class='turn-input'>
     <mat-form-field>
       <mat-label>Turn</mat-label>
-      <input matInput type='number' min='0' [max]='maxTurn' [(ngModel)]='currentTurn'>
+      <input matInput type='number' min='0' [max]='maxTurn' [(ngModel)]='currentTurn' [formControl]='currentTurnFormControl'>
     </mat-form-field>
     <mat-slider [thumbLabel]='true' min='0' [max]='maxTurn' [(ngModel)]='currentTurn'></mat-slider>
   </div>
@@ -13,11 +13,11 @@
         <td style='font-size: small'>
           <mat-form-field>
             <mat-label>Longitude</mat-label>
-            <input matInput type='number' [(ngModel)]='currentLon'>
+            <input matInput type='number' [(ngModel)]='currentLon' [formControl]='currentLonFormControl'>
           </mat-form-field>
           <mat-form-field>
             <mat-label>Latitude</mat-label>
-            <input matInput type='number' [(ngModel)]='currentLat'>
+            <input matInput type='number' [(ngModel)]='currentLat' [formControl]='currentLatFormControl'>
           </mat-form-field>
         </td>
         <td>
@@ -47,7 +47,7 @@
         <td>
           <mat-form-field>
             <mat-label>Zoom in %</mat-label>
-            <input matInput type='number' min='0' [(ngModel)]='currentZoom'>
+            <input matInput type='number' min='0' [(ngModel)]='currentZoom' [formControl]='currentZoomFormControl'>
           </mat-form-field>
         </td>
         <td style='display: flex; flex-direction: column'>

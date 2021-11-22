@@ -25,13 +25,7 @@ export class GraphServiceService {
   }
 
   simulate(config: SimulationConfig): Observable<any> {
-    let params = new HttpParams()
-      .append('graph', config.graph)
-      .append('strategy', config.strategy)
-      .append('num_ffs', String(config.num_ffs))
-      .append('num_roots', String(config.num_roots))
-      .append('strategy_every', String(config.strategy_every));
-    return this.http.post(this.path + "/simulate",null ,{ params: params, withCredentials: true});
+    return this.http.post(this.path + "/simulate",config ,{withCredentials: true});
   }
 
   refreshView(turnNumber?: number, zoomLevel? : number) : Observable<Blob>{

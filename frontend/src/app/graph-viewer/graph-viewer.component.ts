@@ -1,10 +1,10 @@
 import { AfterViewInit, Component, HostListener, OnInit } from '@angular/core';
-// @ts-ignore
-import * as L from 'leaflet';
 import { GraphServiceService } from '../service/graph-service.service';
 import { SimulationConfig } from '../data/SimulationConfig';
 import { SimulationConfiguratorComponent } from '../simulation-configurator/simulation-configurator.component';
 import { MatDialog } from '@angular/material/dialog';
+import { FormControl, Validators } from '@angular/forms';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
 @Component({
   selector: 'app-graph-viewer',
@@ -15,12 +15,16 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
 
   simConfig: SimulationConfig;
   currentTurn = 0;
+  currentTurnFormControl: FormControl;
   maxTurn = 0;
 
   currentLat = 0;
+  currentLatFormControl: FormControl;
   currentLon = 0;
+  currentLonFormControl: FormControl;
 
   currentZoom = 100;
+  currentZoomFormControl: FormControl;
 
   thumbnail: any;
 
@@ -47,6 +51,34 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
   }
 
   ngOnInit(): void {
+    this.currentLonFormControl = new FormControl(this.currentLon, [Validators.required]);
+    this.currentLonFormControl.valueChanges.pipe(
+      debounceTime(1000),
+      distinctUntilChanged()
+    ).subscribe(_ => {
+      this.refreshView();
+    });
+    this.currentLatFormControl = new FormControl(this.currentLat, [Validators.required]);
+    this.currentLatFormControl.valueChanges.pipe(
+      debounceTime(1000),
+      distinctUntilChanged()
+    ).subscribe(_ => {
+      this.refreshView();
+    });
+    this.currentZoomFormControl = new FormControl(this.currentZoom, [Validators.required]);
+    this.currentZoomFormControl.valueChanges.pipe(
+      debounceTime(1000),
+      distinctUntilChanged()
+    ).subscribe(_ => {
+      this.refreshView();
+    });
+    this.currentTurnFormControl = new FormControl(this.currentTurn, [Validators.required]);
+    this.currentTurnFormControl.valueChanges.pipe(
+        debounceTime(1000),
+        distinctUntilChanged()
+      ).subscribe(_ => {
+      this.refreshView();
+    });
   }
 
   ngAfterViewInit(): void {
