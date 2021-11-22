@@ -10,14 +10,25 @@ use std::{collections::HashMap,
           sync::{Arc, Mutex, RwLock}};
 
 use actix_cors::Cors;
-use actix_web::{App, dev::HttpResponseBuilder, get, HttpMessage, HttpRequest, HttpResponse, HttpServer, middleware::Logger, post, Responder, web, http};
+use actix_web::{App,
+                dev::HttpResponseBuilder,
+                get,
+                HttpMessage,
+                HttpRequest,
+                HttpResponse,
+                HttpServer,
+                middleware::Logger,
+                post,
+                put,
+                Responder,
+                web};
 use log;
 use serde_json::json;
 
 use crate::error::OSMFError;
-use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
-                         strategy::{GreedyStrategy, OSMFStrategy, MinDistGroupStrategy, Strategy}};
-use crate::firefighter::problem::TimeUnit;
+use crate::firefighter::{ViewRequest,
+                         problem::{OSMFProblem, OSMFSettings},
+                         strategy::{GreedyStrategy,OSMFStrategy, MinDistGroupStrategy, Strategy}};
 use crate::graph::Graph;
 use crate::session::OSMFSessionStorage;
 use crate::query::Query;
@@ -113,46 +124,39 @@ async fn list_strategies(data: web::Data<AppData>, req: HttpRequest) -> impl Res
 
 /// Simulate a new firefighter problem instance
 #[post("/simulate")]
-async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
+async fn simulate_problem(data: web::Data<AppData>, settings: web::Json<OSMFSettings>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
     let res_sid = init_response(&data, &req, HttpResponse::Created());
     let mut res = res_sid.0;
     let sid = res_sid.1;
 
-    let query = Query::from(req.query_string());
-
-    let graph_name = query.get("graph")?;
-    let graph = match data.graphs.get(graph_name) {
+    let graph = match data.graphs.get(&settings.graph_name) {
         Some(graph) => graph,
         None => {
-            log::warn!("Unknown graph {}", graph_name);
+            log::warn!("Unknown graph {}", settings.graph_name);
             return Err(OSMFError::BadRequest {
-                message: format!("Unknown value for parameter 'graph': '{}'", graph_name)
+                message: format!("Unknown value for parameter 'graph': '{}'", settings.graph_name)
             });
         }
     };
 
-    let strategy_name = query.get("strategy")?;
-    let strategy = match strategy_name {
+    let strategy = match settings.strategy_name.as_str() {
         "greedy" => OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone())),
         "min_distance_group" => OSMFStrategy::MinDistanceGroup(MinDistGroupStrategy::new(graph.clone())),
         _ => {
-            log::warn!("Unknown strategy {}", strategy_name);
+            log::warn!("Unknown strategy {}", settings.strategy_name);
             return Err(OSMFError::BadRequest {
-                message: format!("Unknown value for parameter 'strategy': '{}'", strategy_name)
+                message: format!("Unknown value for parameter 'strategy': '{}'", settings.strategy_name)
             });
         }
     };
 
-    let num_roots = query.get_and_parse::<usize>("num_roots")?;
-    let num_ffs = query.get_and_parse::<usize>("num_ffs")?;
-    let strategy_every = query.get_and_parse::<u64>("strategy_every")?;
-
     let mut problem = OSMFProblem::new(
         graph.clone(),
-        OSMFSettings::new(num_roots, num_ffs, strategy_every),
+        settings.into_inner(),
         strategy);
     problem.simulate();
-    let sim_res = problem.simulation_response();
+
+    let res = res.json(problem.simulation_response());
 
     {
         let mut sessions = data.sessions.lock().unwrap();
@@ -160,12 +164,12 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<
         session.attach_problem(problem);
     }
 
-    Ok(res.json(sim_res))
+    Ok(res)
 }
 
 /// Update the view of a firefighter simulation
-#[get("/view")]
-async fn update_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
+#[put("/view")]
+async fn display_view(data: web::Data<AppData>, payload: web::Json<ViewRequest>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
     let res_sid = init_response(&data, &req, HttpResponse::Ok());
     let mut res = res_sid.0;
     let sid = res_sid.1;
@@ -181,24 +185,10 @@ async fn update_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
         }
     };
 
-    let query = Query::from(req.query_string());
+    log::debug!("Computing view for zoom: {} and time: {}", payload.zoom, payload.time);
 
-    let maybe_zoom = query.try_get_and_parse::<f64>("zoom");
-    let maybe_time = query.try_get_and_parse::<TimeUnit>("time");
-
-    if maybe_zoom.is_some() && maybe_time.is_some() {
-        let zoom = maybe_zoom.unwrap()?;
-        let time = maybe_time.unwrap()?;
-
-        log::debug!("Computing view for zoom: {} and time: {}", zoom, time);
-
-        Ok(res.content_type("image/png")
-            .body(problem.view_update_response(zoom, &time)))
-    } else {
-        log::debug!("Computing initial view / Resetting view");
-
-        Ok(res.content_type("image/png").body(problem.view_init_response()))
-    }
+    Ok(res.content_type("image/png")
+        .body(problem.view_response(payload.into_inner())))
 }
 
 #[actix_web::main]
@@ -259,7 +249,7 @@ async fn main() -> std::io::Result<()> {
             .service(list_graphs)
             .service(list_strategies)
             .service(simulate_problem)
-            .service(update_view)
+            .service(display_view)
     });
     server.bind("localhost:8080")?
         .run()

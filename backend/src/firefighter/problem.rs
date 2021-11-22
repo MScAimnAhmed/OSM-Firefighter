@@ -4,32 +4,22 @@ use std::{collections::BTreeMap,
 
 use log;
 use rand::prelude::*;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
 use crate::firefighter::{strategy::{OSMFStrategy, Strategy},
-                         view::View};
-use crate::graph::Graph;
-
-/// `u64` type alias to denote a time unit in the firefighter problem
-pub type TimeUnit = u64;
+                         TimeUnit,
+                         view::{View, Coords},
+                         ViewRequest};
+use crate::graph::{Graph, GridBounds};
 
 /// Settings for a firefighter problem instance
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 pub struct OSMFSettings {
+    pub graph_name: String,
+    pub strategy_name: String,
     num_roots: usize,
-    pub num_firefighters: usize,
-    pub exec_strategy_every: u64,
-}
-
-impl OSMFSettings {
-    /// Create new settings for a firefighter problem instance
-    pub fn new(num_roots: usize, num_firefighters: usize, exec_strategy_every: u64) -> Self {
-        Self {
-            num_roots,
-            num_firefighters,
-            exec_strategy_every,
-        }
-    }
+    pub num_ffs: usize,
+    pub strategy_every: u64,
 }
 
 /// Node data related to the firefighter problem
@@ -105,6 +95,18 @@ impl NodeDataStorage {
             .or_insert(updated);
     }
 
+    /// Update `self.times` for given time with given nodes
+    fn update_times2(&mut self, time: TimeUnit, updated: &[usize]) {
+        self.times.entry(time)
+            .and_modify(|nodes| {
+                nodes.reserve(updated.len());
+                for node_id in updated {
+                    nodes.push(*node_id);
+                }
+            })
+            .or_insert(updated.to_vec());
+    }
+
     /// Mark all nodes in `nodes` as burning at time `time`
     pub fn mark_burning(&mut self, nodes: Vec<usize>, time: TimeUnit) {
         for node_id in &nodes {
@@ -127,6 +129,17 @@ impl NodeDataStorage {
         self.update_times(time, nodes);
     }
 
+    /// Mark all nodes in `nodes` as defended at time `time`
+    pub fn mark_defended2(&mut self, nodes: &[usize], time: TimeUnit) {
+        for node_id in nodes {
+            self.defended.insert(*node_id, NodeData {
+                node_id: *node_id,
+                time,
+            });
+        }
+        self.update_times2(time, nodes);
+    }
+
     /// Get the node data of all burning vertices
     pub fn get_burning(&self) -> Vec<&NodeData> {
         self.burning.values().collect()
@@ -135,11 +148,13 @@ impl NodeDataStorage {
 
 /// Container for data about the simulation of a firefighter problem instance
 #[derive(Serialize)]
-pub struct OSMFSimulationResponse {
+pub struct OSMFSimulationResponse<'a> {
     nodes_burned: usize,
     nodes_defended: usize,
     nodes_total: usize,
     end_time: TimeUnit,
+    view_bounds: &'a GridBounds,
+    view_center: Coords,
 }
 
 /// A firefighter problem instance
@@ -176,7 +191,7 @@ impl OSMFProblem {
 
         if let OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) = problem.strategy {
             let roots = problem.node_data.times.get(&0).unwrap();
-            mindistgroup_strategy.group_nodes_by_sho_dist(roots);
+            mindistgroup_strategy.compute_nodes_to_defend(roots, &problem.settings);
         }
 
         problem
@@ -200,10 +215,6 @@ impl OSMFProblem {
     /// Spread the fire to all nodes that are adjacent to burning nodes.
     /// Defended nodes will remain defended.
     fn spread_fire(&mut self) {
-        if !self.is_active {
-            return;
-        }
-
         let mut to_burn = Vec::new();
         {
             let burning = self.node_data.get_burning();
@@ -242,20 +253,12 @@ impl OSMFProblem {
     /// Execute the containment strategy to prevent as much nodes as
     /// possible from catching fire
     fn contain_fire(&mut self) {
-        if !self.is_active {
-            return;
-        }
-
-        if self.global_time % self.settings.exec_strategy_every == 0 {
-            let defended = match self.strategy {
+        if self.global_time % self.settings.strategy_every == 0 {
+            match self.strategy {
                 OSMFStrategy::Greedy(ref mut greedy_strategy) =>
                     greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
                 OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) =>
                     mindistgroup_strategy.execute(&self.settings, &mut self.node_data, self.global_time)
-            };
-
-            if defended == 0 {
-                self.is_active = false;
             }
         }
     }
@@ -284,18 +287,14 @@ impl OSMFProblem {
             nodes_defended: self.node_data.defended.len(),
             nodes_total: self.graph.read().unwrap().num_nodes,
             end_time: self.global_time,
+            view_bounds: &self.view.grid_bounds,
+            view_center: self.view.initial_center,
         }
     }
 
-    /// Generate the view initialization response fore this firefighter problem instance
-    pub fn view_init_response(&mut self) -> Vec<u8> {
-        self.view.compute_initial(&self.node_data, &self.global_time);
-        self.view.png_bytes()
-    }
-
-    /// Generate the view update response fore this firefighter problem instance
-    pub fn view_update_response(&mut self, zoom: f64, time: &TimeUnit) -> Vec<u8> { // TODO add center to params if it is implemented frontend-side
-        self.view.compute(zoom, self.view.initial_center, &self.node_data, time);
+    /// Generate the view response fore this firefighter problem instance
+    pub fn view_response(&mut self, view_req: ViewRequest) -> Vec<u8> {
+        self.view.compute(self.view.initial_center, view_req, &self.node_data);
         self.view.png_bytes()
     }
 }
@@ -331,7 +330,8 @@ mod test {
         let num_roots = 10;
         let strategy = OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone()));
         let mut problem = OSMFProblem::new(
-            graph.clone(), OSMFSettings::new(num_roots, 2, 10), strategy);
+            graph.clone(), OSMFSettings::new("bbgrund".to_string(),"greedy".to_string(),
+                                             num_roots, 2, 10), strategy);
 
         assert_eq!(problem.node_data.burning.len(), num_roots);
         assert_eq!(problem.node_data.times.len(), (problem.global_time + 1) as usize);

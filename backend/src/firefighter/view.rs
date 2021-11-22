@@ -5,7 +5,9 @@ use std::{io::Cursor,
 
 use self::image::{DynamicImage, ImageBuffer, ImageOutputFormat, Rgb, RgbImage};
 
-use crate::firefighter::problem::{NodeDataStorage, TimeUnit};
+use serde::Deserialize;
+
+use crate::firefighter::{problem::NodeDataStorage, TimeUnit};
 use crate::graph::{CompassDirection, Graph, GridBounds};
 
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
@@ -65,16 +67,23 @@ impl LineSegment {
     }
 }
 
+/// Payload of a view request
+#[derive(Deserialize)]
+pub struct ViewRequest {
+    pub zoom: f64,
+    // TODO add center to params if it is implemented frontend-side
+    pub time: TimeUnit,
+}
+
 /// View of a specific firefighter simulation
 #[derive(Debug)]
 pub struct View {
     graph: Arc<RwLock<Graph>>,
-    grid_bounds: GridBounds,
+    pub grid_bounds: GridBounds,
     delta_horiz: f64,
     delta_vert: f64,
     img_buf: RgbImage,
-    initial_zoom: f64,
-    pub initial_center: Coords, // TODO make private if center is implemented frontend-side
+    pub initial_center: Coords,
 }
 
 impl View {
@@ -95,7 +104,6 @@ impl View {
             delta_horiz,
             delta_vert,
             img_buf: ImageBuffer::new(w, h),
-            initial_zoom: 1.0,
             initial_center,
         };
 
@@ -103,8 +111,8 @@ impl View {
     }
 
     /// (Re-)compute this view
-    pub fn compute(&mut self, zoom: f64, center: Coords, node_data: &NodeDataStorage, time: &TimeUnit) {
-        let z = if zoom < 1.0 { 1.0 } else { zoom };
+    pub fn compute(&mut self, center: Coords, view_req: ViewRequest, node_data: &NodeDataStorage) {
+        let z = if view_req.zoom < 1.0 { 1.0 } else { view_req.zoom };
 
         // Reset view
         for px in self.img_buf.pixels_mut() {
@@ -256,9 +264,9 @@ impl View {
                 let col_px;
                 if node_data.is_root(&node.id) {
                     col_px = ORANGE;
-                } else if node_data.is_burning_by(&node.id, time) {
+                } else if node_data.is_burning_by(&node.id, &view_req.time) {
                     col_px = RED;
-                } else if node_data.is_defended_by(&node.id, time) {
+                } else if node_data.is_defended_by(&node.id, &view_req.time) {
                     col_px = BLUE;
                 } else {
                     col_px = BLACK;
@@ -276,11 +284,6 @@ impl View {
                 }
             }
         }
-    }
-
-    /// Compute the initial view
-    pub fn compute_initial(&mut self, node_data: &NodeDataStorage, time: &TimeUnit) {
-        self.compute(self.initial_zoom, self.initial_center, node_data, time);
     }
 
     /// Clones the underlying image buffer, transforms it into a PNG image and returns the image
