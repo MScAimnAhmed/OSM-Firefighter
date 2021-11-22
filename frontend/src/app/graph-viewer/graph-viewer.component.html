@@ -46,23 +46,24 @@
       <tr>
         <td>
           <mat-form-field>
-            <mat-label>Zoom in %</mat-label>
-            <input matInput type='number' min='0' [(ngModel)]='currentZoom' [formControl]='currentZoomFormControl'>
+            <mat-label>Zoom</mat-label>
+            <span matPrefix>x</span>
+            <input matInput type='number' min='1' [(ngModel)]='currentZoom' [formControl]='currentZoomFormControl'>
           </mat-form-field>
         </td>
         <td style='display: flex; flex-direction: column'>
-          <button mat-icon-button (click)='this.currentZoom = this.currentZoom + 10;'>
+          <button mat-icon-button (click)='this.changeZoomBy(0.1);'>
             <mat-icon>zoom_in</mat-icon>
           </button>
-          <button mat-icon-button [disabled]='this.currentZoom < 10'
-                  (click)='this.currentZoom = this.currentZoom - 10;'>
+          <button mat-icon-button [disabled]='this.currentZoom === 1'
+                  (click)='this.changeZoomBy(-0.1)'>
             <mat-icon>zoom_out</mat-icon>
           </button>
         </td>
       </tr>
     </table>
   </div>
-  <button mat-raised-button color='primary' [disabled]='!simConfig' (click)='refreshView()'>
+  <button mat-raised-button color='primary' [class.spinner]="refreshing"  [disabled]='!activeSimulation || refreshing' (click)='refreshView()'>
     Refresh View
     <mat-icon>refresh</mat-icon>
   </button>

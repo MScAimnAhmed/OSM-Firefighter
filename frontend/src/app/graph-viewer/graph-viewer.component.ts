@@ -23,8 +23,11 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
   currentLon = 0;
   currentLonFormControl: FormControl;
 
-  currentZoom = 100;
+  currentZoom = 1;
   currentZoomFormControl: FormControl;
+
+  refreshing: boolean;
+  activeSimulation: boolean;
 
   thumbnail: any;
 
@@ -56,28 +59,28 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
       debounceTime(1000),
       distinctUntilChanged()
     ).subscribe(_ => {
-      this.refreshView();
+      if (this.activeSimulation) this.refreshView();
     });
     this.currentLatFormControl = new FormControl(this.currentLat, [Validators.required]);
     this.currentLatFormControl.valueChanges.pipe(
       debounceTime(1000),
       distinctUntilChanged()
     ).subscribe(_ => {
-      this.refreshView();
+      if (this.activeSimulation) this.refreshView();
     });
     this.currentZoomFormControl = new FormControl(this.currentZoom, [Validators.required]);
     this.currentZoomFormControl.valueChanges.pipe(
       debounceTime(1000),
       distinctUntilChanged()
     ).subscribe(_ => {
-      this.refreshView();
+      if (this.activeSimulation) this.refreshView();
     });
     this.currentTurnFormControl = new FormControl(this.currentTurn, [Validators.required]);
     this.currentTurnFormControl.valueChanges.pipe(
         debounceTime(1000),
         distinctUntilChanged()
       ).subscribe(_ => {
-      this.refreshView();
+      if (this.activeSimulation) this.refreshView();
     });
   }
 
@@ -93,18 +96,20 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
     dialogRef.afterClosed().subscribe((data: SimulationConfig) => {
       this.simConfig = data;
       this.graphservice.simulate(this.simConfig).subscribe(response => {
-        console.log(response);
+        this.activeSimulation = true;
         this.maxTurn = response.end_time;
       });
     });
   }
 
   public refreshView() {
-    console.log('so fresh!');
-    // Zoom Level shouldnt only be displayed in percent but not stored as such
-    this.graphservice.refreshView(this.currentTurn, this.currentZoom / 100).subscribe((data: Blob) => {
-      console.log('What a View!');
+    this.refreshing = true;
+    this.graphservice.refreshView(this.currentTurn, this.currentZoom).subscribe((data: Blob) => {
+      this.refreshing = false;
       this.createImageFromBlob(data);
+    }, _ => {
+      console.log('Could not refresh the View');
+      this.refreshing = false;
     });
   }
 
@@ -117,6 +122,10 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
     if (image) {
       reader.readAsDataURL(image);
     }
+  }
+
+  changeZoomBy(value: number) {
+    this.currentZoom = Math.round((this.currentZoom + value) * 100) / 100;
   }
 }
 
