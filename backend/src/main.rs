@@ -66,7 +66,7 @@ async fn ping(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
 async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
     match fs::read_dir(&data.graphs_path) {
         Ok(paths) => {
-            let mut res = init_response(&data, &req, HttpResponse::Ok()).0;
+            let (mut res, _) = init_response(&data, &req, HttpResponse::Ok());
             let mut graph_files = Vec::new();
             for path in paths {
                 let path = path.unwrap();
@@ -107,16 +107,14 @@ async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
 /// List all available firefighter containment strategies
 #[get("/strategies")]
 async fn list_strategies(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
-    let mut res = init_response(&data, &req, HttpResponse::Ok()).0;
+    let (mut res, _) = init_response(&data, &req, HttpResponse::Ok());
     res.json(json!(OSMFStrategy::available_strategies()))
 }
 
 /// Simulate a new firefighter problem instance
 #[post("/simulate")]
 async fn simulate_problem(data: web::Data<AppData>, settings: web::Json<OSMFSettings>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
-    let res_sid = init_response(&data, &req, HttpResponse::Created());
-    let mut res = res_sid.0;
-    let sid = res_sid.1;
+    let (mut res, sid) = init_response(&data, &req, HttpResponse::Created());
 
     let graph = match data.graphs.get(&settings.graph_name) {
         Some(graph) => graph,
@@ -156,12 +154,10 @@ async fn simulate_problem(data: web::Data<AppData>, settings: web::Json<OSMFSett
     Ok(res)
 }
 
-/// Update the view of a firefighter simulation
+/// Display the view of a firefighter simulation
 #[get("/view")]
 async fn display_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
-    let res_sid = init_response(&data, &req, HttpResponse::Ok());
-    let mut res = res_sid.0;
-    let sid = res_sid.1;
+    let (mut res, sid) = init_response(&data, &req, HttpResponse::Ok());
 
     let mut sessions = data.sessions.lock().unwrap();
     let session = sessions.get_mut_session(&sid).unwrap();
@@ -191,8 +187,30 @@ async fn display_view(data: web::Data<AppData>, req: HttpRequest) -> Result<Http
         log::debug!("Computing view for zoom: {} and time: {}", zoom, &time);
 
         Ok(res.content_type("image/png")
-            .body(problem.view_reponse_alt(zoom, &time)))
+            .body(problem.view_response_alt(zoom, &time)))
     }
+}
+
+/// Get the metadata for a specific step of a firefighter simulation
+#[get("/stepmeta")]
+async fn get_sim_step_metadata(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
+    let (mut res, sid) = init_response(&data, &req, HttpResponse::Ok());
+
+    let mut sessions = data.sessions.lock().unwrap();
+    let session = sessions.get_session(&sid).unwrap();
+    let problem = match session.get_problem() {
+        Some(problem) => problem,
+        None => {
+            return Err(OSMFError::NoSimulation {
+                message: "No simulation has been started yet".to_string()
+            });
+        }
+    };
+
+    let query = Query::from(req.query_string());
+    let time = query.get_and_parse::<TimeUnit>("time")?;
+
+    Ok(res.json(problem.sim_step_metadata_response(&time)))
 }
 
 #[actix_web::main]
@@ -254,6 +272,7 @@ async fn main() -> std::io::Result<()> {
             .service(list_strategies)
             .service(simulate_problem)
             .service(display_view)
+            .service(get_sim_step_metadata)
     });
     server.bind("localhost:8080")?
         .run()

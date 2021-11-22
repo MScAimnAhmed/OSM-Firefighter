@@ -80,7 +80,7 @@ impl Strategy for GreedyStrategy {
             .map(|&e| e.tgt)
             .collect();
         log::debug!("Defending nodes {:?}", &to_defend);
-        node_data.mark_defended(to_defend, global_time);
+        node_data.mark_defended(&to_defend, global_time);
     }
 }
 
