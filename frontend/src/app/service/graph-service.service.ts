@@ -28,8 +28,12 @@ export class GraphServiceService {
     return this.http.post(this.path + "/simulate",config ,{withCredentials: true});
   }
 
-  refreshView(turnNumber: number, zoomLevel : number) : Observable<Blob>{
-    let params = new HttpParams().append('time', turnNumber).append('zoom', zoomLevel);
+  refreshView(turnNumber: number, zoomLevel : number, lat: number, lon: number) : Observable<Blob>{
+    let params = new HttpParams()
+      .append('time', turnNumber)
+      .append('zoom', zoomLevel)
+      .append('clat', lat)
+      .append('clon', lon);
     return this.http.get(this.path + "/view", {params: params, withCredentials: true, responseType: 'blob'});
   }
 }

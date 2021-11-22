@@ -19,8 +19,12 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
   maxTurn = 0;
 
   currentLat = 0;
+  maxLat = 0;
+  minLat = 0;
   currentLatFormControl: FormControl;
   currentLon = 0;
+  maxLon = 0;
+  minLon = 0;
   currentLonFormControl: FormControl;
 
   currentZoom = 1;
@@ -40,16 +44,16 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
     if (event.code == KEY_CODE.DOWN_ARROW) {
       //preventDefault to prevent scrolling with arrowkeys
       event.preventDefault();
-      this.currentLon--;
+      this.moveViewVertically(false);
     } else if (event.code == KEY_CODE.UP_ARROW) {
       event.preventDefault();
-      this.currentLon++;
+      this.moveViewVertically(true);
     } else if (event.code == KEY_CODE.RIGHT_ARROW) {
       event.preventDefault();
-      this.currentLat++;
+      this.moveViewHorizontally(true);
     } else if (event.code == KEY_CODE.LEFT_ARROW) {
       event.preventDefault();
-      this.currentLat--;
+      this.moveViewHorizontally(false);
     }
   }
 
@@ -98,13 +102,20 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
       this.graphservice.simulate(this.simConfig).subscribe(response => {
         this.activeSimulation = true;
         this.maxTurn = response.end_time;
+        this.currentLat = response.view_center[0];
+        this.currentLon = response.view_center[1];
+        this.maxLat = response.view_bounds.max_lat;
+        this.minLat = response.view_bounds.min_lat;
+        this.maxLon = response.view_bounds.max_lon;
+        this.minLon = response.view_bounds.min_lon;
       });
     });
   }
 
   public refreshView() {
     this.refreshing = true;
-    this.graphservice.refreshView(this.currentTurn, this.currentZoom).subscribe((data: Blob) => {
+    this.graphservice.refreshView(this.currentTurn, this.currentZoom, this.currentLat, this.currentLon)
+      .subscribe((data: Blob) => {
       this.refreshing = false;
       this.createImageFromBlob(data);
     }, _ => {
@@ -126,6 +137,30 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
 
   changeZoomBy(value: number) {
     this.currentZoom = Math.round((this.currentZoom + value) * 100) / 100;
+  }
+
+  moveViewHorizontally(moveRight: boolean) {
+    //step size is always 1% of the dif between max and min value
+    let stepsize = (this.maxLat - this.minLat) / 100;
+    if (moveRight) {
+      this.currentLat += stepsize;
+      if (this.currentLat > this.maxLat) this.currentLat = this.maxLat;
+    } else {
+      this.currentLat -= stepsize;
+      if (this.currentLat < this.minLat) this.currentLat = this.minLat;
+    }
+  }
+
+  moveViewVertically(moveUp: boolean) {
+    //step size is always 1% of the dif between max and min value
+    let stepsize = (this.maxLon - this.minLon) / 100;
+    if (moveUp) {
+      this.currentLon += stepsize;
+      if (this.currentLon > this.maxLon) this.currentLon = this.maxLon;
+    } else {
+      this.currentLon -= stepsize;
+      if (this.currentLon < this.minLon) this.currentLon = this.minLon;
+    }
   }
 }
 

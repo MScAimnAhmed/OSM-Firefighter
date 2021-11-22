@@ -13,28 +13,28 @@
         <td style='font-size: small'>
           <mat-form-field>
             <mat-label>Longitude</mat-label>
-            <input matInput type='number' [(ngModel)]='currentLon' [formControl]='currentLonFormControl'>
+            <input matInput type='number' [min]='minLon' [max]='maxLon' [(ngModel)]='currentLon' [formControl]='currentLonFormControl'>
           </mat-form-field>
           <mat-form-field>
             <mat-label>Latitude</mat-label>
-            <input matInput type='number' [(ngModel)]='currentLat' [formControl]='currentLatFormControl'>
+            <input matInput type='number' [min]='minLat' [max]='maxLat' [(ngModel)]='currentLat' [formControl]='currentLatFormControl'>
           </mat-form-field>
         </td>
         <td>
-          <button mat-raised-button (click)='this.currentLat = this.currentLat - 1;'>
+          <button mat-raised-button (click)='this.moveViewHorizontally(false)'>
             <mat-icon>keyboard_arrow_left</mat-icon>
           </button>
         </td>
         <td style='display: flex; flex-direction: column; gap: 5px'>
-          <button mat-raised-button (click)='this.currentLon = this.currentLon + 1;'>
+          <button mat-raised-button (click)='this.moveViewVertically(true)'>
             <mat-icon>keyboard_arrow_up</mat-icon>
           </button>
-          <button mat-raised-button (click)='this.currentLon = this.currentLon - 1;'>
+          <button mat-raised-button (click)='this.moveViewVertically(false)'>
             <mat-icon>keyboard_arrow_down</mat-icon>
           </button>
         </td>
         <td>
-          <button mat-raised-button (click)='this.currentLat = this.currentLat + 1;'>
+          <button mat-raised-button (click)='this.moveViewHorizontally(true)'>
             <mat-icon>keyboard_arrow_right</mat-icon>
           </button>
         </td>
