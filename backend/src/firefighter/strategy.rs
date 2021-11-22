@@ -16,7 +16,7 @@ use crate::graph::Graph;
 pub enum OSMFStrategy {
     Greedy(GreedyStrategy),
     MinDistanceGroup(MinDistGroupStrategy),
-    //Priority(PriorityStrategy),
+    Priority(PriorityStrategy),
 }
 
 impl OSMFStrategy {
@@ -182,6 +182,189 @@ impl MinDistGroupStrategy {
 }
 
 impl Strategy for MinDistGroupStrategy {
+    fn new(graph: Arc<RwLock<Graph>>) -> Self {
+        Self {
+            graph,
+            nodes_to_defend: vec![],
+            current_defended: 0,
+        }
+    }
+
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
+        let num_to_defend = min(settings.num_ffs, self.nodes_to_defend.len() - self.current_defended);
+        let to_defend = &self.nodes_to_defend[self.current_defended..self.current_defended + num_to_defend];
+        log::debug!("Defending nodes {:?}", to_defend);
+        node_data.mark_defended2(to_defend, global_time);
+
+        self.current_defended += num_to_defend;
+    }
+}
+
+/// Priority based fire containment strategy
+#[derive(Debug, Default)]
+pub struct PriorityStrategy {
+    graph: Arc<RwLock<Graph>>,
+    nodes_to_defend: Vec<usize>,
+    current_defended: usize,
+}
+
+/*
+    Für jeden Knoten einen priority-Wert berechnen.
+    Dieser berechnet sich aus incoming_edges (Erreichbarkeit eines Knoten) + 2 * outgoing_edges (potenzielle Ausbreitung. Die potenzielle Ausbreitung wird höher gewichtet.
+
+    Median M aller priority-Werte bestimmen.
+
+    MinDistGroups berechnen und Knoten nach priority-Wert sortieren.
+
+    Über alle MinDistGroups iterieren und wenn möglich alle Knoten defenden, deren priority-Wert höher als M ist.
+
+    Im zweiten Durchlauf alle anderen Knoten defenden.
+ */
+impl PriorityStrategy {
+    /// Compute nodes to defend and order in which nodes should be defended
+    pub fn compute_nodes_to_defend(&mut self, roots: &Vec<usize>, settings: &OSMFSettings) {
+        let graph = self.graph.read().unwrap();
+        let mut priority_map = HashMap::with_capacity(graph.num_nodes);
+
+        for node in &graph.nodes {
+            let prio = graph.get_in_degree(node.id) + (2 * graph.get_out_degree(node.id));
+            priority_map.insert(node.id, prio);
+        }
+
+        let mid = graph.num_nodes / 2;
+        let median = {
+            if mid % 2 == 0 {
+                priority_map.get(&(mid - 1)).unwrap() + priority_map.get(&mid).unwrap() / 2
+            } else {
+                priority_map.get(&mid).unwrap()
+            }
+        };
+
+        // For every node, compute the minimum shortest distance between the node and
+        // any fire root
+        let mut sho_dists = HashMap::with_capacity(graph.num_nodes);
+        for &root in roots {
+            for node in &graph.nodes {
+                let new_dist = graph.unchecked_get_shortest_dist(root, node.id);
+                if new_dist < usize::MAX {
+                    sho_dists.entry(node.id)
+                        .and_modify(|cur_dist| if new_dist < *cur_dist { *cur_dist = new_dist })
+                        .or_insert(new_dist);
+                }
+            }
+
+            log::debug!("Computed shortest distances to fire root {}", root);
+        }
+
+        // Group nodes by minimum shortest distance
+        let mut nodes_by_sho_dist: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+        for (&node_id, &dist) in sho_dists.iter() {
+            nodes_by_sho_dist.entry(dist)
+                .and_modify(|nodes| nodes.push(node_id))
+                .or_insert(vec![node_id]);
+        }
+
+        log::debug!("Grouped nodes by minimum shortest distance to any fire root");
+
+        // Sort Node groups by priority
+        for (_, nodes) in nodes_by_sho_dist.iter_mut() {
+            nodes.sort_unstable_by(|n1, n2| {
+                let prio1 = priority_map.get(n1).unwrap();
+                let prio2 = priority_map.get(n2).unwrap();
+                prio2.cmp(prio1)
+            });
+        }
+
+        let strategy_every = settings.strategy_every as usize;
+        let num_ffs = settings.num_ffs;
+        let mut total_defended = 0;
+
+        // Filter nodes with higher priority based on median
+        let mut high_prio_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+        for (&dist, &nodes) in nodes_by_sho_dist {
+            let high_prio_nodes: Vec<_> = nodes.iter()
+                .filter(|node| {
+                    if priority_map.get(node).unwrap() >= &median {
+                        true
+                    } else if priority_map.get(node).unwrap() < &median {
+                        false
+                    }
+                })
+                .collect();
+            high_prio_map.insert(dist, high_prio_nodes);
+        }
+
+        // Filter nodes with higher priority based on median
+        let mut low_prio_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+        for (&dist, &nodes) in nodes_by_sho_dist {
+            let low_prio_nodes: Vec<_> = nodes.iter()
+                .filter(|node| {
+                    if priority_map.get(node).unwrap() < &median {
+                        true
+                    } else if priority_map.get(node).unwrap() >= &median {
+                        false
+                    }
+                })
+                .collect();
+            low_prio_map.insert(dist, low_prio_nodes);
+        }
+
+        // Nodes with a higher priority than the median should be defended
+        let mut high_prio_defend = Vec::with_capacity(mid + 1);
+        for (&dist, nodes) in high_prio_map.iter() {
+            let mut can_defend = dist / strategy_every * num_ffs - total_defended;
+            for &node in nodes {
+                if can_defend > 0 {
+                    if priority_map.get(&node).unwrap() >= &median {
+                        total_defended += 1;
+                        can_defend -= 1;
+                        high_prio_defend.push(node);
+                    } else {
+                        // every other value after this is smaller aswell (sorted vector)
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Nodes with a lower priority than the median should be defended
+        let mut low_prio_defend = Vec::with_capacity(nodes_by_sho_dist.len() - high_prio_defend.len());
+        for (&dist, nodes) in nodes_by_sho_dist.iter() {
+            let mut can_defend_total = dist / strategy_every * num_ffs;
+            let mut can_defend = can_defend_total - total_defended;
+            if can_defend_total > total_defended {
+                for &node in nodes {
+                    if can_defend > 0 {
+                        if priority_map.get(&node).unwrap() >= &median {
+                            total_defended += 1;
+                            can_defend -= 1;
+                            low_prio_defend.push(node);
+                        } else {
+                            // every other value after this is smaller aswell (sorted vector)
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+
+        self.nodes_to_defend.reserve_exact(total_defended);
+
+        for node in high_prio_defend {
+            self.nodes_to_defend.push(node);
+        }
+
+        for node in low_prio_defend {
+            self.nodes_to_defend.push(node);
+        }
+    }
+}
+
+impl Strategy for PriorityStrategy {
     fn new(graph: Arc<RwLock<Graph>>) -> Self {
         Self {
             graph,

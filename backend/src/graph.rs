@@ -106,6 +106,7 @@ pub struct Graph {
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
     pub offsets: Vec<usize>,
+    pub in_degree: Vec<usize>,
     pub num_nodes: usize,
     pub num_edges: usize,
 }
@@ -125,6 +126,7 @@ impl Graph {
             nodes: Vec::new(),
             edges: Vec::new(),
             offsets: Vec::new(),
+            in_degree: Vec::new(),
             num_nodes: 0,
             num_edges: 0,
         }
@@ -192,6 +194,7 @@ impl Graph {
         let mut offset: usize = 0;
         self.edges.reserve_exact(self.num_edges);
         self.offsets.resize(self.num_nodes + 1, 0);
+        self.in_degree.resize(self.num_nodes, 0);
         for _ in 0..self.num_edges {
             let line = lines.next()
                 .expect(&format!("Unexpected EOF while parsing edges in line {}", line_no))?;
@@ -221,6 +224,7 @@ impl Graph {
             }
             offset += 1;
 
+            self.in_degree[edge.tgt] += 1;
             self.edges.push(edge);
         }
         self.offsets[self.num_nodes] = self.num_edges;
@@ -305,6 +309,11 @@ impl Graph {
     /// Get the number of outgoing edges of the node with id `node_id`
     pub fn get_out_degree(&self, node_id: usize) -> usize {
         self.offsets[node_id + 1] - self.offsets[node_id]
+    }
+
+    /// Get the number of incoming edges of the node with id `node_id`
+    pub fn get_in_degree(&self, node_id: usize) -> usize {
+        self.in_degree[node_id]
     }
 
     /// Get the shortest distance between the node with id `src_id` and the node with id `tgt_id`.

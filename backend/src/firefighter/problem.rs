@@ -192,6 +192,9 @@ impl OSMFProblem {
         if let OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) = problem.strategy {
             let roots = problem.node_data.times.get(&0).unwrap();
             mindistgroup_strategy.compute_nodes_to_defend(roots, &problem.settings);
+        } else if let OSMFStrategy::Priority(ref mut priority_strategy) = problem.strategy {
+            let roots = problem.node_data.times.get(&0).unwrap();
+            priority_strategy.compute_nodes_to_defend(roots, &problem.settings);
         }
 
         problem
@@ -258,7 +261,9 @@ impl OSMFProblem {
                 OSMFStrategy::Greedy(ref mut greedy_strategy) =>
                     greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
                 OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) =>
-                    mindistgroup_strategy.execute(&self.settings, &mut self.node_data, self.global_time)
+                    mindistgroup_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
+                OSMFStrategy::Priority(ref mut priority_strategy) =>
+                    priority_strategy.execute(&self.settings, &mut self.node_data, self.global_time)
             }
         }
     }
