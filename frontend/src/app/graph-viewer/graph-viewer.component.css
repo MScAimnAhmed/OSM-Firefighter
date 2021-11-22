@@ -1,0 +1,47 @@
+.map-container {
+  height: calc(80% - 10px);
+  margin: 5px;
+  width: calc(100% - 10px);
+}
+
+.map-frame {
+  border: 2px solid;
+  border-color: indigo;
+  height: 100%;
+  width: 100%;
+  overflow: auto;
+}
+
+#map {
+  z-index: 90;
+  height: 100%;
+}
+.control > button {
+  padding: 5px;
+}
+.control {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  height: 15%;
+  overflow: auto;
+}
+
+mat-form-field {
+  width: 60px;
+  padding: 5px;
+}
+
+/* Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type=number] {
+  -moz-appearance: textfield;
+}

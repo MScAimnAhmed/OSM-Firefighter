@@ -26,7 +26,7 @@ impl OSMFSession {
     fn build_cookie<'a, 'b: 'a>(&'a self) -> Cookie<'b> {
         Cookie::build("sid", self.id.clone())
             .secure(false)
-            .same_site(SameSite::Strict)
+            .same_site(SameSite::Lax)
             .finish()
     }
 
