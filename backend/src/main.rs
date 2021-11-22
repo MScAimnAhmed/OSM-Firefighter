@@ -18,17 +18,17 @@ use actix_web::{App,
                 HttpServer,
                 middleware::Logger,
                 post,
-                put,
                 Responder,
                 web};
 use log;
 use serde_json::json;
 
 use crate::error::OSMFError;
-use crate::firefighter::{ViewRequest,
-                         problem::{OSMFProblem, OSMFSettings},
-                         strategy::{GreedyStrategy,OSMFStrategy, MinDistGroupStrategy, Strategy}};
+use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
+                         strategy::{GreedyStrategy, OSMFStrategy, MinDistGroupStrategy, Strategy},
+                         TimeUnit};
 use crate::graph::Graph;
+use crate::query::Query;
 use crate::session::OSMFSessionStorage;
 
 /// Storage for data associated to the web app
@@ -166,8 +166,8 @@ async fn simulate_problem(data: web::Data<AppData>, settings: web::Json<OSMFSett
 }
 
 /// Update the view of a firefighter simulation
-#[put("/view")]
-async fn display_view(data: web::Data<AppData>, payload: web::Json<ViewRequest>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
+#[get("/view")]
+async fn display_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
     let res_sid = init_response(&data, &req, HttpResponse::Ok());
     let mut res = res_sid.0;
     let sid = res_sid.1;
@@ -183,10 +183,25 @@ async fn display_view(data: web::Data<AppData>, payload: web::Json<ViewRequest>,
         }
     };
 
-    log::debug!("Computing view for zoom: {} and time: {}", payload.zoom, payload.time);
+    let query = Query::from(req.query_string());
+    let center_lat = query.try_get_and_parse::<f64>("clat");
+    let center_lon = query.try_get_and_parse::<f64>("clon");
+    let zoom = query.get_and_parse::<f64>("zoom")?;
+    let time = query.get_and_parse::<TimeUnit>("time")?;
 
-    Ok(res.content_type("image/png")
-        .body(problem.view_response(payload.into_inner())))
+    if center_lat.is_some() && center_lon.is_some() {
+        let center = (center_lat.unwrap()?, center_lon.unwrap()?);
+
+        log::debug!("Computing view for center: {:?}, zoom: {} and time: {}", center, zoom, time);
+
+        Ok(res.content_type("image/png")
+            .body(problem.view_response(center, zoom, &time)))
+    } else {
+        log::debug!("Computing view for zoom: {} and time: {}", zoom, &time);
+
+        Ok(res.content_type("image/png")
+            .body(problem.view_reponse_alt(zoom, &time)))
+    }
 }
 
 #[actix_web::main]

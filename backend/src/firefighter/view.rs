@@ -6,8 +6,6 @@ use std::cmp::Ordering;
 
 use self::image::{DynamicImage, ImageBuffer, ImageOutputFormat, Rgb, RgbImage};
 
-use serde::Deserialize;
-
 use crate::firefighter::{problem::NodeDataStorage, TimeUnit};
 use crate::graph::{CompassDirection, Graph, GridBounds};
 
@@ -85,14 +83,6 @@ impl LineSegment {
     }
 }
 
-/// Payload of a view request
-#[derive(Deserialize)]
-pub struct ViewRequest {
-    pub zoom: f64,
-    // TODO add center to params if it is implemented frontend-side
-    pub time: TimeUnit,
-}
-
 /// View of a specific firefighter simulation
 #[derive(Debug)]
 pub struct View {
@@ -129,8 +119,8 @@ impl View {
     }
 
     /// (Re-)compute this view
-    pub fn compute(&mut self, center: Coords, view_req: ViewRequest, node_data: &NodeDataStorage) {
-        let z = if view_req.zoom < 1.0 { 1.0 } else { view_req.zoom };
+    pub fn compute(&mut self, center: Coords, zoom: f64, time: &TimeUnit, node_data: &NodeDataStorage) {
+        let z = if zoom < 1.0 { 1.0 } else { zoom };
 
         // Reset view
         for px in self.img_buf.pixels_mut() {
@@ -283,9 +273,9 @@ impl View {
                 let col_px;
                 if node_data.is_root(&node.id) {
                     col_px = ORANGE;
-                } else if node_data.is_burning_by(&node.id, &view_req.time) {
+                } else if node_data.is_burning_by(&node.id, time) {
                     col_px = RED;
-                } else if node_data.is_defended_by(&node.id, &view_req.time) {
+                } else if node_data.is_defended_by(&node.id, time) {
                     col_px = BLUE;
                 } else {
                     col_px = BLACK;
@@ -307,6 +297,11 @@ impl View {
         for (w, h, col) in pxs_to_draw {
             self.img_buf.put_pixel(w, h, col);
         }
+    }
+
+    /// (Re-)compute this view, using the initial center
+    pub fn compute_alt(&mut self, zoom: f64, time: &TimeUnit, node_data: &NodeDataStorage) {
+        self.compute(self.initial_center, zoom, time, node_data)
     }
 
     /// Clones the underlying image buffer, transforms it into a PNG image and returns the image
