@@ -18,7 +18,7 @@ const BLUE: Rgb<u8> = Rgb([0, 0, 255]);
 /// Type alias for a latitude/longitude tuple
 pub type Coords = (f64, f64);
 
-/// Get an ordering as `i32` for an `Rgb<u8>` value
+/// Get an `i32` order for an `Rgb<u8>` value
 fn get_col_ord(col: &Rgb<u8>) -> i32 {
     match *col {
         WHITE => 0,
