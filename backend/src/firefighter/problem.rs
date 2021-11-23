@@ -8,8 +8,7 @@ use serde::{Serialize, Deserialize};
 
 use crate::firefighter::{strategy::{OSMFStrategy, Strategy},
                          TimeUnit,
-                         view::{View, Coords},
-                         ViewRequest};
+                         view::{View, Coords}};
 use crate::graph::{Graph, GridBounds};
 
 /// Settings for a firefighter problem instance
@@ -34,7 +33,6 @@ pub struct NodeData {
 pub struct NodeDataStorage {
     burning: BTreeMap<usize, NodeData>,
     defended: BTreeMap<usize, NodeData>,
-    times: BTreeMap<TimeUnit, Vec<usize>>,
 }
 
 impl NodeDataStorage {
@@ -43,13 +41,15 @@ impl NodeDataStorage {
         Self {
             burning: BTreeMap::new(),
             defended: BTreeMap::new(),
-            times: BTreeMap::new(),
         }
     }
 
     /// Is node with id `node_id` a fire root?
     pub fn is_root(&self, node_id: &usize) -> bool {
-        self.times.get(&0).unwrap().contains(node_id)
+        match self.burning.get(node_id) {
+            Some(nd) => nd.time == 0,
+            None => false
+        }
     }
 
     /// Is node with id `node_id` burning?
@@ -57,12 +57,19 @@ impl NodeDataStorage {
         self.burning.contains_key(node_id)
     }
 
-    /// Is node with id `node_id` burning by `time`?
+    /// Is node with id `node_id` burning by time `time`?
     pub fn is_burning_by(&self, node_id: &usize, time: &TimeUnit) -> bool {
         match self.burning.get(node_id) {
             Some(nd) => nd.time <= *time,
             None => false
         }
+    }
+
+    /// Count all nodes burning by time `time`
+    pub fn count_burning_by(&self, time: &TimeUnit) -> usize {
+        self.burning.values()
+            .filter(|nd| nd.time <= *time)
+            .count()
     }
 
     /// Is node with id `node_id` defended?
@@ -78,55 +85,36 @@ impl NodeDataStorage {
         }
     }
 
+    /// Count all nodes defended by time `time`
+    pub fn count_defended_by(&self, time: &TimeUnit) -> usize {
+        self.defended.values()
+            .filter(|nd| nd.time <= *time)
+            .count()
+    }
+
     /// Is node with id `node_id` undefended?
     pub fn is_undefended(&self, node_id: &usize) -> bool {
         !(self.is_burning(node_id) || self.is_defended(node_id))
     }
 
-    /// Update `self.times` for given time with given nodes
-    fn update_times(&mut self, time: TimeUnit, updated: Vec<usize>) {
-        self.times.entry(time)
-            .and_modify(|nodes| {
-                nodes.reserve(updated.len());
-                for node_id in &updated {
-                    nodes.push(*node_id);
-                }
-            })
-            .or_insert(updated);
-    }
-
-    /// Update `self.times` for given time with given nodes
-    fn update_times2(&mut self, time: TimeUnit, updated: &[usize]) {
-        self.times.entry(time)
-            .and_modify(|nodes| {
-                nodes.reserve(updated.len());
-                for node_id in updated {
-                    nodes.push(*node_id);
-                }
-            })
-            .or_insert(updated.to_vec());
-    }
-
     /// Mark all nodes in `nodes` as burning at time `time`
-    pub fn mark_burning(&mut self, nodes: Vec<usize>, time: TimeUnit) {
-        for node_id in &nodes {
+    pub fn mark_burning(&mut self, nodes: &Vec<usize>, time: TimeUnit) {
+        for node_id in nodes {
             self.burning.insert(*node_id, NodeData {
                 node_id: *node_id,
                 time,
             });
         }
-        self.update_times(time, nodes);
     }
 
     /// Mark all nodes in `nodes` as defended at time `time`
-    pub fn mark_defended(&mut self, nodes: Vec<usize>, time: TimeUnit) {
-        for node_id in &nodes {
+    pub fn mark_defended(&mut self, nodes: &Vec<usize>, time: TimeUnit) {
+        for node_id in nodes {
             self.defended.insert(*node_id, NodeData {
                 node_id: *node_id,
                 time,
             });
         }
-        self.update_times(time, nodes);
     }
 
     /// Mark all nodes in `nodes` as defended at time `time`
@@ -137,12 +125,27 @@ impl NodeDataStorage {
                 time,
             });
         }
-        self.update_times2(time, nodes);
     }
 
     /// Get the node data of all burning vertices
     pub fn get_burning(&self) -> Vec<&NodeData> {
         self.burning.values().collect()
+    }
+
+    /// Get the id's of all burning vertices at time `time`
+    pub fn get_burning_at(&self, time: &TimeUnit) -> Vec<usize> {
+        self.burning.values()
+            .filter(|&nd| nd.time == *time)
+            .map(|nd| nd.node_id)
+            .collect::<Vec<_>>()
+    }
+
+    /// Get the id's of all defended vertices at time `time`
+    pub fn get_defended_at(&self, time: &TimeUnit) -> Vec<usize> {
+        self.defended.values()
+            .filter(|&nd| nd.time == *time)
+            .map(|nd| nd.node_id)
+            .collect::<Vec<_>>()
     }
 }
 
@@ -155,6 +158,15 @@ pub struct OSMFSimulationResponse<'a> {
     end_time: TimeUnit,
     view_bounds: &'a GridBounds,
     view_center: Coords,
+}
+
+/// Container for data about a specific step of a firefighter simulation
+#[derive(Serialize)]
+pub struct OSMFSimulationStepMetadata {
+    nodes_burned_by: usize,
+    nodes_defended_by: usize,
+    nodes_burned_at: Vec<usize>,
+    nodes_defended_at: Vec<usize>,
 }
 
 /// A firefighter problem instance
@@ -187,21 +199,19 @@ impl OSMFProblem {
             view: View::new(graph, 1920, 1080),
         };
 
-        problem.gen_fire_roots();
+        let roots = problem.gen_fire_roots();
 
         if let OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) = problem.strategy {
-            let roots = problem.node_data.times.get(&0).unwrap();
-            mindistgroup_strategy.compute_nodes_to_defend(roots, &problem.settings);
+            mindistgroup_strategy.compute_nodes_to_defend(&roots, &problem.settings);
         } else if let OSMFStrategy::Priority(ref mut priority_strategy) = problem.strategy {
-            let roots = problem.node_data.times.get(&0).unwrap();
-            priority_strategy.compute_nodes_to_defend(roots, &problem.settings);
+            priority_strategy.compute_nodes_to_defend(&roots, &problem.settings);
         }
 
         problem
     }
 
     /// Generate `num_roots` fire roots
-    fn gen_fire_roots(&mut self) {
+    fn gen_fire_roots(&mut self) -> Vec<usize> {
         let mut rng = thread_rng();
         let mut roots = Vec::with_capacity(self.settings.num_roots);
         let num_nodes = self.graph.read().unwrap().num_nodes;
@@ -212,7 +222,9 @@ impl OSMFProblem {
             }
         }
         log::debug!("Setting nodes {:?} as fire roots", &roots);
-        self.node_data.mark_burning(roots, self.global_time);
+        self.node_data.mark_burning(&roots, self.global_time);
+
+        roots
     }
 
     /// Spread the fire to all nodes that are adjacent to burning nodes.
@@ -250,7 +262,7 @@ impl OSMFProblem {
 
         // Burn all nodes in `to_burn`
         log::debug!("Burning nodes {:?}", &to_burn);
-        self.node_data.mark_burning(to_burn, self.global_time);
+        self.node_data.mark_burning(&to_burn, self.global_time);
     }
 
     /// Execute the containment strategy to prevent as much nodes as
@@ -297,10 +309,25 @@ impl OSMFProblem {
         }
     }
 
-    /// Generate the view response fore this firefighter problem instance
-    pub fn view_response(&mut self, view_req: ViewRequest) -> Vec<u8> {
-        self.view.compute(self.view.initial_center, view_req, &self.node_data);
+    /// Generate the view response for this firefighter problem instance
+    pub fn view_response(&mut self, center: Coords, zoom: f64, time: &TimeUnit) -> Vec<u8> {
+        self.view.compute(center, zoom, time, &self.node_data);
         self.view.png_bytes()
+    }
+
+    /// Generate the alternative view response for this firefighter problem instance
+    pub fn view_response_alt(&mut self, zoom: f64, time: &TimeUnit) -> Vec<u8> {
+        self.view.compute_alt(zoom, time, &self.node_data);
+        self.view.png_bytes()
+    }
+
+    pub fn sim_step_metadata_response(&self, time: &TimeUnit) -> OSMFSimulationStepMetadata {
+        OSMFSimulationStepMetadata {
+            nodes_burned_by: self.node_data.count_burning_by(time),
+            nodes_defended_by: self.node_data.count_defended_by(time),
+            nodes_burned_at: self.node_data.get_burning_at(time),
+            nodes_defended_at: self.node_data.get_defended_at(time),
+        }
     }
 }
 
@@ -335,12 +362,17 @@ mod test {
         let num_roots = 10;
         let strategy = OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone()));
         let mut problem = OSMFProblem::new(
-            graph.clone(), OSMFSettings::new("bbgrund".to_string(),"greedy".to_string(),
-                                             num_roots, 2, 10), strategy);
+            graph.clone(),
+            OSMFSettings {
+                graph_name: "bbgrund".to_string(),
+                strategy_name:"greedy".to_string(),
+                num_roots,
+                num_ffs: 2,
+                strategy_every: 10,
+            },
+            strategy);
 
         assert_eq!(problem.node_data.burning.len(), num_roots);
-        assert_eq!(problem.node_data.times.len(), (problem.global_time + 1) as usize);
-        assert_eq!(problem.node_data.times.get(&problem.global_time).unwrap().len(), num_roots);
 
         let graph_ = graph.read().unwrap();
         let num_nodes = graph_.num_nodes;
@@ -364,8 +396,6 @@ mod test {
             }
         }
 
-        assert_eq!(problem.node_data.times.len(), (problem.global_time + 1) as usize);
-
         let mut targets = Vec::new();
         let mut distances = BTreeMap::new();
         for root in &roots {
@@ -376,10 +406,6 @@ mod test {
                 targets.push(edge.tgt);
                 distances.insert(edge.tgt, edge.dist as u64);
             }
-        }
-
-        for node_id in problem.node_data.times.get(&problem.global_time).unwrap() {
-            assert!(targets.contains(node_id));
         }
 
         for root in &roots {

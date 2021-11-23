@@ -1,0 +1,52 @@
+.map-container {
+  height: calc(80% - 10px);
+  margin: 5px;
+  width: calc(100% - 10px);
+}
+
+.map-frame {
+  border: 2px solid;
+  border-color: indigo;
+  height: 100%;
+  width: 100%;
+  /* overflow hidden because height 100% still somehow creates a scrollbar*/
+  overflow: hidden;
+}
+
+img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.control > button {
+  padding: 5px;
+}
+.control {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  height: 15%;
+  overflow: auto;
+}
+
+@keyframes spinner {
+  to {transform: rotate(360deg);}
+}
+
+.spinner:before {
+  content: '';
+  box-sizing: border-box;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin-top: -10px;
+  margin-left: -10px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  border-top-color: #000000;
+  animation: spinner .8s linear infinite;
+}

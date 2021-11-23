@@ -1,5 +1,5 @@
 # We use the latest Rust stable release as base image
-FROM rust:1.54.0
+FROM rust:1.56.1
 
 # Let's switch our working directory to `app` (equivalent to `cd app`)
 # The `app` folder will be created for us by Docker in case it does not
@@ -11,4 +11,4 @@ COPY . .
 # We'll use the release profile to make it faaaast
 RUN cargo build --release
 # When `docker run` is executed, launch the binary!
-ENTRYPOINT ["./target/release/osm_firefighter_backend /app/resources/bbgrund"]
+ENTRYPOINT ["./target/release/osm_firefighter_backend", "./data"]

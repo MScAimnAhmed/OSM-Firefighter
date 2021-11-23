@@ -1,0 +1,16 @@
+<div class='control'>
+  <button mat-raised-button color='primary' (click)='openSimulationConfigDialog()'>Start new Simulation</button>
+  <app-turn-input (onChange)='this.refreshView()'></app-turn-input>
+  <app-view-input (onChange)='this.refreshView()'></app-view-input>
+  <app-zoom-input (onChange)='this.refreshView()'></app-zoom-input>
+  <button mat-raised-button color='primary' [class.spinner]="refreshing"  [disabled]='!activeSimulation || refreshing' (click)='refreshView()'>
+    Refresh View
+    <mat-icon>refresh</mat-icon>
+  </button>
+</div>
+
+<div class='map-container'>
+  <div class='map-frame'>
+    <img id="myimage" [src]='thumbnail' />
+  </div>
+</div>

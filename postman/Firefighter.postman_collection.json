@@ -89,25 +89,28 @@
 		{
 			"name": "View",
 			"request": {
-				"method": "PUT",
+				"method": "GET",
 				"header": [],
-				"body": {
-					"mode": "raw",
-					"raw": "{\r\n    \"zoom\": {{zoom}},\r\n    \"time\": {{time}}\r\n}",
-					"options": {
-						"raw": {
-							"language": "json"
-						}
-					}
-				},
 				"url": {
-					"raw": "{{host}}:{{port}}/view",
+					"raw": "{{host}}:{{port}}/view?zoom={{zoom}}&time={{time}}",
 					"host": [
 						"{{host}}"
 					],
 					"port": "{{port}}",
 					"path": [
 						"view"
+					],
+					"query": [
+						{
+							"key": "zoom",
+							"value": "{{zoom}}",
+							"description": "The view zoom"
+						},
+						{
+							"key": "time",
+							"value": "{{time}}",
+							"description": "The time step for which the view shall be drawn"
+						}
 					]
 				}
 			},
