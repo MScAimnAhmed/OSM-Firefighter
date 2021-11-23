@@ -16,13 +16,15 @@ import { HttpClientModule } from '@angular/common/http';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatSliderModule } from '@angular/material/slider';
 import { TurnInputComponent } from './view-inputs/turn-input/turn-input.component';
+import { ViewInputComponent } from './view-inputs/view-input/view-input.component';
 
 @NgModule({
   declarations: [
     AppComponent,
     SimulationConfiguratorComponent,
     GraphViewerComponent,
-    TurnInputComponent
+    TurnInputComponent,
+    ViewInputComponent
   ],
   imports: [
     BrowserModule,
