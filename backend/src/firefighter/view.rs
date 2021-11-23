@@ -1,8 +1,8 @@
 extern crate image;
 
 use std::{io::Cursor,
-          sync::{Arc, RwLock}};
-use std::cmp::Ordering;
+          sync::{Arc, RwLock},
+          cmp::Ordering};
 
 use self::image::{DynamicImage, ImageBuffer, ImageOutputFormat, Rgb, RgbImage};
 
@@ -281,7 +281,7 @@ impl View {
                     col_px = BLACK;
                 }
 
-                let r = ((h_max+1) as f64 * z / 300.0) as i64;
+                let r = ((h_max.min(w_max)+1) as f64 * z / 300.0) as i64;
                 for w in w_px-r..=w_px+r {
                     for h in h_px-r..=h_px+r {
                         if (((w-w_px).pow(2) + (h-h_px).pow(2)) as f64).sqrt() as i64 <= r {
