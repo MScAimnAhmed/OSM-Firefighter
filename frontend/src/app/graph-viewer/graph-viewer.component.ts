@@ -1,10 +1,11 @@
-import { AfterViewInit, Component, HostListener, OnInit } from '@angular/core';
+import { AfterViewInit, Component, HostListener, OnInit, ViewChild } from '@angular/core';
 import { GraphServiceService } from '../service/graph-service.service';
 import { SimulationConfig } from '../data/SimulationConfig';
 import { SimulationConfiguratorComponent } from '../simulation-configurator/simulation-configurator.component';
 import { MatDialog } from '@angular/material/dialog';
 import { FormControl, Validators } from '@angular/forms';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { TurnInputComponent } from '../view-inputs/turn-input/turn-input.component';
 
 @Component({
   selector: 'app-graph-viewer',
@@ -14,9 +15,7 @@ import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 export class GraphViewerComponent implements OnInit, AfterViewInit {
 
   simConfig: SimulationConfig;
-  currentTurn = 0;
-  currentTurnFormControl: FormControl;
-  maxTurn = 0;
+  @ViewChild(TurnInputComponent) turnInput: TurnInputComponent;
 
   currentLat = 0;
   maxLat = 0;
@@ -79,13 +78,6 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
     ).subscribe(_ => {
       if (this.activeSimulation) this.refreshView();
     });
-    this.currentTurnFormControl = new FormControl(this.currentTurn, [Validators.required]);
-    this.currentTurnFormControl.valueChanges.pipe(
-        debounceTime(1000),
-        distinctUntilChanged()
-      ).subscribe(_ => {
-      if (this.activeSimulation) this.refreshView();
-    });
   }
 
   ngAfterViewInit(): void {
@@ -101,7 +93,7 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
       this.simConfig = data;
       this.graphservice.simulate(this.simConfig).subscribe(response => {
         this.activeSimulation = true;
-        this.maxTurn = response.end_time;
+        this.turnInput.maxTurn = response.end_time;
         this.currentLat = response.view_center[0];
         this.currentLon = response.view_center[1];
         this.maxLat = response.view_bounds.max_lat;
@@ -114,7 +106,7 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
 
   public refreshView() {
     this.refreshing = true;
-    this.graphservice.refreshView(this.currentTurn, this.currentZoom, this.currentLat, this.currentLon)
+    this.graphservice.refreshView(this.turnInput.currentTurn, this.currentZoom, this.currentLat, this.currentLon)
       .subscribe((data: Blob) => {
       this.refreshing = false;
       this.createImageFromBlob(data);

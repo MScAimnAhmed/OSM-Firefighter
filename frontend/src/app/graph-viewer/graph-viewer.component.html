@@ -1,12 +1,6 @@
 <div class='control'>
   <button mat-raised-button color='primary' (click)='openSimulationConfigDialog()'>Start new Simulation</button>
-  <div class='turn-input'>
-    <mat-form-field>
-      <mat-label>Turn</mat-label>
-      <input matInput type='number' min='0' [max]='maxTurn' [(ngModel)]='currentTurn' [formControl]='currentTurnFormControl'>
-    </mat-form-field>
-    <mat-slider [thumbLabel]='true' min='0' [max]='maxTurn' [(ngModel)]='currentTurn'></mat-slider>
-  </div>
+  <app-turn-input (onChange)='this.refreshView()'></app-turn-input>
   <div class='view-input'>
     <table>
       <tr>
