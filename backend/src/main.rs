@@ -7,6 +7,7 @@ mod query;
 use std::{collections::HashMap,
           env,
           fs,
+          path::Path,
           sync::{Arc, Mutex, RwLock}};
 
 use actix_cors::Cors;
@@ -236,10 +237,11 @@ async fn main() -> std::io::Result<()> {
     };
     let mut graphs = HashMap::with_capacity(graphs_path.len());
     for path in paths {
-        let file_path = path.path().to_str().unwrap().split(".").collect::<Vec<_>>()[0].to_string();
         let file_name = path.file_name().to_str().unwrap().split(".").collect::<Vec<_>>()[0].to_string();
+        let file_path = Path::new(&graphs_path).join(&file_name);
         graphs.entry(file_name.clone()).or_insert_with(|| {
-            let graph = Arc::new(RwLock::new(Graph::from_files(&file_path)));
+            let graph = Arc::new(RwLock::new(Graph::from_files(
+                file_path.to_str().unwrap())));
 
             log::info!("Loaded graph {}", file_name);
 
