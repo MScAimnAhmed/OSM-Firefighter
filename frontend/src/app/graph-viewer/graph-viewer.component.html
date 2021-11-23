@@ -3,7 +3,7 @@
   <div class='turn-input'>
     <mat-form-field>
       <mat-label>Turn</mat-label>
-      <input matInput type='number' min='0' [max]='maxTurn' [(ngModel)]='currentTurn'>
+      <input matInput type='number' min='0' [max]='maxTurn' [(ngModel)]='currentTurn' [formControl]='currentTurnFormControl'>
     </mat-form-field>
     <mat-slider [thumbLabel]='true' min='0' [max]='maxTurn' [(ngModel)]='currentTurn'></mat-slider>
   </div>
@@ -13,28 +13,28 @@
         <td style='font-size: small'>
           <mat-form-field>
             <mat-label>Longitude</mat-label>
-            <input matInput type='number' [(ngModel)]='currentLon'>
+            <input matInput type='number' [min]='minLon' [max]='maxLon' [(ngModel)]='currentLon' [formControl]='currentLonFormControl'>
           </mat-form-field>
           <mat-form-field>
             <mat-label>Latitude</mat-label>
-            <input matInput type='number' [(ngModel)]='currentLat'>
+            <input matInput type='number' [min]='minLat' [max]='maxLat' [(ngModel)]='currentLat' [formControl]='currentLatFormControl'>
           </mat-form-field>
         </td>
         <td>
-          <button mat-raised-button (click)='this.currentLat = this.currentLat - 1;'>
+          <button mat-raised-button (click)='this.moveViewHorizontally(false)'>
             <mat-icon>keyboard_arrow_left</mat-icon>
           </button>
         </td>
         <td style='display: flex; flex-direction: column; gap: 5px'>
-          <button mat-raised-button (click)='this.currentLon = this.currentLon + 1;'>
+          <button mat-raised-button (click)='this.moveViewVertically(true)'>
             <mat-icon>keyboard_arrow_up</mat-icon>
           </button>
-          <button mat-raised-button (click)='this.currentLon = this.currentLon - 1;'>
+          <button mat-raised-button (click)='this.moveViewVertically(false)'>
             <mat-icon>keyboard_arrow_down</mat-icon>
           </button>
         </td>
         <td>
-          <button mat-raised-button (click)='this.currentLat = this.currentLat + 1;'>
+          <button mat-raised-button (click)='this.moveViewHorizontally(true)'>
             <mat-icon>keyboard_arrow_right</mat-icon>
           </button>
         </td>
@@ -46,23 +46,24 @@
       <tr>
         <td>
           <mat-form-field>
-            <mat-label>Zoom in %</mat-label>
-            <input matInput type='number' min='0' [(ngModel)]='currentZoom'>
+            <mat-label>Zoom</mat-label>
+            <span matPrefix>x</span>
+            <input matInput type='number' min='1' [(ngModel)]='currentZoom' [formControl]='currentZoomFormControl'>
           </mat-form-field>
         </td>
         <td style='display: flex; flex-direction: column'>
-          <button mat-icon-button (click)='this.currentZoom = this.currentZoom + 10;'>
+          <button mat-icon-button (click)='this.changeZoomBy(0.1);'>
             <mat-icon>zoom_in</mat-icon>
           </button>
-          <button mat-icon-button [disabled]='this.currentZoom < 10'
-                  (click)='this.currentZoom = this.currentZoom - 10;'>
+          <button mat-icon-button [disabled]='this.currentZoom === 1'
+                  (click)='this.changeZoomBy(-0.1)'>
             <mat-icon>zoom_out</mat-icon>
           </button>
         </td>
       </tr>
     </table>
   </div>
-  <button mat-raised-button color='primary' [disabled]='!simConfig' (click)='refreshView()'>
+  <button mat-raised-button color='primary' [class.spinner]="refreshing"  [disabled]='!activeSimulation || refreshing' (click)='refreshView()'>
     Refresh View
     <mat-icon>refresh</mat-icon>
   </button>

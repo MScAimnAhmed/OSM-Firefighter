@@ -9,13 +9,15 @@
   border-color: indigo;
   height: 100%;
   width: 100%;
-  overflow: auto;
+  /* overflow hidden because height 100% still somehow creates a scrollbar*/
+  overflow: hidden;
 }
 
-#map {
-  z-index: 90;
-  height: 100%;
+img {
+  max-width: 100%;
+  max-height: 100%;
 }
+
 .control > button {
   padding: 5px;
 }
@@ -44,4 +46,24 @@ input::-webkit-inner-spin-button {
 /* Firefox */
 input[type=number] {
   -moz-appearance: textfield;
+}
+
+@keyframes spinner {
+  to {transform: rotate(360deg);}
+}
+
+.spinner:before {
+  content: '';
+  box-sizing: border-box;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin-top: -10px;
+  margin-left: -10px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  border-top-color: #000000;
+  animation: spinner .8s linear infinite;
 }
