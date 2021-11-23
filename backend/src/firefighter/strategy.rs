@@ -229,14 +229,25 @@ impl PriorityStrategy {
         for node in &graph.nodes {
             let prio = graph.get_in_degree(node.id) + (2 * graph.get_out_degree(node.id));
             priority_map.insert(node.id, prio);
+            //log::debug!("node: {}, in_deg {}, out_deg {} -> prio: {}", node.id, graph.get_in_degree(node.id), graph.get_out_degree(node.id), prio);
         }
+        log::debug!("priority map: {:?}", priority_map);
 
+        let mut sorted_priorities: Vec<_> = priority_map.values().map(|prio|*prio).collect();
+        sorted_priorities.sort_unstable_by(|p1, p2| {
+            p1.cmp(p2)
+        });
+
+        log::debug!("sorted prios {:?}", sorted_priorities);
         let mid = graph.num_nodes / 2;
+        log::debug!("num of nodes {}, mid {}", graph.num_nodes, mid);
         let median = {
             if mid % 2 == 0 {
-                priority_map.get(&(mid - 1)).unwrap() + priority_map.get(&mid).unwrap() / 2
+                log::debug!("mid - 1 {}, and mid {} -> median {}", sorted_priorities[mid - 1], sorted_priorities[mid], (sorted_priorities[mid - 1] + sorted_priorities[mid]) / 2);
+                (sorted_priorities[mid - 1] + sorted_priorities[mid]) / 2
             } else {
-                *priority_map.get(&mid).unwrap()
+                log::debug!("median {}", sorted_priorities[mid]);
+                sorted_priorities[mid]
             }
         };
 
@@ -310,23 +321,27 @@ impl PriorityStrategy {
             let num_of_nodes = min(can_defend, nodes.len());
             for &node in &nodes[0..num_of_nodes] {
                 high_prio_defend.push(node);
+                assert!(*priority_map.get(&node).unwrap() >= median);
             }
             total_defended += num_of_nodes;
         }
+        assert!(high_prio_defend.len() <= mid + 1);
 
         // Nodes with a lower priority than the median should be defended
-        let mut low_prio_defend = Vec::with_capacity(nodes_by_sho_dist.len() - high_prio_defend.len());
-        for (&dist, nodes) in nodes_by_sho_dist.iter() {
+        let mut low_prio_defend = Vec::with_capacity(graph.num_nodes - high_prio_defend.len());
+        for (&dist, nodes) in low_prio_map.iter() {
             let mut can_defend_total = dist / strategy_every * num_ffs;
             if can_defend_total > total_defended {
                 let can_defend = can_defend_total - total_defended;
                 let num_of_nodes = min(can_defend, nodes.len());
                 for &node in &nodes[0..num_of_nodes] {
                     low_prio_defend.push(node);
+                    assert!(*priority_map.get(&node).unwrap() < median);
                 }
                 total_defended += num_of_nodes;
             }
         }
+        assert!(low_prio_defend.len() <= (graph.num_nodes - high_prio_defend.len()));
 
         self.nodes_to_defend.reserve_exact(total_defended);
 
