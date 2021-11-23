@@ -5,9 +5,13 @@ mat-form-field {
 
 .meta-container {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   justify-content: center;
   width: 100%;
+}
+
+textarea {
+  resize: none !important;
 }
 
 mat-spinner {

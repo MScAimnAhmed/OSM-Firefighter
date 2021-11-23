@@ -3,14 +3,14 @@
     <p>Nodes burned until Turn {{turn}}: {{stepMeta.nodes_burned_by}}</p>
     <mat-form-field>
       <mat-label>Nodes burned this Turn</mat-label>
-      <textarea matInput [rows]='2'>{{stepMeta.nodes_burned_at}}</textarea>
+      <textarea matInput readonly [rows]='2'>{{stepMeta.nodes_burned_at}}</textarea>
     </mat-form-field>
   </div>
   <div class='fighter-meta' *ngIf='!loading && stepMeta'>
     <p>Nodes protected until Turn {{turn}}: {{stepMeta.nodes_defended_by}}</p>
     <mat-form-field>
       <mat-label>Nodes protected this Turn</mat-label>
-      <textarea matInput [rows]='2'>{{stepMeta.nodes_defended_at}}</textarea>
+      <textarea matInput readonly [rows]='2'>{{stepMeta.nodes_defended_at}}</textarea>
     </mat-form-field>
   </div>
 </div>
