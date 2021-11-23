@@ -17,6 +17,7 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatSliderModule } from '@angular/material/slider';
 import { TurnInputComponent } from './view-inputs/turn-input/turn-input.component';
 import { ViewInputComponent } from './view-inputs/view-input/view-input.component';
+import { ZoomInputComponent } from './view-inputs/zoom-input/zoom-input.component';
 
 @NgModule({
   declarations: [
@@ -24,7 +25,8 @@ import { ViewInputComponent } from './view-inputs/view-input/view-input.componen
     SimulationConfiguratorComponent,
     GraphViewerComponent,
     TurnInputComponent,
-    ViewInputComponent
+    ViewInputComponent,
+    ZoomInputComponent
   ],
   imports: [
     BrowserModule,

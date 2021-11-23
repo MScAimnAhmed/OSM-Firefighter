@@ -3,10 +3,9 @@ import { GraphServiceService } from '../service/graph-service.service';
 import { SimulationConfig } from '../data/SimulationConfig';
 import { SimulationConfiguratorComponent } from '../simulation-configurator/simulation-configurator.component';
 import { MatDialog } from '@angular/material/dialog';
-import { FormControl, Validators } from '@angular/forms';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { TurnInputComponent } from '../view-inputs/turn-input/turn-input.component';
 import { ViewInputComponent } from '../view-inputs/view-input/view-input.component';
+import { ZoomInputComponent } from '../view-inputs/zoom-input/zoom-input.component';
 
 @Component({
   selector: 'app-graph-viewer',
@@ -17,11 +16,8 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
 
   simConfig: SimulationConfig;
   @ViewChild(TurnInputComponent) turnInput: TurnInputComponent;
-
   @ViewChild(ViewInputComponent) viewInput: ViewInputComponent;
-
-  currentZoom = 1;
-  currentZoomFormControl: FormControl;
+  @ViewChild(ZoomInputComponent) zoomInput: ZoomInputComponent;
 
   refreshing: boolean;
   activeSimulation: boolean;
@@ -33,15 +29,6 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
   }
 
   ngOnInit(): void {
-    this.currentZoomFormControl = new FormControl(this.currentZoom, [Validators.required]);
-    this.currentZoomFormControl.valueChanges.pipe(
-      debounceTime(1000),
-      distinctUntilChanged()
-    ).subscribe(_ => {
-      if (this.activeSimulation) {
-        this.refreshView();
-      }
-    });
   }
 
   ngAfterViewInit(): void {
@@ -71,7 +58,7 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
   public refreshView() {
     if (this.activeSimulation) {
       this.refreshing = true;
-      this.graphservice.refreshView(this.turnInput.currentTurn, this.currentZoom, this.viewInput.currentCoord)
+      this.graphservice.refreshView(this.turnInput.currentTurn, this.zoomInput.currentZoom, this.viewInput.currentCoord)
         .subscribe((data: Blob) => {
           this.refreshing = false;
           this.createImageFromBlob(data);
@@ -91,10 +78,6 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
     if (image) {
       reader.readAsDataURL(image);
     }
-  }
-
-  changeZoomBy(value: number) {
-    this.currentZoom = Math.round((this.currentZoom + value) * 100) / 100;
   }
 }
 

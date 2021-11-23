@@ -2,28 +2,7 @@
   <button mat-raised-button color='primary' (click)='openSimulationConfigDialog()'>Start new Simulation</button>
   <app-turn-input (onChange)='this.refreshView()'></app-turn-input>
   <app-view-input (onChange)='this.refreshView()'></app-view-input>
-  <div class='zoom-Input'>
-    <table>
-      <tr>
-        <td>
-          <mat-form-field>
-            <mat-label>Zoom</mat-label>
-            <span matPrefix>x</span>
-            <input matInput type='number' min='1' [(ngModel)]='currentZoom' [formControl]='currentZoomFormControl'>
-          </mat-form-field>
-        </td>
-        <td style='display: flex; flex-direction: column'>
-          <button mat-icon-button (click)='this.changeZoomBy(0.1);'>
-            <mat-icon>zoom_in</mat-icon>
-          </button>
-          <button mat-icon-button [disabled]='this.currentZoom === 1'
-                  (click)='this.changeZoomBy(-0.1)'>
-            <mat-icon>zoom_out</mat-icon>
-          </button>
-        </td>
-      </tr>
-    </table>
-  </div>
+  <app-zoom-input (onChange)='this.refreshView()'></app-zoom-input>
   <button mat-raised-button color='primary' [class.spinner]="refreshing"  [disabled]='!activeSimulation || refreshing' (click)='refreshView()'>
     Refresh View
     <mat-icon>refresh</mat-icon>
