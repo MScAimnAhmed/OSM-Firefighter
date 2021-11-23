@@ -236,7 +236,7 @@ impl PriorityStrategy {
             if mid % 2 == 0 {
                 priority_map.get(&(mid - 1)).unwrap() + priority_map.get(&mid).unwrap() / 2
             } else {
-                priority_map.get(&mid).unwrap()
+                *priority_map.get(&mid).unwrap()
             }
         };
 
@@ -281,30 +281,24 @@ impl PriorityStrategy {
 
         // Filter nodes with higher priority based on median
         let mut high_prio_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
-        for (&dist, &nodes) in nodes_by_sho_dist {
+        for (&dist, nodes) in nodes_by_sho_dist.iter() {
             let high_prio_nodes: Vec<_> = nodes.iter()
-                .filter(|node| {
-                    if priority_map.get(node).unwrap() >= &median {
-                        true
-                    } else if priority_map.get(node).unwrap() < &median {
-                        false
-                    }
+                .filter(|&node| {
+                    *priority_map.get(node).unwrap() >= median
                 })
+                .map(|node| *node)
                 .collect();
             high_prio_map.insert(dist, high_prio_nodes);
         }
 
         // Filter nodes with higher priority based on median
         let mut low_prio_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
-        for (&dist, &nodes) in nodes_by_sho_dist {
+        for (&dist, nodes) in nodes_by_sho_dist.iter() {
             let low_prio_nodes: Vec<_> = nodes.iter()
-                .filter(|node| {
-                    if priority_map.get(node).unwrap() < &median {
-                        true
-                    } else if priority_map.get(node).unwrap() >= &median {
-                        false
-                    }
+                .filter(|&node| {
+                    *priority_map.get(node).unwrap() < median
                 })
+                .map(|node| *node)
                 .collect();
             low_prio_map.insert(dist, low_prio_nodes);
         }
@@ -312,43 +306,25 @@ impl PriorityStrategy {
         // Nodes with a higher priority than the median should be defended
         let mut high_prio_defend = Vec::with_capacity(mid + 1);
         for (&dist, nodes) in high_prio_map.iter() {
-            let mut can_defend = dist / strategy_every * num_ffs - total_defended;
-            for &node in nodes {
-                if can_defend > 0 {
-                    if priority_map.get(&node).unwrap() >= &median {
-                        total_defended += 1;
-                        can_defend -= 1;
-                        high_prio_defend.push(node);
-                    } else {
-                        // every other value after this is smaller aswell (sorted vector)
-                        break;
-                    }
-                } else {
-                    break;
-                }
+            let can_defend = dist / strategy_every * num_ffs - total_defended;
+            let num_of_nodes = min(can_defend, nodes.len());
+            for &node in &nodes[0..num_of_nodes] {
+                high_prio_defend.push(node);
             }
+            total_defended += num_of_nodes;
         }
 
         // Nodes with a lower priority than the median should be defended
         let mut low_prio_defend = Vec::with_capacity(nodes_by_sho_dist.len() - high_prio_defend.len());
         for (&dist, nodes) in nodes_by_sho_dist.iter() {
             let mut can_defend_total = dist / strategy_every * num_ffs;
-            let mut can_defend = can_defend_total - total_defended;
             if can_defend_total > total_defended {
-                for &node in nodes {
-                    if can_defend > 0 {
-                        if priority_map.get(&node).unwrap() >= &median {
-                            total_defended += 1;
-                            can_defend -= 1;
-                            low_prio_defend.push(node);
-                        } else {
-                            // every other value after this is smaller aswell (sorted vector)
-                            break;
-                        }
-                    } else {
-                        break;
-                    }
+                let can_defend = can_defend_total - total_defended;
+                let num_of_nodes = min(can_defend, nodes.len());
+                for &node in &nodes[0..num_of_nodes] {
+                    low_prio_defend.push(node);
                 }
+                total_defended += num_of_nodes;
             }
         }
 
