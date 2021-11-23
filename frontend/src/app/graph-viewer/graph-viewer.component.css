@@ -28,7 +28,7 @@ img {
   gap: 10px;
   padding: 5px 10px;
   height: 15%;
-  overflow: auto;
+  overflow-y: hidden;
 }
 
 @keyframes spinner {

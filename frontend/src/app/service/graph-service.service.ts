@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import {Observable} from "rxjs";
 import { SimulationConfig } from '../data/SimulationConfig';
 import { Coordinates } from '../view-inputs/view-input/view-input.component';
+import { StepMetaData } from '../meta-info-box/meta-info-box.component';
 
 @Injectable({
   providedIn: 'root'
@@ -27,6 +28,11 @@ export class GraphServiceService {
 
   simulate(config: SimulationConfig): Observable<any> {
     return this.http.post(this.path + "/simulate",config ,{withCredentials: true});
+  }
+
+  getStepMetaData(turn: number): Observable<StepMetaData> {
+    let params = new HttpParams().append('time', turn);
+    return this.http.get<StepMetaData>(this.path + "/stepmeta", {params: params, withCredentials: true})
   }
 
   refreshView(turnNumber: number, zoomLevel : number, coord: Coordinates) : Observable<Blob>{

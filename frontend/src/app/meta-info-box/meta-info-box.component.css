@@ -1,0 +1,15 @@
+mat-form-field {
+  width: 250px;
+  padding: 5px;
+}
+
+.meta-container {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  width: 100%;
+}
+
+mat-spinner {
+  margin: 30px;
+}

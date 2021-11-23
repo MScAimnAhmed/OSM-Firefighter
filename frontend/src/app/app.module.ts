@@ -18,6 +18,8 @@ import { MatSliderModule } from '@angular/material/slider';
 import { TurnInputComponent } from './view-inputs/turn-input/turn-input.component';
 import { ViewInputComponent } from './view-inputs/view-input/view-input.component';
 import { ZoomInputComponent } from './view-inputs/zoom-input/zoom-input.component';
+import { MetaInfoBoxComponent } from './meta-info-box/meta-info-box.component';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 @NgModule({
   declarations: [
@@ -26,7 +28,8 @@ import { ZoomInputComponent } from './view-inputs/zoom-input/zoom-input.componen
     GraphViewerComponent,
     TurnInputComponent,
     ViewInputComponent,
-    ZoomInputComponent
+    ZoomInputComponent,
+    MetaInfoBoxComponent
   ],
   imports: [
     BrowserModule,
@@ -41,7 +44,8 @@ import { ZoomInputComponent } from './view-inputs/zoom-input/zoom-input.componen
     BrowserAnimationsModule,
     ReactiveFormsModule,
     MatSliderModule,
-    FormsModule
+    FormsModule,
+    MatProgressSpinnerModule
   ],
   providers: [
   ],

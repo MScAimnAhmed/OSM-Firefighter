@@ -6,6 +6,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { TurnInputComponent } from '../view-inputs/turn-input/turn-input.component';
 import { ViewInputComponent } from '../view-inputs/view-input/view-input.component';
 import { ZoomInputComponent } from '../view-inputs/zoom-input/zoom-input.component';
+import { MetaInfoBoxComponent } from '../meta-info-box/meta-info-box.component';
 
 @Component({
   selector: 'app-graph-viewer',
@@ -18,6 +19,7 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
   @ViewChild(TurnInputComponent) turnInput: TurnInputComponent;
   @ViewChild(ViewInputComponent) viewInput: ViewInputComponent;
   @ViewChild(ZoomInputComponent) zoomInput: ZoomInputComponent;
+  @ViewChild(MetaInfoBoxComponent) infoBox: MetaInfoBoxComponent;
 
   refreshing: boolean;
   activeSimulation: boolean;
@@ -58,6 +60,7 @@ export class GraphViewerComponent implements OnInit, AfterViewInit {
   public refreshView() {
     if (this.activeSimulation) {
       this.refreshing = true;
+      this.infoBox.updateStepMetaData(this.turnInput.currentTurn);
       this.graphservice.refreshView(this.turnInput.currentTurn, this.zoomInput.currentZoom, this.viewInput.currentCoord)
         .subscribe((data: Blob) => {
           this.refreshing = false;
