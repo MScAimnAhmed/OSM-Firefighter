@@ -18,7 +18,7 @@ pub struct OSMFSettings {
     pub strategy_name: String,
     num_roots: usize,
     pub num_ffs: usize,
-    pub strategy_every: u64,
+    pub strategy_every: TimeUnit,
 }
 
 /// Node data related to the firefighter problem
@@ -210,15 +210,13 @@ impl OSMFProblem {
 
     /// Generate `num_roots` fire roots
     fn gen_fire_roots(&mut self) -> Vec<usize> {
+        let graph = self.graph.read().unwrap();
+
         let mut rng = thread_rng();
-        let mut roots = Vec::with_capacity(self.settings.num_roots);
-        let num_nodes = self.graph.read().unwrap().num_nodes;
-        while roots.len() < self.settings.num_roots {
-            let root = rng.gen_range(0..num_nodes);
-            if self.node_data.is_undefended(&root) {
-                roots.push(root);
-            }
-        }
+        let roots = graph.nodes.iter()
+            .map(|node| node.id)
+            .choose_multiple(&mut rng, self.settings.num_roots);
+
         log::debug!("Setting nodes {:?} as fire roots", &roots);
         self.node_data.mark_burning(&roots, self.global_time);
 
@@ -344,73 +342,70 @@ impl OSMFProblem {
 
 #[cfg(test)]
 mod test {
-    use std::{collections::BTreeMap,
-              sync::{Arc, RwLock}};
+    use std::sync::{Arc, RwLock};
 
     use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
                              strategy::{OSMFStrategy, GreedyStrategy, Strategy}};
     use crate::graph::Graph;
 
-    #[test]
-    fn test() {
+    fn initialize() -> OSMFProblem {
         let graph = Arc::new(RwLock::new(
             Graph::from_files("data/bbgrund")));
-        let num_roots = 10;
         let strategy = OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone()));
-        let mut problem = OSMFProblem::new(
+
+        OSMFProblem::new(
             graph.clone(),
             OSMFSettings {
                 graph_name: "bbgrund".to_string(),
                 strategy_name:"greedy".to_string(),
-                num_roots,
+                num_roots: 10,
                 num_ffs: 2,
                 strategy_every: 10,
             },
-            strategy);
+            strategy)
+    }
 
-        assert_eq!(problem.node_data.burning.len(), num_roots);
+    #[test]
+    fn test_roots() {
+        let problem = initialize();
 
-        let graph_ = graph.read().unwrap();
-        let num_nodes = graph_.num_nodes;
+        let num_burning = problem.node_data.burning.len();
+        let num_roots = problem.settings.num_roots;
+        assert_eq!(num_burning, num_roots, "num burning: {}, num roots: {}", num_burning, num_roots);
+    }
 
-        let roots: Vec<_>;
-        {
-            roots = problem.node_data.burning.keys()
-                .into_iter()
-                .map(|k| *k)
-                .collect();
+    #[test]
+    fn test_active() {
+        let mut problem = initialize();
+        problem.simulate();
 
-            for root in &roots {
-                assert!(*root < num_nodes);
-            }
+        assert!(!problem.is_active);
+    }
+
+    #[test]
+    fn test_burned() {
+        let mut problem = initialize();
+        problem.simulate();
+
+        let burned_times: Vec<_> = problem.node_data.burning.values()
+            .map(|nd| nd.time)
+            .collect();
+        for time in burned_times {
+            assert!(time <= problem.global_time, "burned time: {}, global time: {}",
+                    time, problem.global_time);
         }
+    }
 
-        for _ in 0..10 {
-            problem.exec_step();
-            if !problem.is_active {
-                break;
-            }
-        }
+    #[test]
+    fn test_defended() {
+        let mut problem = initialize();
+        problem.simulate();
 
-        let mut targets = Vec::new();
-        let mut distances = BTreeMap::new();
-        for root in &roots {
-            let out_deg = graph_.get_out_degree(*root);
-            targets.reserve(out_deg);
-            for i in graph_.offsets[*root]..graph_.offsets[*root + 1] {
-                let edge = &graph_.edges[i];
-                targets.push(edge.tgt);
-                distances.insert(edge.tgt, edge.dist as u64);
-            }
-        }
-
-        for root in &roots {
-            let root_nd = problem.node_data.burning.get(root).unwrap();
-            for tgt in &targets {
-                if problem.node_data.is_undefended(tgt) {
-                    assert!(problem.global_time < root_nd.time + *distances.get(tgt).unwrap())
-                }
-            }
-        }
+        let gt = problem.global_time as usize;
+        let se = problem.settings.strategy_every as usize;
+        let num_defended = problem.node_data.defended.len();
+        let could_defended = problem.settings.num_ffs * (gt / se);
+        assert!(num_defended <= could_defended, "num defended: {}, could defended: {}",
+                num_defended, could_defended);
     }
 }
