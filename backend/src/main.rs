@@ -276,7 +276,7 @@ async fn main() -> std::io::Result<()> {
             .service(display_view)
             .service(get_sim_step_metadata)
     });
-    server.bind("localhost:8080")?
+    server.bind("0.0.0.0:8080")?
         .run()
         .await
 }
