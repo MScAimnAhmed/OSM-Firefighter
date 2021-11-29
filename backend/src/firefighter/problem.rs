@@ -275,7 +275,9 @@ impl OSMFProblem {
                 OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) =>
                     mindistgroup_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
                 OSMFStrategy::Priority(ref mut priority_strategy) =>
-                    priority_strategy.execute(&self.settings, &mut self.node_data, self.global_time)
+                    priority_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
+                OSMFStrategy::Random(ref mut random_strategy) =>
+                    random_strategy.execute(&self.settings, &mut self.node_data, self.global_time)
             }
         }
     }
