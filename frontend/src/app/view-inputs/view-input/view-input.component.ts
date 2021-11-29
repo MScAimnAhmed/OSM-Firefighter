@@ -80,10 +80,10 @@ export class ViewInputComponent implements OnInit {
     let stepsize = (this.maxCoord.lon - this.minCoord.lon) / 100;
     if (moveUp) {
       this.currentCoord.lon -= stepsize;
-      if (this.currentCoord.lon > this.maxCoord.lon) this.currentCoord.lon = this.maxCoord.lon;
+      if (this.currentCoord.lon < this.minCoord.lon) this.currentCoord.lon = this.minCoord.lon;
     } else {
       this.currentCoord.lon += stepsize;
-      if (this.currentCoord.lon < this.minCoord.lon) this.currentCoord.lon = this.minCoord.lon;
+      if (this.currentCoord.lon > this.maxCoord.lon) this.currentCoord.lon = this.maxCoord.lon;
     }
   }
 }

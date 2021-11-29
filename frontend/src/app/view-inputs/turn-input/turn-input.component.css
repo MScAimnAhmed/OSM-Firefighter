@@ -8,6 +8,12 @@ mat-slider {
   width: 75%;
 }
 
+.stepper-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+}
+
 /* Chrome, Safari, Edge, Opera */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
