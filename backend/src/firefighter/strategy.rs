@@ -385,36 +385,32 @@ impl Strategy for PriorityStrategy {
 #[derive(Debug, Default)]
 pub struct RandomStrategy {
     graph: Arc<RwLock<Graph>>,
-    nodes_to_defend: Vec<usize>,
-    current_defended: usize,
 }
 
 impl Strategy for RandomStrategy {
     fn new(graph: Arc<RwLock<Graph>>) -> Self {
         Self {
             graph,
-            nodes_to_defend: vec![],
-            current_defended: 0,
         }
     }
 
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
         let graph = self.graph.read().unwrap();
 
-        self.nodes_to_defend = graph.nodes.iter()
+        let nodes_to_defend: Vec<_> = graph.nodes.iter()
             .filter(|&node| node_data.is_undefended(&node.id))
+            .map(|node| node.id)
             .collect();
 
-        let num_to_defend = min(settings.num_ffs, self.nodes_to_defend.len() - self.current_defended);
-        let to_defend = self.nodes_to_defend
+        let num_to_defend = min(settings.num_ffs, self.nodes_to_defend.len());
+        let mut rng = &mut rand::thread_rng();
+        let to_defend: Vec<_> = nodes_to_defend
             .choose_multiple(&mut rng, num_to_defend)
             .cloned()
             .collect();
 
-        log::debug!("Defending nodes {:?}", to_defend);
-        node_data.mark_defended2(to_defend, global_time);
-
-        self.current_defended += num_to_defend;
+        log::debug!("Defending nodes {:?}", &to_defend);
+        node_data.mark_defended(&to_defend, global_time);
     }
 }
 
