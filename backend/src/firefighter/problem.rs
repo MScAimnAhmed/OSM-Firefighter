@@ -331,36 +331,27 @@ impl OSMFProblem {
     }
 }
 
-// #[derive(Debug)]
-// pub enum OSMFProblemError {
-//     NodeDataAlreadyAttached,
-// }
-//
-// impl std::fmt::Display for OSMFProblemError {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         match self {
-//             Self::NodeDataAlreadyAttached => write!(f, "Node data is already attached to this node")
-//         }
-//     }
-// }
-//
-// impl std::error::Error for OSMFProblemError {}
-
 #[cfg(test)]
 mod test {
     use std::sync::{Arc, RwLock};
 
+    use once_cell::sync::Lazy;
+
     use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
-                             strategy::{OSMFStrategy, GreedyStrategy, Strategy}};
+                             strategy::{OSMFStrategy,
+                                        GreedyStrategy,
+                                        MinDistGroupStrategy,
+                                        RandomStrategy,
+                                        PriorityStrategy,
+                                        Strategy}};
     use crate::graph::Graph;
 
-    fn initialize() -> OSMFProblem {
-        let graph = Arc::new(RwLock::new(
-            Graph::from_files("data/bbgrund")));
-        let strategy = OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone()));
+    static GRAPH: Lazy<Arc<RwLock<Graph>>> = Lazy::new(||
+        Arc::new(RwLock::new(Graph::from_files("data/bbgrund"))));
 
+    fn initialize(strategy: OSMFStrategy) -> OSMFProblem {
         OSMFProblem::new(
-            graph.clone(),
+            GRAPH.clone(),
             OSMFSettings {
                 graph_name: "bbgrund".to_string(),
                 strategy_name:"greedy".to_string(),
@@ -373,7 +364,8 @@ mod test {
 
     #[test]
     fn test_roots() {
-        let problem = initialize();
+        let problem = initialize(OSMFStrategy::Random(
+            RandomStrategy::new(GRAPH.clone())));
 
         let num_burning = problem.node_data.burning.len();
         let num_roots = problem.settings.num_roots;
@@ -382,7 +374,8 @@ mod test {
 
     #[test]
     fn test_active() {
-        let mut problem = initialize();
+        let mut problem = initialize(OSMFStrategy::Random(
+            RandomStrategy::new(GRAPH.clone())));
         problem.simulate();
 
         assert!(!problem.is_active);
@@ -390,7 +383,8 @@ mod test {
 
     #[test]
     fn test_burned() {
-        let mut problem = initialize();
+        let mut problem = initialize(OSMFStrategy::Random(
+            RandomStrategy::new(GRAPH.clone())));
         problem.simulate();
 
         let burned_times: Vec<_> = problem.node_data.burning.values()
@@ -400,5 +394,85 @@ mod test {
             assert!(time <= problem.global_time, "burned time: {}, global time: {}",
                     time, problem.global_time);
         }
+    }
+
+    #[test]
+    fn test_greedy() {
+        let mut problem = initialize(OSMFStrategy::Greedy(
+            GreedyStrategy::new(GRAPH.clone())));
+        problem.simulate();
+
+        let ffs = problem.settings.num_ffs;
+        let gt = problem.global_time as usize;
+        let se = problem.settings.strategy_every as usize;
+        let num_defended = problem.node_data.defended.len();
+        let should_defended = ffs * (gt / se);
+        assert!(num_defended <= should_defended, "num defended: {}, should defended: {}",
+                num_defended, should_defended);
+
+        let num_ambiguous = problem.node_data.burning.keys()
+            .filter(|&node_id| problem.node_data.defended.contains_key(node_id))
+            .count();
+        assert_eq!(num_ambiguous, 0, "num ambiguous: {}", num_ambiguous);
+    }
+
+    #[test]
+    fn test_min_dist_group() {
+        let mut problem = initialize(OSMFStrategy::MinDistanceGroup(
+            MinDistGroupStrategy::new(GRAPH.clone())));
+        problem.simulate();
+
+        let ffs = problem.settings.num_ffs;
+        let gt = problem.global_time as usize;
+        let se = problem.settings.strategy_every as usize;
+        let num_defended = problem.node_data.defended.len();
+        let should_defended = ffs * (gt / se);
+        assert!(num_defended <= should_defended, "num defended: {}, should defended: {}",
+                num_defended, should_defended);
+
+        let num_ambiguous = problem.node_data.burning.keys()
+            .filter(|&node_id| problem.node_data.defended.contains_key(node_id))
+            .count();
+        assert_eq!(num_ambiguous, 0, "num ambiguous: {}", num_ambiguous);
+    }
+
+    #[test]
+    fn test_prio() {
+        let mut problem = initialize(OSMFStrategy::Priority(
+            PriorityStrategy::new(GRAPH.clone())));
+        problem.simulate();
+
+        let ffs = problem.settings.num_ffs;
+        let gt = problem.global_time as usize;
+        let se = problem.settings.strategy_every as usize;
+        let num_defended = problem.node_data.defended.len();
+        let should_defended = ffs * (gt / se);
+        assert!(num_defended <= should_defended, "num defended: {}, should defended: {}",
+                num_defended, should_defended);
+
+        let num_ambiguous = problem.node_data.burning.keys()
+            .filter(|&node_id| problem.node_data.defended.contains_key(node_id))
+            .count();
+        assert_eq!(num_ambiguous, 0, "num ambiguous: {}", num_ambiguous);
+    }
+
+    #[test]
+    fn test_rand() {
+        let mut problem = initialize(OSMFStrategy::Random(
+            RandomStrategy::new(GRAPH.clone())));
+        problem.simulate();
+
+        let ffs = problem.settings.num_ffs;
+        let gt = problem.global_time as usize;
+        let se = problem.settings.strategy_every as usize;
+        let num_defended = problem.node_data.defended.len();
+        let should_defended = ffs * (gt / se);
+        assert!(num_defended <= should_defended, "num defended: {}, should defended: {}",
+                num_defended, should_defended);
+
+        let num_ambiguous = problem.node_data.burning.keys()
+            .filter(|&node_id| problem.node_data.defended.contains_key(node_id))
+            .count();
+        assert_eq!(num_ambiguous, 0, "num ambiguous: {}", num_ambiguous);
     }
 }
