@@ -2,8 +2,9 @@ use std::{cmp::min,
           collections::{BTreeMap, HashMap},
           fmt::Debug,
           sync::{Arc, RwLock}};
+
 use rand::seq::SliceRandom;
-use rand::Rng;
+use rand::prelude::*;
 
 use strum::VariantNames;
 use strum_macros::{EnumString, EnumVariantNames};
@@ -337,7 +338,7 @@ impl PriorityStrategy {
         // Nodes with a lower priority than the median should be defended
         let mut low_prio_defend = Vec::with_capacity(graph.num_nodes - high_prio_defend.len());
         for (&dist, nodes) in low_prio_map.iter() {
-            let mut can_defend_total = dist / strategy_every * num_ffs;
+            let can_defend_total = dist / strategy_every * num_ffs;
             if can_defend_total > total_defended {
                 let can_defend = can_defend_total - total_defended;
                 let num_of_nodes = min(can_defend, nodes.len());
@@ -403,7 +404,7 @@ impl Strategy for RandomStrategy {
             .collect();
 
         let num_to_defend = min(settings.num_ffs, nodes_to_defend.len());
-        let mut rng = &mut rand::thread_rng();
+        let mut rng = thread_rng();
         let to_defend: Vec<_> = nodes_to_defend
             .choose_multiple(&mut rng, num_to_defend)
             .cloned()
