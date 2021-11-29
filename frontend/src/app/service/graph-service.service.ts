@@ -4,18 +4,19 @@ import {Observable} from "rxjs";
 import { SimulationConfig } from '../data/SimulationConfig';
 import { Coordinates } from '../view-inputs/view-input/view-input.component';
 import { StepMetaData } from '../meta-info-box/meta-info-box.component';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class GraphServiceService {
-  private path = "http://localhost:8080";
+  private path = environment.backendUrl;
 
   constructor(protected http: HttpClient) { }
 
 
   ping(): Observable<any> {
-    return this.http.get("http://localhost:8080/ping");
+    return this.http.get(this.path + "/ping");
   }
 
   getGraphs(): Observable<any> {
