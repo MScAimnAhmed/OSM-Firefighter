@@ -402,7 +402,7 @@ impl Strategy for RandomStrategy {
             .map(|node| node.id)
             .collect();
 
-        let num_to_defend = min(settings.num_ffs, self.nodes_to_defend.len());
+        let num_to_defend = min(settings.num_ffs, nodes_to_defend.len());
         let mut rng = &mut rand::thread_rng();
         let to_defend: Vec<_> = nodes_to_defend
             .choose_multiple(&mut rng, num_to_defend)
