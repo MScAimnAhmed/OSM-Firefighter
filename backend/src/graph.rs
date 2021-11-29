@@ -450,23 +450,27 @@ mod test {
     use crate::graph::Graph;
 
     #[test]
-    fn test_graph() {
+    fn test_nodes_edges() {
         let graph = Graph::from_files("data/bbgrund");
 
         assert_eq!(graph.nodes.len(), 350);
         assert_eq!(graph.edges.len(), 685);
+    }
+
+    #[test]
+    fn test_grid_bounds() {
+        let graph = Graph::from_files("data/bbgrund");
 
         let gb = graph.get_grid_bounds();
         assert!(gb.min_lat >= 48.67);
         assert!(gb.max_lat < 48.68);
         assert!(gb.min_lon >= 8.99);
         assert!(gb.max_lon < 9.02);
+    }
 
-        for i in 0..graph.nodes.len() {
-            let node = graph.nodes.get(i).unwrap();
-            assert!(node.lat >= 48.67 && node.lat < 48.68);
-            assert!(node.lon >= 8.99 && node.lon < 9.02);
-        }
+    #[test]
+    fn test_node() {
+        let graph = Graph::from_files("data/bbgrund");
 
         let edges_with_src_70: Vec<_> = graph.edges.iter()
             .filter(|&e| e.src == 70)
@@ -475,6 +479,11 @@ mod test {
 
         assert_eq!(graph.nodes[70].bwd_hubs.len(), 6);
         assert_eq!(graph.nodes[70].fwd_hubs.len(), 3);
+    }
+
+    #[test]
+    fn test_hubs() {
+        let graph = Graph::from_files("data/bbgrund");
 
         for node in &graph.nodes {
             if !node.bwd_hubs.is_empty() {
@@ -484,6 +493,11 @@ mod test {
                 assert!(node.fwd_hubs[0].hub_id <= node.fwd_hubs[node.fwd_hubs.len()-1].hub_id);
             }
         }
+    }
+
+    #[test]
+    fn test_shortest_dist() {
+        let graph = Graph::from_files("data/bbgrund");
 
         assert_eq!(graph.get_shortest_dist(1, 321).unwrap(), 822);
     }

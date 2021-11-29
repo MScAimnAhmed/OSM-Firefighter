@@ -319,24 +319,3 @@ impl View {
         self.img_buf.save(path).unwrap();
     }
 }
-
-// #[cfg(test)]
-// mod test {
-//     use std::sync::{Arc, RwLock};
-//
-//     use crate::firefighter::view::View;
-//     use crate::graph::Graph;
-//
-//     #[test]
-//     fn test_view() {
-//         let graph = Arc::new(RwLock::new(Graph::from_files("data/stgcenter")));
-//         let view = View::new(graph, 1920, 1080);
-//
-//         for px in view.img_buf.pixels() {
-//             // TODO check pixel
-//         }
-//
-//         view.save_to_file("data/stgcenter.png");
-//     }
-//
-// }
