@@ -395,17 +395,4 @@ mod test {
                     time, problem.global_time);
         }
     }
-
-    #[test]
-    fn test_defended() {
-        let mut problem = initialize();
-        problem.simulate();
-
-        let gt = problem.global_time as usize;
-        let se = problem.settings.strategy_every as usize;
-        let num_defended = problem.node_data.defended.len();
-        let could_defended = problem.settings.num_ffs * (gt / se);
-        assert!(num_defended <= could_defended, "num defended: {}, could defended: {}",
-                num_defended, could_defended);
-    }
 }
