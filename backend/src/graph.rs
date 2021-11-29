@@ -291,12 +291,12 @@ impl Graph {
         }
     }
 
-    /// Create a directed graph from a file that contains node and edge data
+    /// Create a directed graph from files that contains node and edge data and hub labels
     pub fn from_files(file_path: &str) -> Self {
         let mut graph = Graph::new();
         match graph.parse_graph_with_hubs(file_path.to_string()) {
             Ok(_) => (),
-            Err(err) => panic!("Failed to create graph from file {}: {}", file_path,
+            Err(err) => panic!("Failed to create graph from files at {}: {}", file_path,
                                err.to_string())
         }
         graph

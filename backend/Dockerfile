@@ -11,4 +11,4 @@ COPY . .
 # We'll use the release profile to make it faaaast
 RUN cargo build --release
 # When `docker run` is executed, launch the binary!
-ENTRYPOINT ["./target/release/osm_firefighter_backend /app/data/"]
+ENTRYPOINT ["./target/release/osm_firefighter_backend", "./data"]
