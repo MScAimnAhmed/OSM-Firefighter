@@ -8,6 +8,7 @@ use rand::prelude::*;
 
 use strum::VariantNames;
 use strum_macros::{EnumString, EnumVariantNames};
+use crate::binary_minheap::BinaryMinHeap;
 
 use crate::firefighter::{problem::{NodeDataStorage, OSMFSettings},
                          TimeUnit};
@@ -19,6 +20,7 @@ use crate::graph::Graph;
 pub enum OSMFStrategy {
     Greedy(GreedyStrategy),
     MinDistanceGroup(MinDistGroupStrategy),
+    MinDistanceGroup2(MinDistGroupStrategy2),
     Priority(PriorityStrategy),
     Random(RandomStrategy)
 }
@@ -186,6 +188,162 @@ impl MinDistGroupStrategy {
 }
 
 impl Strategy for MinDistGroupStrategy {
+    fn new(graph: Arc<RwLock<Graph>>) -> Self {
+        Self {
+            graph,
+            nodes_to_defend: vec![],
+            current_defended: 0,
+        }
+    }
+
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
+        let num_to_defend = min(settings.num_ffs, self.nodes_to_defend.len() - self.current_defended);
+        let to_defend = &self.nodes_to_defend[self.current_defended..self.current_defended + num_to_defend];
+        log::debug!("Defending nodes {:?}", to_defend);
+        node_data.mark_defended2(to_defend, global_time);
+
+        self.current_defended += num_to_defend;
+    }
+}
+
+/// Type alias for the result of a run of the Dijkstra algorithm
+type DijkstraResult = (Vec<usize>, Vec<usize>);
+
+/// Shortest distance based fire containment strategy
+#[derive(Debug, Default)]
+pub struct MinDistGroupStrategy2 {
+    graph: Arc<RwLock<Graph>>,
+    nodes_to_defend: Vec<usize>,
+    current_defended: usize,
+}
+
+impl MinDistGroupStrategy2 {
+    /// Run the Dijkstra algorithm on `self.graph` with `root` as source node
+    fn run_dijkstra(&self, root: usize) -> DijkstraResult {
+        let graph = self.graph.read().unwrap();
+
+        let mut distances = vec![usize::MAX; graph.num_nodes];
+        distances[root] = 0;
+
+        let mut predecessors = vec![usize::MAX; graph.num_nodes];
+
+        let mut pq = BinaryMinHeap::with_capacity(graph.num_nodes);
+        pq.push(root, &distances);
+
+        while !pq.is_empty() {
+            let node = pq.pop(&distances);
+
+            for i in graph.offsets[node]..graph.offsets[node +1] {
+                let edge = &graph.edges[i];
+                let dist = distances[node] + edge.dist;
+
+                if dist < distances[edge.tgt] {
+                    distances[edge.tgt] = dist;
+                    predecessors[edge.tgt] = node;
+
+                    if pq.contains(edge.tgt) {
+                        pq.decrease_key(edge.tgt, &distances);
+                    } else {
+                        pq.push(edge.tgt, &distances);
+                    }
+                } else if dist == distances[edge.tgt] {
+                    let pred = predecessors[edge.tgt];
+                    if pred != usize::MAX {
+                        let pred_dist = distances[pred];
+                        let node_dist = distances[node];
+                        if node_dist < pred_dist {
+                            predecessors[edge.tgt] = node;
+                        }
+                    }
+                }
+            }
+        }
+
+        (distances, predecessors)
+    }
+
+    /// Compute nodes to defend and order in which nodes should be defended
+    pub fn compute_nodes_to_defend(&mut self, roots: &Vec<usize>, settings: &OSMFSettings) {
+        let graph = self.graph.read().unwrap();
+
+        let mut global_dists = HashMap::with_capacity(graph.num_nodes);
+        let mut global_preds = vec![usize::MAX; graph.num_nodes];
+
+        // For each root, run a one-to-all Dijkstra to all nodes in the underlying graph.
+        // Then, filter the distances to the nodes for the minimum distance from any fire root.
+        // Additionally, remember for each node the predecessor on the path from the nearest
+        // fire root.
+        for &root in roots {
+            let (dists, preds) = self.run_dijkstra(root);
+
+            for (i, &dist) in dists.iter().enumerate() {
+                if dist < usize::MAX {
+                    match global_dists.get(&i) {
+                        Some(&cur_dist) => {
+                            if dist < cur_dist {
+                                global_dists.insert(i, dist);
+                                global_preds[i] = preds[i];
+                            } else if dist == cur_dist && dist < usize::MAX {
+                                let curr_pred = global_preds[i];
+                                let curr_pred_dist = global_dists[&curr_pred];
+                                let pred_dist = global_dists[&preds[i]];
+                                log::debug!("dist: {}, pred dist: {}, curr pred dist: {}", dist, pred_dist, curr_pred_dist);
+                                if pred_dist < curr_pred_dist {
+                                    global_preds[i] = preds[i]
+                                }
+                            }
+                        }
+                        None => {
+                            global_dists.insert(i, dist);
+                            global_preds[i] = preds[i];
+                        }
+                    }
+                }
+            }
+
+            log::debug!("Executed Dijkstra to fire root {} and updated global distance map", root);
+        }
+
+        // Transform the global distance map into a data structure that maps each distance
+        // to the nodes that have to be defended in order to protect all nodes with a higher
+        // distance.
+        let mut distance_nodes_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+        for (&node_id, &dist) in global_dists.iter() {
+            let pred_id = global_preds[node_id];
+            log::debug!("Predecessor of {}: {}", node_id, pred_id);
+            if let Some(pred_dist) = global_dists.get(&pred_id) {
+                log::debug!("Inserting {} into distance sets {}-{}", node_id, *pred_dist+1, dist);
+                for d in (*pred_dist+1)..=dist {
+                    distance_nodes_map.entry(d)
+                        .and_modify(|nodes| nodes.push(node_id))
+                        .or_insert(vec![node_id]);
+                }
+            }
+        }
+
+        log::debug!("Mapped global distance map to distance sets of nodes");
+
+        let strategy_every = settings.strategy_every as usize;
+        let num_ffs = settings.num_ffs as usize;
+
+        let mut it = distance_nodes_map.iter();
+        loop {
+            match it.next() {
+                Some((&dist, nodes)) => {
+                    if nodes.len() <= dist / strategy_every * num_ffs  {
+                        self.nodes_to_defend = nodes.clone();
+                        log::debug!("Selected {} nodes to defend: {:?} with distance {}",
+                            nodes.len(), &nodes, dist);
+                        break;
+                    }
+                }
+                None => { break; }
+            }
+        }
+    }
+}
+
+impl Strategy for MinDistGroupStrategy2 {
     fn new(graph: Arc<RwLock<Graph>>) -> Self {
         Self {
             graph,
@@ -412,5 +570,35 @@ impl Strategy for RandomStrategy {
 
         log::debug!("Defending nodes {:?}", &to_defend);
         node_data.mark_defended(&to_defend, global_time);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::sync::{Arc, RwLock};
+    use rand::prelude::IteratorRandom;
+    use rand::thread_rng;
+    use crate::firefighter::strategy::{MinDistGroupStrategy2, Strategy};
+    use crate::graph::Graph;
+
+    #[test]
+    fn test_dijkstra() {
+        let graph = Arc::new(RwLock::new(
+            Graph::from_files("data/stgcenter")));
+        let strategy = MinDistGroupStrategy2::new(graph.clone());
+
+        let g = graph.read().unwrap();
+        let mut rng = thread_rng();
+        let roots = g.nodes.iter()
+            .map(|node| node.id)
+            .choose_multiple(&mut rng, 10);
+
+        for root in roots {
+            let (dists, preds) = strategy.run_dijkstra(root);
+            for node in &g.nodes {
+                assert_eq!(dists[node.id], g.unchecked_get_shortest_dist(root, node.id));
+            }
+        }
+
     }
 }

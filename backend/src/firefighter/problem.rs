@@ -205,6 +205,8 @@ impl OSMFProblem {
             mindistgroup_strategy.compute_nodes_to_defend(&roots, &problem.settings);
         } else if let OSMFStrategy::Priority(ref mut priority_strategy) = problem.strategy {
             priority_strategy.compute_nodes_to_defend(&roots, &problem.settings);
+        } else if let OSMFStrategy::MinDistanceGroup2(ref mut mindistgroup_strategy) = problem.strategy {
+            mindistgroup_strategy.compute_nodes_to_defend(&roots, &problem.settings);
         }
 
         problem
@@ -251,6 +253,8 @@ impl OSMFProblem {
                         // Burn the node if the global time exceeds the time at which the edge source
                         // started burning plus the edge weight
                         if self.global_time >= node_data.time + edge.dist as u64 {
+                            log::debug!("Distance of node to burn {}: {}",
+                                node_data.node_id, node_data.time + edge.dist as u64);
                             to_burn.push(edge.tgt);
                         }
                     }
@@ -271,6 +275,8 @@ impl OSMFProblem {
                 OSMFStrategy::Greedy(ref mut greedy_strategy) =>
                     greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
                 OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) =>
+                    mindistgroup_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
+                OSMFStrategy::MinDistanceGroup2(ref mut mindistgroup_strategy) =>
                     mindistgroup_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
                 OSMFStrategy::Priority(ref mut priority_strategy) =>
                     priority_strategy.execute(&self.settings, &mut self.node_data, self.global_time),

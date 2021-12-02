@@ -3,6 +3,7 @@ mod graph;
 mod session;
 mod firefighter;
 mod query;
+mod binary_minheap;
 
 use std::{collections::HashMap,
           env,
@@ -19,6 +20,7 @@ use crate::error::OSMFError;
 use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
                          strategy::{GreedyStrategy,OSMFStrategy, MinDistGroupStrategy, Strategy, PriorityStrategy, RandomStrategy},
                          TimeUnit};
+use crate::firefighter::strategy::MinDistGroupStrategy2;
 use crate::graph::Graph;
 use crate::query::Query;
 use crate::session::OSMFSessionStorage;
@@ -130,6 +132,7 @@ async fn simulate_problem(data: web::Data<AppData>, settings: web::Json<OSMFSett
     let strategy = match settings.strategy_name.as_str() {
         "greedy" => OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone())),
         "min_distance_group" => OSMFStrategy::MinDistanceGroup(MinDistGroupStrategy::new(graph.clone())),
+        "min_distance_group_2" => OSMFStrategy::MinDistanceGroup2(MinDistGroupStrategy2::new(graph.clone())),
         "priority" => OSMFStrategy::Priority(PriorityStrategy::new(graph.clone())),
         "random" => OSMFStrategy::Random(RandomStrategy::new(graph.clone())),
         _ => {
