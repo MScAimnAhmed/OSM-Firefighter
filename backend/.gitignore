@@ -11,3 +11,7 @@ Cargo.lock
 
 # Images of graph views
 data/*.png
+
+# Large graph files
+data/MV.fmi
+data/MV.ch.hub
