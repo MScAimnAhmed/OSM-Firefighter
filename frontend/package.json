@@ -20,7 +20,6 @@
     "@angular/platform-browser": "~12.1.0-",
     "@angular/platform-browser-dynamic": "~12.1.0-",
     "@angular/router": "~12.1.0-",
-    "leaflet": "^1.7.1",
     "ngx-cookie-service": "^13.0.0",
     "rxjs": "~6.6.0",
     "tslib": "^2.2.0",

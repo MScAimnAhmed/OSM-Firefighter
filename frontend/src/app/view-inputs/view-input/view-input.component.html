@@ -1,46 +1,44 @@
 <div class='view-input'>
-  <table>
-    <tr>
-      <td style='font-size: small'>
-        <mat-form-field>
-          <mat-label>Longitude</mat-label>
-          <input matInput type='number'
-                 [min]='minCoord.lon'
-                 [max]='maxCoord.lon'
-                 [(ngModel)]='currentCoord.lon'
-                 [formControl]='currentLonFormControl'>
-        </mat-form-field>
-        <mat-form-field>
-          <mat-label>Latitude</mat-label>
-          <input matInput type='number'
-                 [min]='minCoord.lat'
-                 [max]='maxCoord.lat'
-                 [(ngModel)]='currentCoord.lat'
-                 [formControl]='currentLatFormControl'>
-        </mat-form-field>
-      </td>
-      <td>
-        <button mat-raised-button (click)='this.moveViewHorizontally(false)'
-                [disabled]='currentCoord.lat === minCoord.lat'>
-          <mat-icon>keyboard_arrow_left</mat-icon>
-        </button>
-      </td>
-      <td style='display: flex; flex-direction: column; gap: 5px'>
-        <button mat-raised-button (click)='this.moveViewVertically(true)'
-                [disabled]='currentCoord.lon === maxCoord.lon'>
-          <mat-icon>keyboard_arrow_up</mat-icon>
-        </button>
-        <button mat-raised-button (click)='this.moveViewVertically(false)'
-                [disabled]='currentCoord.lon === minCoord.lon'>
-          <mat-icon>keyboard_arrow_down</mat-icon>
-        </button>
-      </td>
-      <td>
-        <button mat-raised-button (click)='this.moveViewHorizontally(true)'
-                [disabled]='currentCoord.lat === maxCoord.lat'>
-          <mat-icon>keyboard_arrow_right</mat-icon>
-        </button>
-      </td>
-    </tr>
-  </table>
+  <div style='display: flex; align-items: center; gap: 5px'>
+    <div style='font-size: small'>
+      <mat-form-field>
+        <mat-label>Longitude</mat-label>
+        <input matInput type='number'
+               [min]='minCoord.lon'
+               [max]='maxCoord.lon'
+               [(ngModel)]='currentCoord.lon'
+               [formControl]='currentLonFormControl'>
+      </mat-form-field>
+      <mat-form-field>
+        <mat-label>Latitude</mat-label>
+        <input matInput type='number'
+               [min]='minCoord.lat'
+               [max]='maxCoord.lat'
+               [(ngModel)]='currentCoord.lat'
+               [formControl]='currentLatFormControl'>
+      </mat-form-field>
+    </div>
+    <div>
+      <button mat-raised-button (click)='this.moveViewHorizontally(false)'
+              [disabled]='currentCoord.lat === minCoord.lat'>
+        <mat-icon>keyboard_arrow_left</mat-icon>
+      </button>
+    </div>
+    <div style='display: flex; flex-direction: column; gap: 5px; height: 100%'>
+      <button mat-raised-button (click)='this.moveViewVertically(true)'
+              [disabled]='currentCoord.lon <= minCoord.lon'>
+        <mat-icon>keyboard_arrow_up</mat-icon>
+      </button>
+      <button mat-raised-button (click)='this.moveViewVertically(false)'
+              [disabled]='currentCoord.lon >= maxCoord.lon'>
+        <mat-icon>keyboard_arrow_down</mat-icon>
+      </button>
+    </div>
+    <div>
+      <button mat-raised-button (click)='this.moveViewHorizontally(true)'
+              [disabled]='currentCoord.lat === maxCoord.lat'>
+        <mat-icon>keyboard_arrow_right</mat-icon>
+      </button>
+    </div>
+  </div>
 </div>

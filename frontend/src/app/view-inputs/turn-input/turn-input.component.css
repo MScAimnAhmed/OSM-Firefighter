@@ -1,7 +1,17 @@
 
 mat-form-field {
-  width: 60px;
+  width: 20%;
   padding: 5px;
+}
+
+mat-slider {
+  width: 75%;
+}
+
+.stepper-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
 }
 
 /* Chrome, Safari, Edge, Opera */

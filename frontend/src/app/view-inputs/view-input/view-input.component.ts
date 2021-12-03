@@ -1,6 +1,5 @@
 import { Component, EventEmitter, HostListener, OnInit, Output } from '@angular/core';
 import { FormControl, Validators } from '@angular/forms';
-import { KEY_CODE } from '../../graph-viewer/graph-viewer.component';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 
 @Component({
@@ -32,14 +31,14 @@ export class ViewInputComponent implements OnInit {
   ngOnInit(): void {
     this.currentLonFormControl = new FormControl(this.currentCoord.lon, [Validators.required]);
     this.currentLonFormControl.valueChanges.pipe(
-      debounceTime(1000),
+      debounceTime(100),
       distinctUntilChanged()
     ).subscribe(_ => {
       this.onChange.emit(this.currentCoord);
     });
     this.currentLatFormControl = new FormControl(this.currentCoord.lat, [Validators.required]);
     this.currentLatFormControl.valueChanges.pipe(
-      debounceTime(1000),
+      debounceTime(100),
       distinctUntilChanged()
     ).subscribe(_ => {
       this.onChange.emit(this.currentCoord);
@@ -80,11 +79,11 @@ export class ViewInputComponent implements OnInit {
     //step size is always 1% of the dif between max and min value
     let stepsize = (this.maxCoord.lon - this.minCoord.lon) / 100;
     if (moveUp) {
-      this.currentCoord.lon += stepsize;
-      if (this.currentCoord.lon > this.maxCoord.lon) this.currentCoord.lon = this.maxCoord.lon;
-    } else {
       this.currentCoord.lon -= stepsize;
       if (this.currentCoord.lon < this.minCoord.lon) this.currentCoord.lon = this.minCoord.lon;
+    } else {
+      this.currentCoord.lon += stepsize;
+      if (this.currentCoord.lon > this.maxCoord.lon) this.currentCoord.lon = this.maxCoord.lon;
     }
   }
 }
@@ -92,4 +91,11 @@ export class ViewInputComponent implements OnInit {
 export class Coordinates {
   lat: number;
   lon: number;
+}
+
+export enum KEY_CODE {
+  UP_ARROW = 'ArrowUp',
+  DOWN_ARROW = 'ArrowDown',
+  RIGHT_ARROW = 'ArrowRight',
+  LEFT_ARROW = 'ArrowLeft'
 }

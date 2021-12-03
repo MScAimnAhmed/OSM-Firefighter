@@ -19,7 +19,7 @@ export class TurnInputComponent implements OnInit {
   ngOnInit(): void {
     this.currentTurnFormControl = new FormControl(this.currentTurn, [Validators.required]);
     this.currentTurnFormControl.valueChanges.pipe(
-      debounceTime(1000),
+      debounceTime(100),
       distinctUntilChanged()
     ).subscribe(_ => {
       this.onChange.emit(this.currentTurn);
