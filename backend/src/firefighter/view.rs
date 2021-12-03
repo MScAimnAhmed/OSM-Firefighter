@@ -21,8 +21,8 @@ pub type Coords = (f64, f64);
 /// Get an `i32` order for an `Rgb<u8>` value
 fn get_col_ord(col: &Rgb<u8>) -> i32 {
     match *col {
-        WHITE => 0,
-        DARK_GREY => 1,
+        DARK_GREY => 0,
+        WHITE => 1,
         RED => 2,
         BLUE => 3,
         YELLOW => 4,
@@ -259,7 +259,7 @@ impl View {
                     continue;
                 }
 
-                self.img_buf.put_pixel(w_px as u32, h_px as u32, WHITE);
+                self.img_buf.put_pixel(w_px as u32, (h_max - h_px) as u32, WHITE);
             }
         }
 
@@ -295,7 +295,7 @@ impl View {
         }
         pxs_to_draw.sort_unstable_by(|(_, _, col1), (_, _, col2)| cmp_col(col1, col2));
         for (w, h, col) in pxs_to_draw {
-            self.img_buf.put_pixel(w, h, col);
+            self.img_buf.put_pixel(w, h_max as u32 - h, col);
         }
     }
 

@@ -65,25 +65,25 @@ export class ViewInputComponent implements OnInit {
 
   moveViewHorizontally(moveRight: boolean) {
     //step size is always 1% of the dif between max and min value
-    let stepsize = (this.maxCoord.lat - this.minCoord.lat) / 100;
+    let stepsize = (this.maxCoord.lon - this.minCoord.lon) / 100;
     if (moveRight) {
-      this.currentCoord.lat += stepsize;
-      if (this.currentCoord.lat > this.maxCoord.lat) this.currentCoord.lat = this.maxCoord.lat;
+      this.currentCoord.lon += stepsize;
+      if (this.currentCoord.lon > this.maxCoord.lon) this.currentCoord.lon = this.maxCoord.lon;
     } else {
-      this.currentCoord.lat -= stepsize;
-      if (this.currentCoord.lat < this.minCoord.lat) this.currentCoord.lat = this.minCoord.lat;
+      this.currentCoord.lon -= stepsize;
+      if (this.currentCoord.lon < this.minCoord.lon) this.currentCoord.lon = this.minCoord.lon;
     }
   }
 
   moveViewVertically(moveUp: boolean) {
     //step size is always 1% of the dif between max and min value
-    let stepsize = (this.maxCoord.lon - this.minCoord.lon) / 100;
+    let stepsize = (this.maxCoord.lat - this.minCoord.lat) / 100;
     if (moveUp) {
-      this.currentCoord.lon -= stepsize;
-      if (this.currentCoord.lon < this.minCoord.lon) this.currentCoord.lon = this.minCoord.lon;
+      this.currentCoord.lat += stepsize;
+      if (this.currentCoord.lat > this.maxCoord.lat) this.currentCoord.lat = this.maxCoord.lat;
     } else {
-      this.currentCoord.lon += stepsize;
-      if (this.currentCoord.lon > this.maxCoord.lon) this.currentCoord.lon = this.maxCoord.lon;
+      this.currentCoord.lat -= stepsize;
+      if (this.currentCoord.lat < this.minCoord.lat) this.currentCoord.lat = this.minCoord.lat;
     }
   }
 }
