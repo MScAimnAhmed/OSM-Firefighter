@@ -41,8 +41,8 @@ fn cmp_col(col1: &Rgb<u8>, col2: &Rgb<u8>) -> Ordering {
 /// * 0 for collinear
 /// * 1 for clockwise
 fn orientation((lat1, lon1): Coords, (lat2, lon2): Coords, (lat3, lon3): Coords) -> i32 {
-    let orientation = (lon2 - lon1) * (lat3 - lat2) -
-        (lat2 - lat1) * (lon3 - lon2);
+    let orientation = (lat2 - lat1) * (lon3 - lon2) -
+        (lon2 - lon1) * (lat3 - lat2);
 
     if orientation < 0.0 { -1 } else if orientation > 0.0 { 1 } else { 0 }
 }
@@ -101,10 +101,10 @@ impl View {
         let h = if height > 0 { height } else { 1 };
 
         let grid_bounds = graph.read().unwrap().get_grid_bounds();
-        let delta_horiz = grid_bounds.max_lat - grid_bounds.min_lat;
-        let delta_vert = grid_bounds.max_lon - grid_bounds.min_lon;
-        let initial_center = (grid_bounds.min_lat + (delta_horiz / 2.0),
-                             grid_bounds.min_lon + (delta_vert / 2.0));
+        let delta_horiz = grid_bounds.max_lon - grid_bounds.min_lon;
+        let delta_vert = grid_bounds.max_lat - grid_bounds.min_lat;
+        let initial_center = (grid_bounds.min_lat + (delta_vert / 2.0),
+                             grid_bounds.min_lon + (delta_horiz / 2.0));
 
         let view = Self {
             graph,
@@ -137,10 +137,10 @@ impl View {
 
         // Grid bounds depending on zoom
         let gb = GridBounds {
-            min_lat: center.0 - (d_hz / 2.0),
-            max_lat: center.0 + (d_hz / 2.0),
-            min_lon: center.1 - (d_vert / 2.0),
-            max_lon: center.1 + (d_vert / 2.0),
+            min_lat: center.0 - (d_vert / 2.0),
+            max_lat: center.0 + (d_vert / 2.0),
+            min_lon: center.1 - (d_hz / 2.0),
+            max_lon: center.1 + (d_hz / 2.0),
         };
 
         // Delta degree per pixel in horizontal and vertical direction
@@ -155,32 +155,32 @@ impl View {
             let src = &graph.nodes[edge.src];
             let tgt = &graph.nodes[edge.tgt];
 
-            let mut w_px = ((src.lat - gb.min_lat) / deg_per_px_hz) as i64;
-            let mut h_px = ((src.lon - gb.min_lon) / deg_per_px_vert) as i64;
+            let mut w_px = ((src.lon - gb.min_lon) / deg_per_px_hz) as i64;
+            let mut h_px = ((src.lat - gb.min_lat) / deg_per_px_vert) as i64;
 
             let ls_edge = LineSegment {
                 a: (src.lat, src.lon),
                 b: (tgt.lat, tgt.lon),
             };
 
-            let min_lat_px = gb.min_lat + w_px as f64 * deg_per_px_hz;
-            let min_lon_px = gb.min_lon + h_px as f64 * deg_per_px_vert;
+            let min_lon_px = gb.min_lon + w_px as f64 * deg_per_px_hz;
+            let min_lat_px = gb.min_lat + h_px as f64 * deg_per_px_vert;
             let mut gb_px = GridBounds {
                 min_lat: min_lat_px,
-                max_lat: min_lat_px + deg_per_px_hz,
+                max_lat: min_lat_px + deg_per_px_vert,
                 min_lon: min_lon_px,
-                max_lon: min_lon_px + deg_per_px_vert,
+                max_lon: min_lon_px + deg_per_px_hz,
             };
 
             fn on_north(ls_edge: &LineSegment, gb_px: &mut GridBounds, deg_per_px_vert: f64,
                         h_px: &mut i64) -> bool {
                 let ls_px = LineSegment {
-                    a: (gb_px.min_lat, gb_px.max_lon),
+                    a: (gb_px.max_lat, gb_px.min_lon),
                     b: (gb_px.max_lat, gb_px.max_lon),
                 };
                 if ls_edge.intersects(&ls_px) {
-                    gb_px.min_lon += deg_per_px_vert;
-                    gb_px.max_lon += deg_per_px_vert;
+                    gb_px.min_lat += deg_per_px_vert;
+                    gb_px.max_lat += deg_per_px_vert;
                     *h_px += 1;
                     true
                 } else {
@@ -191,12 +191,12 @@ impl View {
             fn on_east(ls_edge: &LineSegment, gb_px: &mut GridBounds, deg_per_px_hz: f64,
                        w_px: &mut i64) -> bool {
                 let ls_px = LineSegment {
-                    a: (gb_px.max_lat, gb_px.min_lon),
+                    a: (gb_px.min_lat, gb_px.max_lon),
                     b: (gb_px.max_lat, gb_px.max_lon),
                 };
                 if ls_edge.intersects(&ls_px) {
-                    gb_px.min_lat += deg_per_px_hz;
-                    gb_px.max_lat += deg_per_px_hz;
+                    gb_px.min_lon += deg_per_px_hz;
+                    gb_px.max_lon += deg_per_px_hz;
                     *w_px += 1;
                     true
                 } else {
@@ -208,11 +208,11 @@ impl View {
                         h_px: &mut i64) -> bool {
                 let ls_px = LineSegment {
                     a: (gb_px.min_lat, gb_px.min_lon),
-                    b: (gb_px.max_lat, gb_px.min_lon),
+                    b: (gb_px.min_lat, gb_px.max_lon),
                 };
                 if ls_edge.intersects(&ls_px) {
-                    gb_px.min_lon -= deg_per_px_vert;
-                    gb_px.max_lon -= deg_per_px_vert;
+                    gb_px.min_lat -= deg_per_px_vert;
+                    gb_px.max_lat -= deg_per_px_vert;
                     *h_px -= 1;
                     true
                 } else {
@@ -224,11 +224,11 @@ impl View {
                        w_px: &mut i64) -> bool {
                 let ls_px = LineSegment {
                     a: (gb_px.min_lat, gb_px.min_lon),
-                    b: (gb_px.min_lat, gb_px.max_lon),
+                    b: (gb_px.max_lat, gb_px.min_lon),
                 };
                 if ls_edge.intersects(&ls_px) {
-                    gb_px.min_lat -= deg_per_px_hz;
-                    gb_px.max_lat -= deg_per_px_hz;
+                    gb_px.min_lon -= deg_per_px_hz;
+                    gb_px.max_lon -= deg_per_px_hz;
                     *w_px -= 1;
                     true
                 } else {
@@ -267,8 +267,8 @@ impl View {
         let mut pxs_to_draw = Vec::with_capacity(graph.num_nodes);
         for node in &graph.nodes {
             if node.is_located_in(&gb) {
-                let w_px = ((node.lat - gb.min_lat) / deg_per_px_hz) as i64;
-                let h_px = ((node.lon - gb.min_lon) / deg_per_px_vert) as i64;
+                let w_px = ((node.lon - gb.min_lon) / deg_per_px_hz) as i64;
+                let h_px = ((node.lat - gb.min_lat) / deg_per_px_vert) as i64;
 
                 let col_px;
                 if node_data.is_root(&node.id) {

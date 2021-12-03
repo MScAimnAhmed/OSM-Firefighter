@@ -70,21 +70,21 @@ impl Node {
 
     /// Get the compass direction of this node relative to the given grid bounds
     pub fn get_relative_compass_direction(&self, gb: &GridBounds) -> CompassDirection {
-        if self.lat >= gb.min_lat && self.lat <= gb.max_lat && self.lon > gb.max_lon {
+        if self.lon >= gb.min_lon && self.lon <= gb.max_lon && self.lat > gb.max_lat {
             CompassDirection::North
-        } else if self.lat > gb.max_lat && self.lon > gb.max_lon {
+        } else if self.lon > gb.max_lon && self.lat > gb.max_lat {
             CompassDirection::NorthEast
-        } else if self.lat > gb.max_lat && self.lon >= gb.min_lon && self.lon <= gb.max_lon {
+        } else if self.lon > gb.max_lon && self.lat >= gb.min_lat && self.lat <= gb.max_lat {
             CompassDirection::East
-        } else if self.lat > gb.max_lat && self.lon < gb.min_lon {
+        } else if self.lon > gb.max_lon && self.lat < gb.min_lat {
             CompassDirection::SouthEast
-        } else if self.lat >= gb.min_lat && self.lat <= gb.max_lat && self.lon < gb.min_lon {
+        } else if self.lon >= gb.min_lon && self.lon <= gb.max_lon && self.lat < gb.min_lat {
             CompassDirection::South
-        } else if self.lat < gb.min_lat && self.lon < gb.min_lon {
+        } else if self.lon < gb.min_lon && self.lat < gb.min_lat {
             CompassDirection::SouthWest
-        } else if self.lat < gb.min_lat && self.lon >= gb.min_lon && self.lon <= gb.max_lon {
+        } else if self.lon < gb.min_lon && self.lat >= gb.min_lat && self.lat <= gb.max_lat {
             CompassDirection::West
-        } else if self.lat < gb.min_lat && self.lon > gb.max_lon {
+        } else if self.lon < gb.min_lon && self.lat > gb.max_lat {
             CompassDirection::NorthWest
         } else {
             CompassDirection::Zero
