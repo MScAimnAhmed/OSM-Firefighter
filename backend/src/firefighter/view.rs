@@ -10,8 +10,8 @@ use crate::firefighter::{problem::NodeDataStorage, TimeUnit};
 use crate::graph::{CompassDirection, Graph, GridBounds};
 
 const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
-const BLACK: Rgb<u8> = Rgb([1, 1, 1]);
-const ORANGE: Rgb<u8> = Rgb([0xff, 0x88, 0]);
+const DARK_GREY: Rgb<u8> = Rgb([64, 64, 64]);
+const YELLOW: Rgb<u8> = Rgb([255, 255, 0]);
 const RED: Rgb<u8> = Rgb([255, 0, 0]);
 const BLUE: Rgb<u8> = Rgb([0, 0, 255]);
 
@@ -22,10 +22,10 @@ pub type Coords = (f64, f64);
 fn get_col_ord(col: &Rgb<u8>) -> i32 {
     match *col {
         WHITE => 0,
-        BLACK => 1,
+        DARK_GREY => 1,
         RED => 2,
         BLUE => 3,
-        ORANGE => 4,
+        YELLOW => 4,
         _ => 0
     }
 }
@@ -124,7 +124,7 @@ impl View {
 
         // Reset view
         for px in self.img_buf.pixels_mut() {
-            *px = WHITE;
+            *px = DARK_GREY;
         }
 
         // Maximum width and length
@@ -259,7 +259,7 @@ impl View {
                     continue;
                 }
 
-                self.img_buf.put_pixel(w_px as u32, h_px as u32, BLACK);
+                self.img_buf.put_pixel(w_px as u32, h_px as u32, WHITE);
             }
         }
 
@@ -272,13 +272,13 @@ impl View {
 
                 let col_px;
                 if node_data.is_root(&node.id) {
-                    col_px = ORANGE;
+                    col_px = YELLOW;
                 } else if node_data.is_burning_by(&node.id, time) {
                     col_px = RED;
                 } else if node_data.is_defended_by(&node.id, time) {
                     col_px = BLUE;
                 } else {
-                    col_px = BLACK;
+                    col_px = WHITE;
                 }
 
                 let r = ((h_max.min(w_max)+1) as f64 * z / 300.0) as i64;
