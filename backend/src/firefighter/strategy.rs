@@ -8,7 +8,6 @@ use rand::prelude::*;
 
 use strum::VariantNames;
 use strum_macros::{EnumString, EnumVariantNames};
-use crate::binary_minheap::BinaryMinHeap;
 
 use crate::firefighter::{problem::{NodeDataStorage, OSMFSettings},
                          TimeUnit};
@@ -206,9 +205,6 @@ impl Strategy for MinDistGroupStrategy {
     }
 }
 
-/// Type alias for the result of a run of the Dijkstra algorithm
-type DijkstraResult = (Vec<usize>, Vec<usize>);
-
 /// Shortest distance based fire containment strategy
 #[derive(Debug, Default)]
 pub struct MinDistGroupStrategy2 {
@@ -218,50 +214,6 @@ pub struct MinDistGroupStrategy2 {
 }
 
 impl MinDistGroupStrategy2 {
-    /// Run the Dijkstra algorithm on `self.graph` with `root` as source node
-    fn run_dijkstra(&self, root: usize) -> DijkstraResult {
-        let graph = self.graph.read().unwrap();
-
-        let mut distances = vec![usize::MAX; graph.num_nodes];
-        distances[root] = 0;
-
-        let mut predecessors = vec![usize::MAX; graph.num_nodes];
-
-        let mut pq = BinaryMinHeap::with_capacity(graph.num_nodes);
-        pq.push(root, &distances);
-
-        while !pq.is_empty() {
-            let node = pq.pop(&distances);
-
-            for i in graph.offsets[node]..graph.offsets[node +1] {
-                let edge = &graph.edges[i];
-                let dist = distances[node] + edge.dist;
-
-                if dist < distances[edge.tgt] {
-                    distances[edge.tgt] = dist;
-                    predecessors[edge.tgt] = node;
-
-                    if pq.contains(edge.tgt) {
-                        pq.decrease_key(edge.tgt, &distances);
-                    } else {
-                        pq.push(edge.tgt, &distances);
-                    }
-                } else if dist == distances[edge.tgt] {
-                    let pred = predecessors[edge.tgt];
-                    if pred != usize::MAX {
-                        let pred_dist = distances[pred];
-                        let node_dist = distances[node];
-                        if node_dist < pred_dist {
-                            predecessors[edge.tgt] = node;
-                        }
-                    }
-                }
-            }
-        }
-
-        (distances, predecessors)
-    }
-
     /// Compute nodes to defend and order in which nodes should be defended
     pub fn compute_nodes_to_defend(&mut self, roots: &Vec<usize>, settings: &OSMFSettings) {
         let graph = self.graph.read().unwrap();
@@ -274,7 +226,7 @@ impl MinDistGroupStrategy2 {
         // Additionally, remember for each node the predecessor on the path from the nearest
         // fire root.
         for &root in roots {
-            let (dists, preds) = self.run_dijkstra(root);
+            let (dists, preds) = graph.run_dijkstra(root);
 
             for (i, &dist) in dists.iter().enumerate() {
                 if dist < usize::MAX {
@@ -570,35 +522,5 @@ impl Strategy for RandomStrategy {
 
         log::debug!("Defending nodes {:?}", &to_defend);
         node_data.mark_defended(&to_defend, global_time);
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use std::sync::{Arc, RwLock};
-    use rand::prelude::IteratorRandom;
-    use rand::thread_rng;
-    use crate::firefighter::strategy::{MinDistGroupStrategy2, Strategy};
-    use crate::graph::Graph;
-
-    #[test]
-    fn test_dijkstra() {
-        let graph = Arc::new(RwLock::new(
-            Graph::from_files("data/stgcenter")));
-        let strategy = MinDistGroupStrategy2::new(graph.clone());
-
-        let g = graph.read().unwrap();
-        let mut rng = thread_rng();
-        let roots = g.nodes.iter()
-            .map(|node| node.id)
-            .choose_multiple(&mut rng, 10);
-
-        for root in roots {
-            let (dists, preds) = strategy.run_dijkstra(root);
-            for node in &g.nodes {
-                assert_eq!(dists[node.id], g.unchecked_get_shortest_dist(root, node.id));
-            }
-        }
-
     }
 }
