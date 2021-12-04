@@ -11,7 +11,6 @@ use strum_macros::{EnumString, EnumVariantNames};
 
 use crate::firefighter::{problem::{NodeDataStorage, OSMFSettings},
                          TimeUnit};
-use crate::firefighter::problem::OSMFProblem;
 use crate::graph::Graph;
 
 /// Strategy to contain the fire in the firefighter problem
@@ -39,7 +38,7 @@ pub trait Strategy {
     fn new (graph: Arc<RwLock<Graph>>) -> Self;
 
     /// Execute the fire containment strategy
-    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit, undefended_roots: &mut HashMap<usize, Vec<usize>>);
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit, contained_root: bool, undefended_roots: &Vec<usize>);
 }
 
 /// Greedy fire containment strategy
@@ -55,7 +54,7 @@ impl Strategy for GreedyStrategy {
         }
     }
 
-    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit, undefended_roots: &mut HashMap<usize, Vec<usize>>) {
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit, contained_root: bool, undefended_roots: &Vec<usize>) {
         let burning = node_data.get_burning();
 
         let graph = self.graph.read().unwrap();
@@ -99,7 +98,7 @@ pub struct MinDistGroupStrategy {
 
 impl MinDistGroupStrategy {
     /// Compute nodes to defend and order in which nodes should be defended
-    pub fn compute_nodes_to_defend(&mut self, roots: &Vec<usize>, settings: &OSMFSettings, node_data: &NodeDataStorage) {
+    pub fn compute_nodes_to_defend(&mut self, roots: &Vec<usize>, settings: &OSMFSettings) {
         let graph = self.graph.read().unwrap();
 
         // For every node, compute the minimum shortest distance between the node and
@@ -195,24 +194,21 @@ impl Strategy for MinDistGroupStrategy {
         }
     }
 
-    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit, undefended_roots: &mut HashMap<usize, Vec<usize>>) {
-        // Checks if a fire root is defended and shouldn't be considered in the min_distance_groups anymore
-        let mut contained_root = false;
-        undefended_roots.retain(|root, out_root|{
-            if out_root.is_empty() {
-                contained_root = true;
-                false
-            } else {
-                true
-            }
-        });
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit, contained_root: bool, undefended_roots: &Vec<usize>) {
+        // One or more fire roots have been defended and hence shouldn't be considered
+        // in the min_distance_groups anymore
         if contained_root {
-            self.compute_nodes_to_defend(&undefended_roots.keys().map(|&root| root).collect::<Vec<usize>>(), settings, node_data);
+            self.compute_nodes_to_defend(undefended_roots, settings);
         }
 
         let num_to_defend = min(settings.num_ffs, self.nodes_to_defend.len() - self.current_defended);
         let to_defend = &self.nodes_to_defend[self.current_defended..self.current_defended + num_to_defend];
         log::debug!("Defending nodes {:?}", to_defend);
+
+        for node in to_defend {
+            assert!(node_data.is_undefended(node));
+        }
+
         node_data.mark_defended2(to_defend, global_time);
 
         self.current_defended += num_to_defend;
@@ -236,7 +232,7 @@ impl PriorityStrategy {
         for node in &graph.nodes {
             if node_data.is_undefended(&node.id) {
                 //let prio = 2 * graph.get_in_degree(node.id) + (5 * graph.get_out_degree(node.id));
-                let prio = 5 * graph.get_out_degree(node.id);
+                let prio = graph.get_out_degree(node.id);
                 priority_map.insert(node.id, prio);
                 //log::debug!("node: {}, in_deg {}, out_deg {} -> prio: {}", node.id, graph.get_in_degree(node.id), graph.get_out_degree(node.id), prio);
             } else {
@@ -252,8 +248,8 @@ impl PriorityStrategy {
         });
 
         log::debug!("sorted prios {:?}", sorted_priorities);
-        let mid = graph.num_nodes / 2;
-        log::debug!("num of nodes {}, mid {}", graph.num_nodes, mid);
+        // let mid = graph.num_nodes / 2;
+        // log::debug!("num of nodes {}, mid {}", graph.num_nodes, mid);
         /*let mut median = {
             if mid % 2 == 0 {
                 log::debug!("mid - 1 {}, and mid {} -> median {}", sorted_priorities[mid - 1], sorted_priorities[mid], (sorted_priorities[mid - 1] + sorted_priorities[mid]) / 2);
@@ -331,17 +327,16 @@ impl PriorityStrategy {
         }
 
         // Nodes with a higher priority than the median should be defended
-        let mut high_prio_defend = Vec::with_capacity(mid + 1);
+        let mut high_prio_defend = Vec::new();
         for (&dist, nodes) in high_prio_map.iter() {
             let can_defend = dist / strategy_every * num_ffs - total_defended;
             let num_of_nodes = min(can_defend, nodes.len());
+            high_prio_defend.reserve(num_of_nodes);
             for &node in &nodes[0..num_of_nodes] {
                 high_prio_defend.push(node);
-                assert!(*priority_map.get(&node).unwrap() as f64 >= median);
             }
             total_defended += num_of_nodes;
         }
-        assert!(high_prio_defend.len() <= mid + 1);
 
         // Nodes with a lower priority than the median should be defended
         let mut low_prio_defend = Vec::with_capacity(graph.num_nodes - high_prio_defend.len());
@@ -352,12 +347,11 @@ impl PriorityStrategy {
                 let num_of_nodes = min(can_defend, nodes.len());
                 for &node in &nodes[0..num_of_nodes] {
                     low_prio_defend.push(node);
-                    assert!((*priority_map.get(&node).unwrap() as f64) < median);
                 }
                 total_defended += num_of_nodes;
             }
         }
-        assert!(low_prio_defend.len() <= (graph.num_nodes - high_prio_defend.len()));
+        assert!(high_prio_defend.len() + low_prio_defend.len() <= graph.num_nodes);
 
         self.nodes_to_defend.reserve_exact(total_defended);
 
@@ -380,31 +374,28 @@ impl Strategy for PriorityStrategy {
         }
     }
 
-    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit, undefended_roots: &mut HashMap<usize, Vec<usize>>) {
-        // Checks if a fire root is defended and shouldn't be considered in the min_distance_groups anymore
-        let mut contained_root = false;
-        undefended_roots.retain(|root, out_root|{
-            if out_root.is_empty() {
-                contained_root = true;
-                false
-            } else {
-                true
-            }
-        });
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit, contained_root: bool, undefended_roots: &Vec<usize>) {
+        // One or more fire roots have been defended and hence shouldn't be considered
+        // in the min_distance_groups anymore
         if contained_root {
-            self.compute_nodes_to_defend(&undefended_roots.keys().map(|&root| root).collect::<Vec<usize>>(), settings, node_data);
+            self.compute_nodes_to_defend(undefended_roots, settings, node_data);
         }
 
         let num_to_defend = min(settings.num_ffs, self.nodes_to_defend.len() - self.current_defended);
         let to_defend = &self.nodes_to_defend[self.current_defended..self.current_defended + num_to_defend];
         log::debug!("Defending nodes {:?}", to_defend);
+
+        for node in to_defend {
+            assert!(node_data.is_undefended(node));
+        }
+
         node_data.mark_defended2(to_defend, global_time);
 
         self.current_defended += num_to_defend;
     }
 }
 
-/// Priority based fire containment strategy
+/// Random fire containment strategy
 #[derive(Debug, Default)]
 pub struct RandomStrategy {
     graph: Arc<RwLock<Graph>>,
@@ -417,7 +408,7 @@ impl Strategy for RandomStrategy {
         }
     }
 
-    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit, undefended_roots: &mut HashMap<usize, Vec<usize>>) {
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit, contained_root: bool, undefended_roots: &Vec<usize>) {
         let graph = self.graph.read().unwrap();
 
         let nodes_to_defend: Vec<_> = graph.nodes.iter()

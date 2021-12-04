@@ -282,6 +282,7 @@ impl View {
                 }
 
                 let r = ((h_max.min(w_max)+1) as f64 * z / 300.0) as i64;
+                pxs_to_draw.reserve((4 * r * r) as usize);
                 for w in w_px-r..=w_px+r {
                     for h in h_px-r..=h_px+r {
                         if (((w-w_px).pow(2) + (h-h_px).pow(2)) as f64).sqrt() as i64 <= r {
