@@ -209,6 +209,8 @@ impl OSMFProblem {
         if let OSMFStrategy::MultiMinDistanceSets(ref mut min_dist_sets_strategy_strategy) = problem.strategy {
             min_dist_sets_strategy_strategy.compute_nodes_to_defend(&roots, &problem.settings,
                                                           &problem.node_data);
+        } else if let OSMFStrategy::SingleMinDistanceSet(ref mut min_dist_sets_strategy) = problem.strategy {
+            min_dist_sets_strategy.compute_nodes_to_defend(&roots, &problem.settings);
         } else if let OSMFStrategy::Priority(ref mut priority_strategy) = problem.strategy {
             priority_strategy.compute_nodes_to_defend(&roots, &problem.settings,
                                                       &problem.node_data);
@@ -344,9 +346,12 @@ impl OSMFProblem {
                 OSMFStrategy::Greedy(ref mut greedy_strategy) =>
                     greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time,
                                             undefended_roots),
-                OSMFStrategy::MultiMinDistanceSets(ref mut min_dist_sets_strategy_strategy) =>
-                    min_dist_sets_strategy_strategy.execute(&self.settings, &mut self.node_data, self.global_time,
+                OSMFStrategy::MultiMinDistanceSets(ref mut min_dist_sets_strategy) =>
+                    min_dist_sets_strategy.execute(&self.settings, &mut self.node_data, self.global_time,
                                                   undefended_roots),
+                OSMFStrategy::SingleMinDistanceSet(ref mut min_dist_sets_strategy) =>
+                    min_dist_sets_strategy.execute(&self.settings, &mut self.node_data, self.global_time,
+                                                   undefended_roots),
                 OSMFStrategy::Priority(ref mut priority_strategy) =>
                     priority_strategy.execute(&self.settings, &mut self.node_data, self.global_time,
                                               undefended_roots),

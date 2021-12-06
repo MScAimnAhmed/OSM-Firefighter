@@ -19,9 +19,9 @@ use crate::graph::Graph;
 pub enum OSMFStrategy {
     Greedy(GreedyStrategy),
     MultiMinDistanceSets(MultiMinDistSetsStrategy),
-    MinDistanceGroup2(MinDistGroupStrategy2),
+    SingleMinDistanceSet(SingleMinDistSetStrategy),
     Priority(PriorityStrategy),
-    Random(RandomStrategy)
+    Random(RandomStrategy),
 }
 
 impl OSMFStrategy {
@@ -92,6 +92,7 @@ impl Strategy for GreedyStrategy {
 }
 
 /// Shortest distance based fire containment strategy
+/// that selects multiple sets to defend
 #[derive(Debug, Default)]
 pub struct MultiMinDistSetsStrategy {
     graph: Arc<RwLock<Graph>>,
@@ -233,14 +234,15 @@ impl Strategy for MultiMinDistSetsStrategy {
 }
 
 /// Shortest distance based fire containment strategy
+/// that selects
 #[derive(Debug, Default)]
-pub struct MinDistGroupStrategy2 {
+pub struct SingleMinDistSetStrategy {
     graph: Arc<RwLock<Graph>>,
     nodes_to_defend: Vec<usize>,
     current_defended: usize,
 }
 
-impl MinDistGroupStrategy2 {
+impl SingleMinDistSetStrategy {
     /// Compute nodes to defend and order in which nodes should be defended
     pub fn compute_nodes_to_defend(&mut self, roots: &Vec<usize>, settings: &OSMFSettings) {
         let graph = self.graph.read().unwrap();
@@ -322,7 +324,7 @@ impl MinDistGroupStrategy2 {
     }
 }
 
-impl Strategy for MinDistGroupStrategy2 {
+impl Strategy for SingleMinDistSetStrategy {
     fn new(graph: Arc<RwLock<Graph>>) -> Self {
         Self {
             graph,
@@ -331,7 +333,8 @@ impl Strategy for MinDistGroupStrategy2 {
         }
     }
 
-    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit,
+               undefended_roots: Option<Vec<usize>>) {
         let num_to_defend = min(settings.num_ffs, self.nodes_to_defend.len() - self.current_defended);
         let to_defend = &self.nodes_to_defend[self.current_defended..self.current_defended + num_to_defend];
         log::debug!("Defending nodes {:?}", to_defend);
