@@ -1,4 +1,14 @@
 <div class='turn-input'>
+  <div class='stepper-buttons'>
+    <button mat-raised-button (click)='this.currentTurn = this.currentTurn - 1'
+            [disabled]='this.currentTurn <= 0'>
+      <mat-icon>undo</mat-icon>
+    </button>
+    <button mat-raised-button (click)='this.currentTurn = this.currentTurn + 1'
+            [disabled]='this.currentTurn >= this.maxTurn'>
+      <mat-icon>redo</mat-icon>
+    </button>
+  </div>
   <mat-form-field>
     <mat-label>Turn</mat-label>
     <input matInput type='number' min='0' [max]='maxTurn' [(ngModel)]='currentTurn' [formControl]='currentTurnFormControl'>
