@@ -218,7 +218,7 @@ impl OSMFProblem {
 
 
         if let OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) = problem.strategy {
-            mindistgroup_strategy.compute_nodes_to_defend(&roots, &problem.settings, &problem.node_data);
+            mindistgroup_strategy.compute_nodes_to_defend(&roots, &problem.settings);
         } else if let OSMFStrategy::Priority(ref mut priority_strategy) = problem.strategy {
             priority_strategy.compute_nodes_to_defend(&roots, &problem.settings, &problem.node_data);
         }
@@ -283,19 +283,26 @@ impl OSMFProblem {
     /// possible from catching fire
     fn contain_fire(&mut self) {
         if self.global_time % self.settings.strategy_every == 0 {
+            let contained_root = self.contained_roots_exist();
+            let undefended_roots: Vec<_> = self.undefended_roots.keys()
+                .map(|&root| root)
+                .collect();
+
             match self.strategy {
                 OSMFStrategy::Greedy(ref mut greedy_strategy) =>
-                    greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time, &mut self.undefended_roots),
+                    greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time, contained_root, &undefended_roots),
                 OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) =>
-                    mindistgroup_strategy.execute(&self.settings, &mut self.node_data, self.global_time, &mut self.undefended_roots),
+                    mindistgroup_strategy.execute(&self.settings, &mut self.node_data, self.global_time, contained_root, &undefended_roots),
                 OSMFStrategy::Priority(ref mut priority_strategy) =>
-                    priority_strategy.execute(&self.settings, &mut self.node_data, self.global_time, &mut self.undefended_roots),
+                    priority_strategy.execute(&self.settings, &mut self.node_data, self.global_time, contained_root, &undefended_roots),
                 OSMFStrategy::Random(ref mut random_strategy) =>
-                    random_strategy.execute(&self.settings, &mut self.node_data, self.global_time, &mut self.undefended_roots)
+                    random_strategy.execute(&self.settings, &mut self.node_data, self.global_time, contained_root, &undefended_roots)
             }
         }
     }
 
+    /// (Re-)compute undefended roots by tracking paths of burning vertices from
+    /// all roots to any undefended node
     fn compute_undefended_roots(&mut self) {
         let graph = self.graph.read().unwrap();
         let node_data = &self.node_data;
@@ -323,14 +330,24 @@ impl OSMFProblem {
                         false
                     }
                 });
-                out_root.reserve_exact(new_risky_nodes.len());
+                log::debug!("Calculated new risky nodes for root {}: {:?}", root, new_risky_nodes);
+                out_root.reserve(new_risky_nodes.len());
                 for node_id in new_risky_nodes {
-                    if out_root.contains(&node_id) {
+                    if !out_root.contains(&node_id) {
                         out_root.push(node_id);
                     }
                 }
             }
         }
+    }
+
+    /// Checks if a fire root is defended
+    fn contained_roots_exist(&mut self) -> bool {
+        let old_num_roots = self.undefended_roots.len();
+        self.undefended_roots.retain(|_, out_root| !out_root.is_empty());
+        let new_num_roots = self.undefended_roots.len();
+
+        new_num_roots < old_num_roots
     }
 
     /// Execute one time step in the firefighter problem.
