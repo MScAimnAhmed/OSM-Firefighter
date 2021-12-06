@@ -206,8 +206,8 @@ impl OSMFProblem {
             problem.undefended_roots.insert(root, HashSet::from([root]));
         }
 
-        if let OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) = problem.strategy {
-            mindistgroup_strategy.compute_nodes_to_defend(&roots, &problem.settings,
+        if let OSMFStrategy::MultiMinDistanceSets(ref mut min_dist_sets_strategy_strategy) = problem.strategy {
+            min_dist_sets_strategy_strategy.compute_nodes_to_defend(&roots, &problem.settings,
                                                           &problem.node_data);
         } else if let OSMFStrategy::Priority(ref mut priority_strategy) = problem.strategy {
             priority_strategy.compute_nodes_to_defend(&roots, &problem.settings,
@@ -342,8 +342,8 @@ impl OSMFProblem {
                 OSMFStrategy::Greedy(ref mut greedy_strategy) =>
                     greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time,
                                             undefended_roots),
-                OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) =>
-                    mindistgroup_strategy.execute(&self.settings, &mut self.node_data, self.global_time,
+                OSMFStrategy::MultiMinDistanceSets(ref mut min_dist_sets_strategy_strategy) =>
+                    min_dist_sets_strategy_strategy.execute(&self.settings, &mut self.node_data, self.global_time,
                                                   undefended_roots),
                 OSMFStrategy::Priority(ref mut priority_strategy) =>
                     priority_strategy.execute(&self.settings, &mut self.node_data, self.global_time,
@@ -415,7 +415,7 @@ mod test {
     use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
                              strategy::{OSMFStrategy,
                                         GreedyStrategy,
-                                        MinDistGroupStrategy,
+                                        MultiMinDistSetsStrategy,
                                         RandomStrategy,
                                         PriorityStrategy,
                                         Strategy}};
@@ -493,8 +493,8 @@ mod test {
 
     #[test]
     fn test_min_dist_group() {
-        let mut problem = initialize(OSMFStrategy::MinDistanceGroup(
-            MinDistGroupStrategy::new(GRAPH.clone())));
+        let mut problem = initialize(OSMFStrategy::MultiMinDistanceSets(
+            MultiMinDistSetsStrategy::new(GRAPH.clone())));
         problem.simulate();
 
         let ffs = problem.settings.num_ffs;

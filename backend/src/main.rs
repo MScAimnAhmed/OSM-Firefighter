@@ -17,7 +17,7 @@ use serde_json::json;
 
 use crate::error::OSMFError;
 use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
-                         strategy::{GreedyStrategy,OSMFStrategy, MinDistGroupStrategy, Strategy, PriorityStrategy, RandomStrategy},
+                         strategy::{GreedyStrategy, OSMFStrategy, MultiMinDistSetsStrategy, Strategy, PriorityStrategy, RandomStrategy},
                          TimeUnit};
 use crate::graph::Graph;
 use crate::query::Query;
@@ -128,10 +128,10 @@ async fn simulate_problem(data: web::Data<AppData>, settings: web::Json<OSMFSett
     };
 
     let strategy = match settings.strategy_name.as_str() {
-        "greedy" => OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone())),
-        "min_distance_group" => OSMFStrategy::MinDistanceGroup(MinDistGroupStrategy::new(graph.clone())),
-        "priority" => OSMFStrategy::Priority(PriorityStrategy::new(graph.clone())),
-        "random" => OSMFStrategy::Random(RandomStrategy::new(graph.clone())),
+        "Greedy" => OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone())),
+        "MultiMinDistanceSets" => OSMFStrategy::MultiMinDistanceSets(MultiMinDistSetsStrategy::new(graph.clone())),
+        "Priority" => OSMFStrategy::Priority(PriorityStrategy::new(graph.clone())),
+        "Random" => OSMFStrategy::Random(RandomStrategy::new(graph.clone())),
         _ => {
             log::warn!("Unknown strategy {}", settings.strategy_name);
             return Err(OSMFError::BadRequest {

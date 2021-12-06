@@ -15,10 +15,10 @@ use crate::graph::Graph;
 
 /// Strategy to contain the fire in the firefighter problem
 #[derive(Debug, EnumString, EnumVariantNames)]
-#[strum(serialize_all = "snake_case")]
+#[strum(serialize_all = "PascalCase")]
 pub enum OSMFStrategy {
     Greedy(GreedyStrategy),
-    MinDistanceGroup(MinDistGroupStrategy),
+    MultiMinDistanceSets(MultiMinDistSetsStrategy),
     Priority(PriorityStrategy),
     Random(RandomStrategy)
 }
@@ -92,13 +92,13 @@ impl Strategy for GreedyStrategy {
 
 /// Shortest distance based fire containment strategy
 #[derive(Debug, Default)]
-pub struct MinDistGroupStrategy {
+pub struct MultiMinDistSetsStrategy {
     graph: Arc<RwLock<Graph>>,
     nodes_to_defend: VecDeque<usize>,
     current_defended: usize,
 }
 
-impl MinDistGroupStrategy {
+impl MultiMinDistSetsStrategy {
     /// Compute nodes to defend and order in which nodes should be defended
     pub fn compute_nodes_to_defend(&mut self, undefended_roots: &Vec<usize>, settings: &OSMFSettings,
                                    node_data: &NodeDataStorage) {
@@ -198,7 +198,7 @@ impl MinDistGroupStrategy {
     }
 }
 
-impl Strategy for MinDistGroupStrategy {
+impl Strategy for MultiMinDistSetsStrategy {
     fn new(graph: Arc<RwLock<Graph>>) -> Self {
         Self {
             graph,
