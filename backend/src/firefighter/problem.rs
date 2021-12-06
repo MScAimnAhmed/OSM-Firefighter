@@ -1,7 +1,6 @@
-use std::{collections::BTreeMap,
+use std::{collections::{BTreeMap, HashMap, HashSet, VecDeque},
           // fmt::Formatter,
           sync::{Arc, RwLock}};
-use std::collections::HashMap;
 
 use log;
 use rand::prelude::*;
@@ -180,7 +179,7 @@ pub struct OSMFProblem {
     global_time: TimeUnit,
     is_active: bool,
     view: View,
-    pub undefended_roots: HashMap<usize, Vec<usize>>,
+    undefended_roots: HashMap<usize, HashSet<usize>>,
 }
 
 impl OSMFProblem {
@@ -203,24 +202,18 @@ impl OSMFProblem {
         };
 
         let roots = problem.gen_fire_roots();
-        {
-            let graph = problem.graph.read().unwrap();
-            for &root in &roots {
-                let mut out_root: Vec<usize> = Vec::with_capacity(graph.get_out_degree(root));
-                for i in graph.offsets[root]..graph.offsets[root + 1] {
-                    let edge = &graph.edges[i];
-                    out_root.push(edge.tgt);
-                }
-                problem.undefended_roots.insert(root, out_root);
-            }
+        for &root in &roots {
+            problem.undefended_roots.insert(root, HashSet::from([root]));
         }
 
-
-
-        if let OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) = problem.strategy {
-            mindistgroup_strategy.compute_nodes_to_defend(&roots, &problem.settings);
+        if let OSMFStrategy::MultiMinDistanceSets(ref mut min_dist_sets_strategy_strategy) = problem.strategy {
+            min_dist_sets_strategy_strategy.compute_nodes_to_defend(&roots, &problem.settings,
+                                                          &problem.node_data);
+        } else if let OSMFStrategy::SingleMinDistanceSet(ref mut min_dist_sets_strategy) = problem.strategy {
+            min_dist_sets_strategy.compute_nodes_to_defend(&roots, &problem.settings);
         } else if let OSMFStrategy::Priority(ref mut priority_strategy) = problem.strategy {
-            priority_strategy.compute_nodes_to_defend(&roots, &problem.settings, &problem.node_data);
+            priority_strategy.compute_nodes_to_defend(&roots, &problem.settings,
+                                                      &problem.node_data);
         }
 
         problem
@@ -267,6 +260,8 @@ impl OSMFProblem {
                         // Burn the node if the global time exceeds the time at which the edge source
                         // started burning plus the edge weight
                         if self.global_time >= node_data.time + edge.dist as u64 {
+                            log::debug!("Distance of node to burn {}: {}",
+                                node_data.node_id, node_data.time + edge.dist as u64);
                             to_burn.push(edge.tgt);
                         }
                     }
@@ -279,75 +274,92 @@ impl OSMFProblem {
         self.node_data.mark_burning(&to_burn, self.global_time);
     }
 
+    /// (Re-)compute undefended roots by tracking paths through burning vertices from
+    /// all roots to any undefended node.
+    /// Returns the remaining undefended roots, if the number of undefended roots
+    /// has changed.
+    fn compute_undefended_roots(&mut self) -> Option<Vec<usize>> {
+        let graph = self.graph.read().unwrap();
+        let node_data = &self.node_data;
+
+        for (&root, risky_nodes) in self.undefended_roots.iter_mut() {
+            log::debug!("Old risky nodes for root {}: {:?}", root, &risky_nodes);
+            // Filter all burning risky nodes
+            let mut burning: VecDeque<_> = risky_nodes.iter()
+                .filter(|&node| node_data.is_burning(node))
+                .map(|node| *node)
+                .collect();
+            // Retain all undefended nodes
+            risky_nodes.retain(|node| node_data.is_undefended(node));
+
+            // Update risky nodes by tracking all paths from burning to undefended nodes
+            let mut visited = HashSet::with_capacity(burning.len());
+            while !burning.is_empty() {
+                let node = burning.pop_front().unwrap();
+                visited.insert(node);
+                log::debug!("Processing node {}", node);
+                log::debug!("Burning before: {:?}", burning);
+                log::debug!("Risky nodes before: {:?}", &risky_nodes);
+                let out_deg = graph.get_out_degree(node);
+                risky_nodes.reserve(out_deg);
+                burning.reserve(out_deg);
+                for i in graph.offsets[node]..graph.offsets[node+1] {
+                    let edge = &graph.edges[i];
+                    if node_data.is_undefended(&edge.tgt) {
+                        risky_nodes.insert(edge.tgt);
+                    } else if node_data.is_burning(&edge.tgt) && !visited.contains(&edge.tgt) {
+                        burning.push_back(edge.tgt);
+                    }
+                }
+                log::debug!("Burning after: {:?}", burning);
+                log::debug!("Risky nodes after: {:?}", &risky_nodes);
+            }
+            log::debug!("New risky nodes for root {}: {:?}", root, &risky_nodes);
+        }
+
+        let old_num_roots = self.undefended_roots.len();
+        self.undefended_roots.retain(|_, risky_nodes| !risky_nodes.is_empty());
+        let new_num_roots = self.undefended_roots.len();
+
+        if new_num_roots < old_num_roots {
+            let undefended_roots: Vec<_> = self.undefended_roots.keys()
+                .map(|&root| root)
+                .collect();
+            Some(undefended_roots)
+        } else {
+            None
+        }
+    }
+
     /// Execute the containment strategy to prevent as much nodes as
     /// possible from catching fire
     fn contain_fire(&mut self) {
         if self.global_time % self.settings.strategy_every == 0 {
-            let contained_root = self.contained_roots_exist();
-            let undefended_roots: Vec<_> = self.undefended_roots.keys()
-                .map(|&root| root)
-                .collect();
+            let undefended_roots;
+            if self.settings.num_roots < 50 {
+                undefended_roots = self.compute_undefended_roots();
+            } else {
+                undefended_roots = None;
+            }
 
             match self.strategy {
                 OSMFStrategy::Greedy(ref mut greedy_strategy) =>
-                    greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time, contained_root, &undefended_roots),
-                OSMFStrategy::MinDistanceGroup(ref mut mindistgroup_strategy) =>
-                    mindistgroup_strategy.execute(&self.settings, &mut self.node_data, self.global_time, contained_root, &undefended_roots),
+                    greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time,
+                                            undefended_roots),
+                OSMFStrategy::MultiMinDistanceSets(ref mut min_dist_sets_strategy) =>
+                    min_dist_sets_strategy.execute(&self.settings, &mut self.node_data, self.global_time,
+                                                  undefended_roots),
+                OSMFStrategy::SingleMinDistanceSet(ref mut min_dist_sets_strategy) =>
+                    min_dist_sets_strategy.execute(&self.settings, &mut self.node_data, self.global_time,
+                                                   undefended_roots),
                 OSMFStrategy::Priority(ref mut priority_strategy) =>
-                    priority_strategy.execute(&self.settings, &mut self.node_data, self.global_time, contained_root, &undefended_roots),
+                    priority_strategy.execute(&self.settings, &mut self.node_data, self.global_time,
+                                              undefended_roots),
                 OSMFStrategy::Random(ref mut random_strategy) =>
-                    random_strategy.execute(&self.settings, &mut self.node_data, self.global_time, contained_root, &undefended_roots)
+                    random_strategy.execute(&self.settings, &mut self.node_data, self.global_time,
+                                            undefended_roots)
             }
         }
-    }
-
-    /// (Re-)compute undefended roots by tracking paths of burning vertices from
-    /// all roots to any undefended node
-    fn compute_undefended_roots(&mut self) {
-        let graph = self.graph.read().unwrap();
-        let node_data = &self.node_data;
-        let mut contains_burning = true;
-
-        for (&root, out_root) in self.undefended_roots.iter_mut() {
-            while contains_burning {
-                let mut new_risky_nodes= vec![];
-                contains_burning = false;
-                out_root.retain(|node_id| {
-                    if node_data.is_undefended(node_id) {
-                        true
-                    } else {
-                        if node_data.is_burning(node_id) {
-                            for i in graph.offsets[*node_id]..graph.offsets[*node_id + 1] {
-                                let edge = &graph.edges[i];
-                                if !node_data.is_defended(&edge.tgt) {
-                                    new_risky_nodes.push(edge.tgt);
-                                    if node_data.is_burning(&edge.tgt) {
-                                        contains_burning = true;
-                                    }
-                                }
-                            }
-                        }
-                        false
-                    }
-                });
-                log::debug!("Calculated new risky nodes for root {}: {:?}", root, new_risky_nodes);
-                out_root.reserve(new_risky_nodes.len());
-                for node_id in new_risky_nodes {
-                    if !out_root.contains(&node_id) {
-                        out_root.push(node_id);
-                    }
-                }
-            }
-        }
-    }
-
-    /// Checks if a fire root is defended
-    fn contained_roots_exist(&mut self) -> bool {
-        let old_num_roots = self.undefended_roots.len();
-        self.undefended_roots.retain(|_, out_root| !out_root.is_empty());
-        let new_num_roots = self.undefended_roots.len();
-
-        new_num_roots < old_num_roots
     }
 
     /// Execute one time step in the firefighter problem.
@@ -358,8 +370,6 @@ impl OSMFProblem {
 
         self.contain_fire();
         self.spread_fire();
-
-        self.compute_undefended_roots();
     }
 
     /// Simulate the firefighter problem until the `is_active` flag is set to `false`
@@ -412,7 +422,7 @@ mod test {
     use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
                              strategy::{OSMFStrategy,
                                         GreedyStrategy,
-                                        MinDistGroupStrategy,
+                                        MultiMinDistSetsStrategy,
                                         RandomStrategy,
                                         PriorityStrategy,
                                         Strategy}};
@@ -490,8 +500,8 @@ mod test {
 
     #[test]
     fn test_min_dist_group() {
-        let mut problem = initialize(OSMFStrategy::MinDistanceGroup(
-            MinDistGroupStrategy::new(GRAPH.clone())));
+        let mut problem = initialize(OSMFStrategy::MultiMinDistanceSets(
+            MultiMinDistSetsStrategy::new(GRAPH.clone())));
         problem.simulate();
 
         let ffs = problem.settings.num_ffs;

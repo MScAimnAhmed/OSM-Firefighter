@@ -6,6 +6,11 @@ use std::{cmp::Ordering,
 
 use serde::Serialize;
 
+use crate::binary_minheap::BinaryMinHeap;
+
+/// Type alias for the result of a run of the Dijkstra algorithm
+type DijkstraResult = (Vec<usize>, Vec<usize>);
+
 /// Was the hub calculated via backward or forward search?
 #[derive(Debug, Serialize)]
 enum HubDirection {
@@ -365,6 +370,48 @@ impl Graph {
         }
     }
 
+    /// Run an one-to-all Dijkstra from the source node with id `src_id`
+    pub fn run_dijkstra(&self, src_id: usize) -> DijkstraResult {
+        let mut distances = vec![usize::MAX; self.num_nodes];
+        distances[src_id] = 0;
+
+        let mut predecessors = vec![usize::MAX; self.num_nodes];
+
+        let mut pq = BinaryMinHeap::with_capacity(self.num_nodes);
+        pq.push(src_id, &distances);
+
+        while !pq.is_empty() {
+            let node = pq.pop(&distances);
+
+            for i in self.offsets[node]..self.offsets[node +1] {
+                let edge = &self.edges[i];
+                let dist = distances[node] + edge.dist;
+
+                if dist < distances[edge.tgt] {
+                    distances[edge.tgt] = dist;
+                    predecessors[edge.tgt] = node;
+
+                    if pq.contains(edge.tgt) {
+                        pq.decrease_key(edge.tgt, &distances);
+                    } else {
+                        pq.push(edge.tgt, &distances);
+                    }
+                } else if dist == distances[edge.tgt] {
+                    let pred = predecessors[edge.tgt];
+                    if pred != usize::MAX {
+                        let pred_dist = distances[pred];
+                        let node_dist = distances[node];
+                        if node_dist < pred_dist {
+                            predecessors[edge.tgt] = node;
+                        }
+                    }
+                }
+            }
+        }
+
+        (distances, predecessors)
+    }
+
     /// Returns this graphs grid bounds, i.e. the minimal/maximal latitude/longitude
     /// of this graph
     pub fn get_grid_bounds(&self) -> GridBounds {
@@ -456,6 +503,8 @@ impl std::fmt::Display for ComputationError {
 
 #[cfg(test)]
 mod test {
+    use rand::prelude::IteratorRandom;
+    use rand::thread_rng;
     use crate::graph::Graph;
 
     #[test]
@@ -505,9 +554,17 @@ mod test {
     }
 
     #[test]
-    fn test_shortest_dist() {
-        let graph = Graph::from_files("data/bbgrund");
+    fn test_distance_calculation() {
+        let graph = Graph::from_files("data/stgcenter");
 
-        assert_eq!(graph.get_shortest_dist(1, 321).unwrap(), 822);
+        let mut rng = thread_rng();
+        let src = graph.nodes.iter()
+            .choose(&mut rng)
+            .unwrap();
+
+        let (dists, _) = graph.run_dijkstra(src.id);
+        for node in &graph.nodes {
+            assert_eq!(dists[node.id], graph.unchecked_get_shortest_dist(src.id, node.id));
+        }
     }
 }
