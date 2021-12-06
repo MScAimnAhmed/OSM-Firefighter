@@ -11,8 +11,8 @@ import { SimulationConfig } from '../data/SimulationConfig';
 })
 export class SimulationConfiguratorComponent implements OnInit {
 
-  graphOptions: string[] = ['someTestGraph.fmi', 'another One'];
-  strategyOptions: string[] = ['greedy'];
+  graphOptions: string[] = [];
+  strategyOptions: string[] = [];
 
   graphFormControl: FormControl;
   fireSourceFormControl: FormControl;
@@ -33,13 +33,13 @@ export class SimulationConfiguratorComponent implements OnInit {
     this.graphFormControl = new FormControl(this.selectedGraph, [Validators.required]);
     this.graphFormControl.valueChanges
       .subscribe(value => this.selectedGraph = value);
-    this.fireSourceFormControl = new FormControl(this.fireSources, [Validators.required]);
+    this.fireSourceFormControl = new FormControl(this.fireSources, [Validators.required, Validators.min(1)]);
     this.fireSourceFormControl.valueChanges
       .subscribe(value => this.fireSources = value);
-    this.fireFighterFormControl = new FormControl(this.fireFighters, [Validators.required]);
+    this.fireFighterFormControl = new FormControl(this.fireFighters, [Validators.required, Validators.min(0)]);
     this.fireFighterFormControl.valueChanges
       .subscribe(value => this.fireFighters = value);
-    this.fireFighterFrequencyFormControl = new FormControl(this.fireFighterFrequency, [Validators.required]);
+    this.fireFighterFrequencyFormControl = new FormControl(this.fireFighterFrequency, [Validators.required, Validators.min(1)]);
     this.fireFighterFrequencyFormControl.valueChanges
       .subscribe(value => this.fireFighterFrequency = value);
     this.strategyFormcontrol = new FormControl(this.selectedStrategy, [Validators.required]);
@@ -63,6 +63,11 @@ export class SimulationConfiguratorComponent implements OnInit {
 
   cancel() {
     this.dialogRef.close();
+  }
+
+  isConfirmDisabled() : boolean {
+    return this.graphFormControl.invalid || this.strategyFormcontrol.invalid || this.fireSourceFormControl.invalid
+      || this.fireFighterFormControl.invalid || this.fireFighterFrequencyFormControl.invalid;
   }
 
   confirm() {

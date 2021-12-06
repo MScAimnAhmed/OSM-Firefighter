@@ -1,6 +1,5 @@
 <div class='view-input'>
-  <div style='display: flex; align-items: center; gap: 5px'>
-    <div style='font-size: small'>
+  <div style='display: flex; align-items: center; justify-content: flex-start; font-size: small'>
       <mat-form-field>
         <mat-label>Longitude</mat-label>
         <input matInput type='number'
@@ -17,25 +16,24 @@
                [(ngModel)]='currentCoord.lat'
                [formControl]='currentLatFormControl'>
       </mat-form-field>
-    </div>
     <div>
-      <button mat-raised-button (click)='this.moveViewHorizontally(false)'
+      <button mat-icon-button (click)='this.moveViewHorizontally(false)'
               [disabled]='currentCoord.lat === minCoord.lat'>
         <mat-icon>keyboard_arrow_left</mat-icon>
       </button>
     </div>
-    <div style='display: flex; flex-direction: column; gap: 5px; height: 100%'>
-      <button mat-raised-button (click)='this.moveViewVertically(true)'
+    <div style='display: flex; flex-direction: column; justify-content: center; height: 100%'>
+      <button mat-icon-button (click)='this.moveViewVertically(true)'
               [disabled]='currentCoord.lon <= minCoord.lon'>
         <mat-icon>keyboard_arrow_up</mat-icon>
       </button>
-      <button mat-raised-button (click)='this.moveViewVertically(false)'
+      <button mat-icon-button (click)='this.moveViewVertically(false)'
               [disabled]='currentCoord.lon >= maxCoord.lon'>
         <mat-icon>keyboard_arrow_down</mat-icon>
       </button>
     </div>
     <div>
-      <button mat-raised-button (click)='this.moveViewHorizontally(true)'
+      <button mat-icon-button (click)='this.moveViewHorizontally(true)'
               [disabled]='currentCoord.lat === maxCoord.lat'>
         <mat-icon>keyboard_arrow_right</mat-icon>
       </button>

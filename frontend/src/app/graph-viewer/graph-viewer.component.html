@@ -1,12 +1,19 @@
 <div class='viewer'>
   <div class='control'>
+    <div class='horiontal-flex'>
+      <img src='assets/fmi.jpg' alt='fmi-alg' style='height: 50px'>
+      <h4 style='font-size: 17px; white-space: nowrap'>OSM-Firefighter<br>Simulator</h4>
+      <a href='https://github.com/MScAimnAhmed/OSM-Firefighter'>
+        <img src='assets/github-logo.png' alt='github' style='height: 25px'>
+      </a>
+    </div>
     <button mat-raised-button color='primary' (click)='openSimulationConfigDialog()'>Start new Simulation</button>
     <app-turn-input (onChange)='this.refreshView()'></app-turn-input>
     <app-view-input (onChange)='this.refreshView()'></app-view-input>
     <div class='horiontal-flex'>
       <app-zoom-input (onChange)='this.refreshView()'></app-zoom-input>
       <button mat-raised-button color='primary' [class.spinner]="refreshing"  [disabled]='!activeSimulation || refreshing' (click)='refreshView()'>
-        Refresh View
+        Refresh
         <mat-icon>refresh</mat-icon>
       </button>
     </div>
@@ -14,6 +21,6 @@
   </div>
 
   <div class='map-container'>
-      <img id="myimage" [src]='thumbnail' />
+      <img id="myimage" [src]='thumbnail' alt=''/>
   </div>
 </div>

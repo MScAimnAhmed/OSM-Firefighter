@@ -1,5 +1,5 @@
 mat-form-field {
-  width: 250px;
+  width: 240px;
   padding: 5px;
 }
 
@@ -8,6 +8,7 @@ mat-form-field {
   flex-direction: column;
   justify-content: center;
   width: 100%;
+  font-size: small;
 }
 
 textarea {

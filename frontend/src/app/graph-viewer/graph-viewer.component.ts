@@ -38,6 +38,7 @@ export class GraphViewerComponent implements OnInit {
     });
 
     dialogRef.afterClosed().subscribe((data: SimulationConfig) => {
+      this.refreshing = true;
       this.graphservice.simulate(data).subscribe(response => {
         this.activeSimulation = true;
         this.turnInput.currentTurn = 0;

@@ -1,17 +1,27 @@
 <div class='turn-input'>
+  <div>
+    <mat-form-field>
+      <mat-label>Turn</mat-label>
+      <input matInput type='number' min='0' [max]='maxTurn' [(ngModel)]='currentTurn' [formControl]='currentTurnFormControl'>
+    </mat-form-field>
+    <mat-slider color='primary' [thumbLabel]='true' min='0' [max]='maxTurn' [(ngModel)]='currentTurn'></mat-slider>
+  </div>
   <div class='stepper-buttons'>
-    <button mat-raised-button (click)='this.currentTurn = this.currentTurn - 1'
+    <button mat-icon-button (click)='step(-10)'
             [disabled]='this.currentTurn <= 0'>
-      <mat-icon>undo</mat-icon>
+      <mat-icon >fast_rewind</mat-icon>
     </button>
-    <button mat-raised-button (click)='this.currentTurn = this.currentTurn + 1'
+    <button mat-icon-button (click)='step(-1)'
+            [disabled]='this.currentTurn <= 0'>
+      <mat-icon style='transform: rotate(180deg)'>play_arrow</mat-icon>
+    </button>
+    <button mat-icon-button (click)='step(1)'
             [disabled]='this.currentTurn >= this.maxTurn'>
-      <mat-icon>redo</mat-icon>
+      <mat-icon>play_arrow</mat-icon>
+    </button>
+    <button mat-icon-button (click)='step(10)'
+            [disabled]='this.currentTurn >= this.maxTurn'>
+      <mat-icon >fast_forward</mat-icon>
     </button>
   </div>
-  <mat-form-field>
-    <mat-label>Turn</mat-label>
-    <input matInput type='number' min='0' [max]='maxTurn' [(ngModel)]='currentTurn' [formControl]='currentTurnFormControl'>
-  </mat-form-field>
-  <mat-slider [thumbLabel]='true' min='0' [max]='maxTurn' [(ngModel)]='currentTurn'></mat-slider>
 </div>
