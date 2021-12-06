@@ -237,8 +237,8 @@ impl MinDistGroupStrategy2 {
                                 global_preds[i] = preds[i];
                             } else if dist == cur_dist && dist < usize::MAX {
                                 let curr_pred = global_preds[i];
-                                let curr_pred_dist = global_dists[&curr_pred];
-                                let pred_dist = global_dists[&preds[i]];
+                                let curr_pred_dist = global_dists.get(&curr_pred).unwrap_or(&usize::MAX);
+                                let pred_dist = global_dists.get(&preds[i]).unwrap_or(&usize::MAX);
                                 log::debug!("dist: {}, pred dist: {}, curr pred dist: {}", dist, pred_dist, curr_pred_dist);
                                 if pred_dist < curr_pred_dist {
                                     global_preds[i] = preds[i]
