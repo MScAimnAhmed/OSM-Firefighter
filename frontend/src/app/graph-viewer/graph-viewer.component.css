@@ -8,7 +8,12 @@
   border-color: indigo;
   border-radius: 10px;
 }
-
+h4 {
+  width: 60%;
+  font-size: 1.25vw;
+  text-align: center;
+  white-space: nowrap;
+}
 .map-container > img {
   max-width: 100%;
   max-height: 100%;
@@ -23,10 +28,10 @@ app-turn-input {
   width: 100%;
   align-items: center;
   justify-content: space-between;
-  gap: 15px;
 }
 button {
   padding: 5px;
+  font-size: 1vw;
 }
 .control {
   width: 21%;

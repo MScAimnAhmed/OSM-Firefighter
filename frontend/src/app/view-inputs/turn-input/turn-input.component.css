@@ -3,6 +3,7 @@ mat-form-field {
   width: 20%;
   padding: 5px;
   margin: -20px 0;
+  font-size: 1vw;
 }
 
 mat-slider {

@@ -1,21 +1,9 @@
 <div class='view-input'>
   <div style='display: flex; align-items: center; justify-content: flex-start; font-size: small'>
-      <mat-form-field>
-        <mat-label>Longitude</mat-label>
-        <input matInput type='number'
-               [min]='minCoord.lon'
-               [max]='maxCoord.lon'
-               [(ngModel)]='currentCoord.lon'
-               [formControl]='currentLonFormControl'>
-      </mat-form-field>
-      <mat-form-field>
-        <mat-label>Latitude</mat-label>
-        <input matInput type='number'
-               [min]='minCoord.lat'
-               [max]='maxCoord.lat'
-               [(ngModel)]='currentCoord.lat'
-               [formControl]='currentLatFormControl'>
-      </mat-form-field>
+    <div>
+      <p>Longitude:<br> {{roundForDisplay(this.currentCoord.lon)}}</p>
+      <p>Latitude:<br> {{roundForDisplay(this.currentCoord.lat)}}</p>
+    </div>
     <div>
       <button mat-icon-button (click)='this.moveViewHorizontally(false)'
               [disabled]='currentCoord.lat === minCoord.lat'>

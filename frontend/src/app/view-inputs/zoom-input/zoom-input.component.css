@@ -2,6 +2,7 @@
 mat-form-field {
   width: 60px;
   padding: 5px;
+  font-size: 1vw;
 }
 
 /* Chrome, Safari, Edge, Opera */

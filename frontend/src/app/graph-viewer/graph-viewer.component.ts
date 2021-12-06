@@ -50,6 +50,7 @@ export class GraphViewerComponent implements OnInit {
         this.viewInput.maxCoord.lon = response.view_bounds.max_lon;
         this.viewInput.minCoord.lon = response.view_bounds.min_lon;
         this.zoomInput.currentZoom = 1;
+        this.refreshView();
       });
     });
   }
