@@ -252,9 +252,6 @@ impl PriorityStrategy {
                 let prio = graph.get_out_degree(node.id);
                 priority_map.insert(node.id, prio);
                 //log::debug!("node: {}, in_deg {}, out_deg {} -> prio: {}", node.id, graph.get_in_degree(node.id), graph.get_out_degree(node.id), prio);
-            } else {
-                let prio = 0;
-                priority_map.insert(node.id, prio);
             }
         }
         log::debug!("priority map: {:?}", priority_map);

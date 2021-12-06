@@ -331,7 +331,12 @@ impl OSMFProblem {
     /// possible from catching fire
     fn contain_fire(&mut self) {
         if self.global_time % self.settings.strategy_every == 0 {
-            let undefended_roots = self.compute_undefended_roots();
+            let undefended_roots;
+            if self.settings.num_roots < 50 {
+                undefended_roots = self.compute_undefended_roots();
+            } else {
+                undefended_roots = None;
+            }
 
             match self.strategy {
                 OSMFStrategy::Greedy(ref mut greedy_strategy) =>
