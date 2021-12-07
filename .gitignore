@@ -1,3 +1,5 @@
 # the project directories are './backend' and './frontend'
 # this directory should not be regarded as IDEA project
 /.idea
+
+/graphs
