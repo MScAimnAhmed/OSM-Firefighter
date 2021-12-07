@@ -59,6 +59,8 @@ Zu den Graphdateien:
 
 Beispielgraphen lassen sich aus dem Verzeichnis /backend/data kopieren. Wichtig ist, dass für jede Datei mit der Endung .fmi eine .ch.hub Datei des selben Namens existiert. Diese Datei beinhaltet die generierten Hub-Labels des Graphen.
 
+Falls ein Graph verändert oder hinzugefügt wurde, muss der backend-container neu gestartet werden.
+
 Starten des compose files:
 
 Ist docker installiert und das grahps/ Verzeichnis beinhaltet Graph-Dateien kann das compose file gestartet werden über:
