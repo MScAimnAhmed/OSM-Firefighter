@@ -1,6 +1,6 @@
 import { Component, EventEmitter, HostListener, OnInit, Output } from '@angular/core';
-import { FormControl, Validators } from '@angular/forms';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { Subject } from 'rxjs';
 
 @Component({
   selector: 'app-view-input',
@@ -21,23 +21,23 @@ export class ViewInputComponent implements OnInit {
     lat: 0,
     lon: 0
   };
-
-  currentLatFormControl: FormControl;
-  currentLonFormControl: FormControl;
   @Output('onChange') onChange = new EventEmitter<Coordinates>();
+  lonSubject: Subject<number>;
+  latSubject: Subject<number>;
 
-  constructor() { }
+  constructor() {
+  }
 
   ngOnInit(): void {
-    this.currentLonFormControl = new FormControl(this.currentCoord.lon, [Validators.required]);
-    this.currentLonFormControl.valueChanges.pipe(
+    this.lonSubject = new Subject<number>();
+    this.lonSubject.pipe(
       debounceTime(100),
       distinctUntilChanged()
     ).subscribe(_ => {
       this.onChange.emit(this.currentCoord);
     });
-    this.currentLatFormControl = new FormControl(this.currentCoord.lat, [Validators.required]);
-    this.currentLatFormControl.valueChanges.pipe(
+    this.latSubject = new Subject<number>();
+    this.latSubject.pipe(
       debounceTime(100),
       distinctUntilChanged()
     ).subscribe(_ => {
@@ -67,24 +67,34 @@ export class ViewInputComponent implements OnInit {
     //step size is always 1% of the dif between max and min value
     let stepsize = (this.maxCoord.lon - this.minCoord.lon) / 100;
     if (moveRight) {
-      this.currentCoord.lon += stepsize;
-      if (this.currentCoord.lon > this.maxCoord.lon) this.currentCoord.lon = this.maxCoord.lon;
+      if (this.currentCoord.lon + stepsize <= this.maxCoord.lon) {
+        this.currentCoord.lon += stepsize;
+      }
     } else {
-      this.currentCoord.lon -= stepsize;
-      if (this.currentCoord.lon < this.minCoord.lon) this.currentCoord.lon = this.minCoord.lon;
+      if (this.currentCoord.lon - stepsize >= this.minCoord.lon) {
+        this.currentCoord.lon -= stepsize;
+      }
     }
+    this.lonSubject.next(this.currentCoord.lon);
   }
 
   moveViewVertically(moveUp: boolean) {
     //step size is always 1% of the dif between max and min value
     let stepsize = (this.maxCoord.lat - this.minCoord.lat) / 100;
     if (moveUp) {
-      this.currentCoord.lat += stepsize;
-      if (this.currentCoord.lat > this.maxCoord.lat) this.currentCoord.lat = this.maxCoord.lat;
+      if (this.currentCoord.lat + stepsize <= this.maxCoord.lat) {
+        this.currentCoord.lat += stepsize;
+      }
     } else {
-      this.currentCoord.lat -= stepsize;
-      if (this.currentCoord.lat < this.minCoord.lat) this.currentCoord.lat = this.minCoord.lat;
+      if (this.currentCoord.lat - stepsize >= this.minCoord.lat) {
+        this.currentCoord.lat -= stepsize;
+      }
     }
+    this.latSubject.next(this.currentCoord.lat);
+  }
+
+  roundForDisplay(input: number): number {
+    return Math.round((input) * Math.pow(10, 8)) / Math.pow(10, 8);
   }
 }
 

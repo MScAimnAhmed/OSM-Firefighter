@@ -4,7 +4,7 @@
 
   <mat-form-field appearance='fill'>
     <mat-label>Select a Graph</mat-label>
-    <mat-select [formControl]='graphFormControl'>
+    <mat-select [formControl]='graphFormControl' [disabled]='graphOptions.length == 0'>
       <mat-option *ngFor='let graph of graphOptions' [value]='graph'>
         {{graph}}
       </mat-option>
@@ -15,19 +15,15 @@
 
   <table>
     <tr>
-      <td>
+      <td style='display: flex; flex-direction: column'>
         <h4>Configure the Fire</h4>
         <mat-form-field appearance='fill'>
           <mat-label>Fire sources</mat-label>
           <input matInput type='number' min='1' [formControl]='fireSourceFormControl'>
         </mat-form-field>
         <mat-form-field appearance='fill'>
-          <mat-label>Turns between fire spread</mat-label>
+          <mat-label>Distance the fire travels per Turn</mat-label>
           <input matInput type='number' value='1' min='1' disabled>
-        </mat-form-field>
-        <mat-form-field appearance='fill'>
-          <mat-label>Spawn fire at Turn</mat-label>
-          <input matInput type='number' value='0' min='0' disabled>
         </mat-form-field>
       </td>
       <td>
@@ -38,11 +34,11 @@
         </mat-form-field>
         <mat-form-field appearance='fill'>
           <mat-label>Available Firefighters</mat-label>
-          <input matInput type='number' min='1' [formControl]='fireFighterFormControl'>
+          <input matInput type='number' min='0' [formControl]='fireFighterFormControl'>
         </mat-form-field>
         <mat-form-field appearance='fill'>
           <mat-label>Strategy</mat-label>
-          <mat-select [formControl]='strategyFormcontrol'>
+          <mat-select [formControl]='strategyFormcontrol' [disabled]='strategyOptions.length == 0'>
             <mat-option *ngFor='let strat of strategyOptions' [value]='strat'>
               {{strat}}
             </mat-option>
@@ -56,5 +52,5 @@
 
 <div class='button-wrapper'>
   <button mat-raised-button (click)='cancel()'>Cancel</button>
-  <button mat-raised-button (click)='confirm()' color='primary'>Confirm</button>
+  <button mat-raised-button (click)='confirm()' color='primary' [disabled]='isConfirmDisabled()'>Confirm</button>
 </div>
