@@ -3,8 +3,9 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import {Observable} from "rxjs";
 import { SimulationConfig } from '../data/SimulationConfig';
 import { Coordinates } from '../view-inputs/view-input/view-input.component';
-import { StepMetaData } from '../meta-info-box/meta-info-box.component';
 import { environment } from '../../environments/environment';
+import { SimulationMetaData } from '../data/SimulationMetaData';
+import { StepMetaData } from '../data/StepMetaData';
 
 @Injectable({
   providedIn: 'root'
@@ -19,16 +20,16 @@ export class GraphServiceService {
     return this.http.get(this.path + "/ping");
   }
 
-  getGraphs(): Observable<any> {
-    return this.http.get(this.path + "/graphs");
+  getGraphs(): Observable<string[]> {
+    return this.http.get<string[]>(this.path + "/graphs");
   }
 
-  getStrategies(): Observable<any> {
-    return this.http.get(this.path + "/strategies")
+  getStrategies(): Observable<string[]> {
+    return this.http.get<string[]>(this.path + "/strategies")
   }
 
-  simulate(config: SimulationConfig): Observable<any> {
-    return this.http.post(this.path + "/simulate",config ,{withCredentials: true});
+  simulate(config: SimulationConfig): Observable<SimulationMetaData> {
+    return this.http.post<SimulationMetaData>(this.path + "/simulate",config ,{withCredentials: true});
   }
 
   getStepMetaData(turn: number): Observable<StepMetaData> {

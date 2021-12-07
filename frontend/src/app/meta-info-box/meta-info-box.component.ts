@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { GraphServiceService } from '../service/graph-service.service';
+import { StepMetaData } from '../data/StepMetaData';
 
 @Component({
   selector: 'app-meta-info-box',
@@ -25,11 +26,4 @@ export class MetaInfoBoxComponent implements OnInit {
       this.stepMeta = data;
     })
   }
-}
-
-export class StepMetaData {
-  nodes_burned_at: number[];
-  nodes_burned_by: number;
-  nodes_defended_at: number[];
-  nodes_defended_by: number;
 }

@@ -14,7 +14,8 @@ export class TurnInputComponent implements OnInit {
   @Output('onChange') onChange = new EventEmitter<number>();
   currentTurnFormControl: FormControl;
 
-  constructor() { }
+  constructor() {
+  }
 
   ngOnInit(): void {
     this.currentTurnFormControl = new FormControl(this.currentTurn, [Validators.required]);
@@ -24,6 +25,14 @@ export class TurnInputComponent implements OnInit {
     ).subscribe(_ => {
       this.onChange.emit(this.currentTurn);
     });
+  }
+
+  step(stepsize: number): void {
+    if(stepsize > 0) {
+      this.currentTurn = this.currentTurn + stepsize <= this.maxTurn ? this.currentTurn + stepsize : this.maxTurn;
+    } else {
+      this.currentTurn = this.currentTurn + stepsize >= 0 ? this.currentTurn + stepsize : 0;
+    }
   }
 
 }
