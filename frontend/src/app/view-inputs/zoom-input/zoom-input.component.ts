@@ -25,8 +25,16 @@ export class ZoomInputComponent implements OnInit {
     });
   }
 
-  changeZoomBy(value: number) {
-    this.currentZoom = Math.round((this.currentZoom + value) * 100) / 100;
+  changeZoom(zoomIn: boolean) {
+
+    if (this.currentZoom < 10) {
+      this.currentZoom = zoomIn ? this.currentZoom + 0.1 : this.currentZoom - 0.1;
+    } else if (this.currentZoom < 20) {
+      this.currentZoom = zoomIn ? this.currentZoom + 1 : this.currentZoom - 1;
+    } else {
+      this.currentZoom = zoomIn ? this.currentZoom + 10 : this.currentZoom - 10;
+    }
+    this.currentZoom = Math.round((this.currentZoom) * 100) / 100;
   }
 
 }

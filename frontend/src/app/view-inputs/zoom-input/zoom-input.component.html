@@ -9,11 +9,11 @@
         </mat-form-field>
       </td>
       <td style='display: flex; flex-direction: column'>
-        <button mat-icon-button (click)='this.changeZoomBy(0.1);'>
+        <button mat-icon-button (click)='this.changeZoom(true);'>
           <mat-icon>zoom_in</mat-icon>
         </button>
-        <button mat-icon-button [disabled]='this.currentZoom === 1'
-                (click)='this.changeZoomBy(-0.1)'>
+        <button mat-icon-button [disabled]='this.currentZoom <= 1'
+                (click)='this.changeZoom(false)'>
           <mat-icon>zoom_out</mat-icon>
         </button>
       </td>
