@@ -294,12 +294,6 @@ impl Strategy for MultiMinDistSetsStrategy {
     }
 
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
-        // One or more fire roots have been defended and hence shouldn't be considered
-        // in the min_distance_groups anymore
-        if let Some(roots) = self.compute_undefended_roots(node_data) {
-            self.compute_nodes_to_defend(&roots, settings, node_data);
-        }
-
         let num_to_defend = min(settings.num_ffs, self.nodes_to_defend.len());
         let len = self.nodes_to_defend.len();
         let to_defend = &self.nodes_to_defend.as_slices().0[(len-num_to_defend)..len];
@@ -313,6 +307,12 @@ impl Strategy for MultiMinDistSetsStrategy {
 
         self.nodes_to_defend.truncate(len-num_to_defend);
         self.current_defended += num_to_defend;
+
+        // One or more fire roots have been defended and hence shouldn't be considered
+        // in the min_distance_groups anymore
+        if let Some(roots) = self.compute_undefended_roots(node_data) {
+            self.compute_nodes_to_defend(&roots, settings, node_data);
+        }
     }
 }
 
@@ -587,12 +587,6 @@ impl Strategy for PriorityStrategy {
     }
 
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
-        // One or more fire roots have been defended and hence shouldn't be considered
-        // in the min_distance_groups anymore
-        if let Some(roots) = self.compute_undefended_roots(node_data) {
-            self.compute_nodes_to_defend(&roots, settings, node_data);
-        }
-
         let num_to_defend = min(settings.num_ffs, self.nodes_to_defend.len());
         let len = self.nodes_to_defend.len();
         let to_defend = &self.nodes_to_defend.as_slices().0[(len-num_to_defend)..len];
@@ -606,6 +600,12 @@ impl Strategy for PriorityStrategy {
 
         self.nodes_to_defend.truncate(len-num_to_defend);
         self.current_defended += num_to_defend;
+
+        // One or more fire roots have been defended and hence shouldn't be considered
+        // in the min_distance_groups anymore
+        if let Some(roots) = self.compute_undefended_roots(node_data) {
+            self.compute_nodes_to_defend(&roots, settings, node_data);
+        }
     }
 }
 
