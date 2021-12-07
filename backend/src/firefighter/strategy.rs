@@ -460,10 +460,8 @@ impl PriorityStrategy {
 
         for node in &graph.nodes {
             if node_data.is_undefended(&node.id) {
-                //let prio = 2 * graph.get_in_degree(node.id) + (5 * graph.get_out_degree(node.id));
                 let prio = graph.get_out_degree(node.id);
                 priority_map.insert(node.id, prio);
-                //log::debug!("node: {}, in_deg {}, out_deg {} -> prio: {}", node.id, graph.get_in_degree(node.id), graph.get_out_degree(node.id), prio);
             }
         }
         log::debug!("priority map: {:?}", priority_map);
@@ -474,20 +472,9 @@ impl PriorityStrategy {
         });
 
         log::debug!("sorted prios {:?}", sorted_priorities);
-        // let mid = graph.num_nodes / 2;
-        // log::debug!("num of nodes {}, mid {}", graph.num_nodes, mid);
-        /*let mut median = {
-            if mid % 2 == 0 {
-                log::debug!("mid - 1 {}, and mid {} -> median {}", sorted_priorities[mid - 1], sorted_priorities[mid], (sorted_priorities[mid - 1] + sorted_priorities[mid]) / 2);
-                (sorted_priorities[mid - 1] + sorted_priorities[mid]) / 2
-            } else {
-                log::debug!("median {}", sorted_priorities[mid]);
-                sorted_priorities[mid]
-            }
-        };*/
 
-        let median = sorted_priorities.iter().sum::<usize>() as f64 / sorted_priorities.len() as f64;
-        log::debug!("median {}", median);
+        let mean = sorted_priorities.iter().sum::<usize>() as f64 / sorted_priorities.len() as f64;
+        log::debug!("mean {}", mean);
 
         let mut nodes_by_sho_dist = group_nodes_by_distance(undefended_roots,
                                                         &graph, node_data);
@@ -505,31 +492,31 @@ impl PriorityStrategy {
         let num_ffs = settings.num_ffs;
         let mut total_defended = self.current_defended;
 
-        // Filter nodes with higher priority based on median
+        // Filter nodes with higher priority based on mean
         let mut high_prio_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
         for (&dist, nodes) in nodes_by_sho_dist.iter() {
             let high_prio_nodes: Vec<_> = nodes.iter()
                 .filter(|&node| {
-                    *priority_map.get(node).unwrap() as f64 >= median
+                    *priority_map.get(node).unwrap() as f64 >= mean
                 })
                 .map(|node| *node)
                 .collect();
             high_prio_map.insert(dist, high_prio_nodes);
         }
 
-        // Filter nodes with higher priority based on median
+        // Filter nodes with higher priority based on mean
         let mut low_prio_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
         for (&dist, nodes) in nodes_by_sho_dist.iter() {
             let low_prio_nodes: Vec<_> = nodes.iter()
                 .filter(|&node| {
-                    (*priority_map.get(node).unwrap() as f64) < median
+                    (*priority_map.get(node).unwrap() as f64) < mean
                 })
                 .map(|node| *node)
                 .collect();
             low_prio_map.insert(dist, low_prio_nodes);
         }
 
-        // Nodes with a higher priority than the median should be defended
+        // Nodes with a higher priority than the mean should be defended
         let mut high_prio_defend = Vec::new();
         for (&dist, nodes) in high_prio_map.iter() {
             let can_defend_total = dist / strategy_every * num_ffs;
@@ -544,7 +531,7 @@ impl PriorityStrategy {
             }
         }
 
-        // Nodes with a lower priority than the median should be defended
+        // Nodes with a lower priority than the mean should be defended
         let mut low_prio_defend = Vec::with_capacity(graph.num_nodes - high_prio_defend.len());
         for (&dist, nodes) in low_prio_map.iter() {
             let can_defend_total = dist / strategy_every * num_ffs;
@@ -559,9 +546,7 @@ impl PriorityStrategy {
         }
         assert!(high_prio_defend.len() + low_prio_defend.len() <= graph.num_nodes);
 
-        if !self.nodes_to_defend.is_empty() {
-            self.nodes_to_defend.clear();
-        }
+        self.nodes_to_defend.clear();
         self.nodes_to_defend.reserve_exact(total_defended - self.current_defended);
 
         for node in high_prio_defend {
