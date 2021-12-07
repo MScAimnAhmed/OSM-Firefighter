@@ -8,7 +8,7 @@ mat-form-field {
   flex-direction: column;
   justify-content: center;
   width: 100%;
-  font-size: 0.8vw;
+  font-size: small;
 }
 
 textarea {
