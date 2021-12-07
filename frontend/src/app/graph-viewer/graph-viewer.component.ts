@@ -7,6 +7,7 @@ import { TurnInputComponent } from '../view-inputs/turn-input/turn-input.compone
 import { ViewInputComponent } from '../view-inputs/view-input/view-input.component';
 import { ZoomInputComponent } from '../view-inputs/zoom-input/zoom-input.component';
 import { MetaInfoBoxComponent } from '../meta-info-box/meta-info-box.component';
+import { SimulationMetaData } from '../data/SimulationMetaData';
 
 @Component({
   selector: 'app-graph-viewer',
@@ -22,6 +23,7 @@ export class GraphViewerComponent implements OnInit {
 
   refreshing: boolean;
   activeSimulation: boolean;
+  simConfig: SimulationConfig;
 
   thumbnail: any;
 
@@ -34,24 +36,28 @@ export class GraphViewerComponent implements OnInit {
 
   openSimulationConfigDialog() {
     const dialogRef = this.dialog.open(SimulationConfiguratorComponent, {
-      width: '470px'
+      width: '470px',
+      data: this.simConfig
     });
 
     dialogRef.afterClosed().subscribe((data: SimulationConfig) => {
-      this.refreshing = true;
-      this.graphservice.simulate(data).subscribe(response => {
-        this.activeSimulation = true;
-        this.turnInput.currentTurn = 0;
-        this.turnInput.maxTurn = response.end_time;
-        this.viewInput.currentCoord.lat = response.view_center[0];
-        this.viewInput.currentCoord.lon = response.view_center[1];
-        this.viewInput.maxCoord.lat = response.view_bounds.max_lat;
-        this.viewInput.minCoord.lat = response.view_bounds.min_lat;
-        this.viewInput.maxCoord.lon = response.view_bounds.max_lon;
-        this.viewInput.minCoord.lon = response.view_bounds.min_lon;
-        this.zoomInput.currentZoom = 1;
-        this.refreshView();
-      });
+      if (data) {
+        this.refreshing = true;
+        this.simConfig = data;
+        this.graphservice.simulate(data).subscribe((response: SimulationMetaData) => {
+          this.activeSimulation = true;
+          this.turnInput.currentTurn = 0;
+          this.turnInput.maxTurn = response.end_time;
+          this.viewInput.currentCoord.lat = response.view_center[0];
+          this.viewInput.currentCoord.lon = response.view_center[1];
+          this.viewInput.maxCoord.lat = response.view_bounds.max_lat;
+          this.viewInput.minCoord.lat = response.view_bounds.min_lat;
+          this.viewInput.maxCoord.lon = response.view_bounds.max_lon;
+          this.viewInput.minCoord.lon = response.view_bounds.min_lon;
+          this.zoomInput.currentZoom = 1;
+          this.refreshView();
+        });
+      }
     });
   }
 
