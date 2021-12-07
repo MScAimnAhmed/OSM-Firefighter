@@ -27,9 +27,13 @@ services:
     ports:
       - 8080:8080
     restart: always
+    volumes:
+      - ./graphs:/app/data
     networks:
       - ff
 
+volumes:
+  graphs:
 networks:
   ff:
     name: firefighter
