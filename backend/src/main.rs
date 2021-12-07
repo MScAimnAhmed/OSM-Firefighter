@@ -3,32 +3,26 @@ mod graph;
 mod session;
 mod firefighter;
 mod query;
+mod binary_minheap;
 
 use std::{collections::HashMap,
           env,
           fs,
+          path::Path,
           sync::{Arc, Mutex, RwLock}};
 
-use actix_web::{App,
-                dev::HttpResponseBuilder,
-                get,
-                HttpMessage,
-                HttpRequest,
-                HttpResponse,
-                HttpServer,
-                middleware::Logger,
-                post,
-                Responder,
-                web};
+use actix_cors::Cors;
+use actix_web::{App, dev::HttpResponseBuilder, get, HttpMessage, HttpRequest, HttpResponse, HttpServer, middleware::Logger, post, Responder, web, http};
 use log;
 use serde_json::json;
 
 use crate::error::OSMFError;
 use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
-                         strategy::{GreedyStrategy, OSMFStrategy, ShoDistStrategy, Strategy}};
+                         strategy::{GreedyStrategy, OSMFStrategy, MultiMinDistSetsStrategy, SingleMinDistSetStrategy, Strategy, PriorityStrategy, RandomStrategy},
+                         TimeUnit};
 use crate::graph::Graph;
-use crate::session::OSMFSessionStorage;
 use crate::query::Query;
+use crate::session::OSMFSessionStorage;
 
 /// Storage for data associated to the web app
 struct AppData {
@@ -74,7 +68,7 @@ async fn ping(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
 async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
     match fs::read_dir(&data.graphs_path) {
         Ok(paths) => {
-            let mut res = init_response(&data, &req, HttpResponse::Ok()).0;
+            let (mut res, _) = init_response(&data, &req, HttpResponse::Ok());
             let mut graph_files = Vec::new();
             for path in paths {
                 let path = path.unwrap();
@@ -112,47 +106,49 @@ async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
     }
 }
 
+/// List all available firefighter containment strategies
+#[get("/strategies")]
+async fn list_strategies(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
+    let (mut res, _) = init_response(&data, &req, HttpResponse::Ok());
+    res.json(json!(OSMFStrategy::available_strategies()))
+}
+
 /// Simulate a new firefighter problem instance
 #[post("/simulate")]
-async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
-    let res_sid = init_response(&data, &req, HttpResponse::Created());
-    let mut res = res_sid.0;
-    let sid = res_sid.1;
+async fn simulate_problem(data: web::Data<AppData>, settings: web::Json<OSMFSettings>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
+    let (mut res, sid) = init_response(&data, &req, HttpResponse::Created());
 
-    let query = Query::from(req.query_string());
-
-    let graph_name = query.get("graph")?;
-    let graph = match data.graphs.get(graph_name) {
+    let graph = match data.graphs.get(&settings.graph_name) {
         Some(graph) => graph,
         None => {
-            log::warn!("Unknown graph {}", graph_name);
+            log::warn!("Unknown graph {}", settings.graph_name);
             return Err(OSMFError::BadRequest {
-                message: format!("Unknown value for parameter 'graph': '{}'", graph_name)
+                message: format!("Unknown value for parameter 'graph': '{}'", settings.graph_name)
             });
         }
     };
 
-    let strategy_name = query.get("strategy")?;
-    let strategy = match strategy_name {
-        "greedy" => OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone())),
-        "sho_dist" => OSMFStrategy::ShortestDistance(ShoDistStrategy::new(graph.clone())),
+    let strategy = match settings.strategy_name.as_str() {
+        "Greedy" => OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone())),
+        "MultiMinDistanceSets" => OSMFStrategy::MultiMinDistanceSets(MultiMinDistSetsStrategy::new(graph.clone())),
+        "SingleMinDistanceSet" => OSMFStrategy::SingleMinDistanceSet(SingleMinDistSetStrategy::new(graph.clone())),
+        "Priority" => OSMFStrategy::Priority(PriorityStrategy::new(graph.clone())),
+        "Random" => OSMFStrategy::Random(RandomStrategy::new(graph.clone())),
         _ => {
-            log::warn!("Unknown strategy {}", strategy_name);
+            log::warn!("Unknown strategy {}", settings.strategy_name);
             return Err(OSMFError::BadRequest {
-                message: format!("Unknown value for parameter 'strategy': '{}'", strategy_name)
+                message: format!("Unknown value for parameter 'strategy': '{}'", settings.strategy_name)
             });
         }
     };
-
-    let num_roots = query.get_and_parse::<usize>("num_roots")?;
-    let num_ffs = query.get_and_parse::<usize>("num_ffs")?;
 
     let mut problem = OSMFProblem::new(
         graph.clone(),
-        OSMFSettings::new(num_roots, num_ffs),
+        settings.into_inner(),
         strategy);
     problem.simulate();
-    let sim_res = problem.simulation_response();
+
+    let res = res.json(problem.simulation_response());
 
     {
         let mut sessions = data.sessions.lock().unwrap();
@@ -160,14 +156,50 @@ async fn simulate_problem(data: web::Data<AppData>, req: HttpRequest) -> Result<
         session.attach_problem(problem);
     }
 
-    Ok(res.json(sim_res))
+    Ok(res)
 }
 
+/// Display the view of a firefighter simulation
 #[get("/view")]
-async fn update_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
-    let res_sid = init_response(&data, &req, HttpResponse::Ok());
-    let mut res = res_sid.0;
-    let sid = res_sid.1;
+async fn display_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
+    let (mut res, sid) = init_response(&data, &req, HttpResponse::Ok());
+
+    let mut sessions = data.sessions.lock().unwrap();
+    let session = sessions.get_mut_session(&sid).unwrap();
+    let problem = match session.get_mut_problem() {
+        Some(problem) => problem,
+        None => {
+            return Err(OSMFError::NoSimulation {
+                message: "No simulation has been started yet".to_string()
+            });
+        }
+    };
+
+    let query = Query::from(req.query_string());
+    let center_lat = query.try_get_and_parse::<f64>("clat");
+    let center_lon = query.try_get_and_parse::<f64>("clon");
+    let zoom = query.get_and_parse::<f64>("zoom")?;
+    let time = query.get_and_parse::<TimeUnit>("time")?;
+
+    if center_lat.is_some() && center_lon.is_some() {
+        let center = (center_lat.unwrap()?, center_lon.unwrap()?);
+
+        log::debug!("Computing view for center: {:?}, zoom: {} and time: {}", center, zoom, time);
+
+        Ok(res.content_type("image/png")
+            .body(problem.view_response(center, zoom, &time)))
+    } else {
+        log::debug!("Computing view for zoom: {} and time: {}", zoom, &time);
+
+        Ok(res.content_type("image/png")
+            .body(problem.view_response_alt(zoom, &time)))
+    }
+}
+
+/// Get the metadata for a specific step of a firefighter simulation
+#[get("/stepmeta")]
+async fn get_sim_step_metadata(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
+    let (mut res, sid) = init_response(&data, &req, HttpResponse::Ok());
 
     let mut sessions = data.sessions.lock().unwrap();
     let session = sessions.get_session(&sid).unwrap();
@@ -179,7 +211,11 @@ async fn update_view(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpR
             });
         }
     };
-    Ok(res.content_type("image/png").body(problem.view_bytes()))
+
+    let query = Query::from(req.query_string());
+    let time = query.get_and_parse::<TimeUnit>("time")?;
+
+    Ok(res.json(problem.sim_step_metadata_response(&time)))
 }
 
 #[actix_web::main]
@@ -205,10 +241,11 @@ async fn main() -> std::io::Result<()> {
     };
     let mut graphs = HashMap::with_capacity(graphs_path.len());
     for path in paths {
-        let file_path = path.path().to_str().unwrap().split(".").collect::<Vec<_>>()[0].to_string();
         let file_name = path.file_name().to_str().unwrap().split(".").collect::<Vec<_>>()[0].to_string();
+        let file_path = Path::new(&graphs_path).join(&file_name);
         graphs.entry(file_name.clone()).or_insert_with(|| {
-            let graph = Arc::new(RwLock::new(Graph::from_files(&file_path)));
+            let graph = Arc::new(RwLock::new(Graph::from_files(
+                file_path.to_str().unwrap())));
 
             log::info!("Loaded graph {}", file_name);
 
@@ -225,13 +262,23 @@ async fn main() -> std::io::Result<()> {
 
     // Initialize and start server
     let server = HttpServer::new(move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allowed_methods(vec!["GET", "POST"])
+            .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
+            .allowed_header(http::header::CONTENT_TYPE)
+            .supports_credentials()
+            .max_age(3600);
         App::new()
             .app_data(data.clone())
+            .wrap(cors)
             .wrap(Logger::default())
             .service(ping)
             .service(list_graphs)
+            .service(list_strategies)
             .service(simulate_problem)
-            .service(update_view)
+            .service(display_view)
+            .service(get_sim_step_metadata)
     });
     server.bind("0.0.0.0:8080")?
         .run()

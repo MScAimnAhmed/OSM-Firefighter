@@ -26,7 +26,7 @@ impl OSMFSession {
     fn build_cookie<'a, 'b: 'a>(&'a self) -> Cookie<'b> {
         Cookie::build("sid", self.id.clone())
             .secure(false)
-            .same_site(SameSite::Strict)
+            .same_site(SameSite::Lax)
             .finish()
     }
 
@@ -38,6 +38,15 @@ impl OSMFSession {
     /// Get a reference to the attached firefighter problem instance of this `OSMFSession`
     pub fn get_problem(&self) -> Option<&OSMFProblem> {
         if let Some(ref problem) = self.problem {
+            Some(problem)
+        } else {
+            None
+        }
+    }
+
+    /// Get a mutable reference to the attached firefighter problem instance of this `OSMFSession`
+    pub fn get_mut_problem(&mut self) -> Option<&mut OSMFProblem> {
+        if let Some(ref mut problem) = self.problem {
             Some(problem)
         } else {
             None

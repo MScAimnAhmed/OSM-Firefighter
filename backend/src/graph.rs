@@ -6,6 +6,11 @@ use std::{cmp::Ordering,
 
 use serde::Serialize;
 
+use crate::binary_minheap::BinaryMinHeap;
+
+/// Type alias for the result of a run of the Dijkstra algorithm
+type DijkstraResult = (Vec<usize>, Vec<usize>);
+
 /// Was the hub calculated via backward or forward search?
 #[derive(Debug, Serialize)]
 enum HubDirection {
@@ -22,7 +27,7 @@ struct HubLabel {
 }
 
 /// Struct to hold the grid bounds of a graph or part of a graph
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct GridBounds {
     pub min_lat: f64,
     pub max_lat: f64,
@@ -52,7 +57,7 @@ pub enum CompassDirection {
 }
 
 /// A graph node with id, latitude and longitude
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct Node {
     pub id: usize,
     pub lat: f64,
@@ -70,21 +75,21 @@ impl Node {
 
     /// Get the compass direction of this node relative to the given grid bounds
     pub fn get_relative_compass_direction(&self, gb: &GridBounds) -> CompassDirection {
-        if self.lat >= gb.min_lat && self.lat <= gb.max_lat && self.lon > gb.max_lon {
+        if self.lon >= gb.min_lon && self.lon <= gb.max_lon && self.lat > gb.max_lat {
             CompassDirection::North
-        } else if self.lat > gb.max_lat && self.lon > gb.max_lon {
+        } else if self.lon > gb.max_lon && self.lat > gb.max_lat {
             CompassDirection::NorthEast
-        } else if self.lat > gb.max_lat && self.lon >= gb.min_lon && self.lon <= gb.max_lon {
+        } else if self.lon > gb.max_lon && self.lat >= gb.min_lat && self.lat <= gb.max_lat {
             CompassDirection::East
-        } else if self.lat > gb.max_lat && self.lon < gb.min_lon {
+        } else if self.lon > gb.max_lon && self.lat < gb.min_lat {
             CompassDirection::SouthEast
-        } else if self.lat >= gb.min_lat && self.lat <= gb.max_lat && self.lon < gb.min_lon {
+        } else if self.lon >= gb.min_lon && self.lon <= gb.max_lon && self.lat < gb.min_lat {
             CompassDirection::South
-        } else if self.lat < gb.min_lat && self.lon < gb.min_lon {
+        } else if self.lon < gb.min_lon && self.lat < gb.min_lat {
             CompassDirection::SouthWest
-        } else if self.lat < gb.min_lat && self.lon >= gb.min_lon && self.lon <= gb.max_lon {
+        } else if self.lon < gb.min_lon && self.lat >= gb.min_lat && self.lat <= gb.max_lat {
             CompassDirection::West
-        } else if self.lat < gb.min_lat && self.lon > gb.max_lon {
+        } else if self.lon < gb.min_lon && self.lat > gb.max_lat {
             CompassDirection::NorthWest
         } else {
             CompassDirection::Zero
@@ -93,7 +98,7 @@ impl Node {
 }
 
 /// A directed graph edge with source and target
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct Edge {
     pub src: usize,
     pub tgt: usize,
@@ -101,11 +106,12 @@ pub struct Edge {
 }
 
 /// A directed graph with nodes, edges and node offsets
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Default)]
 pub struct Graph {
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
     pub offsets: Vec<usize>,
+    pub in_degrees: Vec<usize>,
     pub num_nodes: usize,
     pub num_edges: usize,
 }
@@ -125,6 +131,7 @@ impl Graph {
             nodes: Vec::new(),
             edges: Vec::new(),
             offsets: Vec::new(),
+            in_degrees: Vec::new(),
             num_nodes: 0,
             num_edges: 0,
         }
@@ -192,6 +199,7 @@ impl Graph {
         let mut offset: usize = 0;
         self.edges.reserve_exact(self.num_edges);
         self.offsets.resize(self.num_nodes + 1, 0);
+        self.in_degrees.resize(self.num_nodes, 0);
         for _ in 0..self.num_edges {
             let line = lines.next()
                 .expect(&format!("Unexpected EOF while parsing edges in line {}", line_no))?;
@@ -221,6 +229,7 @@ impl Graph {
             }
             offset += 1;
 
+            self.in_degrees[edge.tgt] += 1;
             self.edges.push(edge);
         }
         self.offsets[self.num_nodes] = self.num_edges;
@@ -291,12 +300,12 @@ impl Graph {
         }
     }
 
-    /// Create a directed graph from a file that contains node and edge data
+    /// Create a directed graph from files that contains node and edge data and hub labels
     pub fn from_files(file_path: &str) -> Self {
         let mut graph = Graph::new();
         match graph.parse_graph_with_hubs(file_path.to_string()) {
             Ok(_) => (),
-            Err(err) => panic!("Failed to create graph from file {}: {}", file_path,
+            Err(err) => panic!("Failed to create graph from files at {}: {}", file_path,
                                err.to_string())
         }
         graph
@@ -307,9 +316,14 @@ impl Graph {
         self.offsets[node_id + 1] - self.offsets[node_id]
     }
 
+    /// Get the number of incoming edges of the node with id `node_id`
+    pub fn get_in_degree(&self, node_id: usize) -> usize {
+        self.in_degrees[node_id]
+    }
+
     /// Get the shortest distance between the node with id `src_id` and the node with id `tgt_id`.
-    /// Returns error if no path exists.
-    pub fn get_shortest_dist(&self, src_id: usize, tgt_id: usize) -> Result<usize, ComputationError> {
+    /// Returns `usize::MAX` if no path exists.
+    pub fn unchecked_get_shortest_dist(&self, src_id: usize, tgt_id: usize) -> usize {
         let src = &self.nodes[src_id];
         let tgt = &self.nodes[tgt_id];
 
@@ -342,11 +356,60 @@ impl Graph {
             }
         }
 
+        best_dist
+    }
+
+    /// Get the shortest distance between the node with id `src_id` and the node with id `tgt_id`.
+    /// Returns error if no path exists.
+    pub fn get_shortest_dist(&self, src_id: usize, tgt_id: usize) -> Result<usize, ComputationError> {
+        let best_dist = self.unchecked_get_shortest_dist(src_id, tgt_id);
         if best_dist < usize::MAX {
             Ok(best_dist)
         } else {
             Err(ComputationError::NoPath(src_id, tgt_id))
         }
+    }
+
+    /// Run an one-to-all Dijkstra from the source node with id `src_id`
+    pub fn run_dijkstra(&self, src_id: usize) -> DijkstraResult {
+        let mut distances = vec![usize::MAX; self.num_nodes];
+        distances[src_id] = 0;
+
+        let mut predecessors = vec![usize::MAX; self.num_nodes];
+
+        let mut pq = BinaryMinHeap::with_capacity(self.num_nodes);
+        pq.push(src_id, &distances);
+
+        while !pq.is_empty() {
+            let node = pq.pop(&distances);
+
+            for i in self.offsets[node]..self.offsets[node +1] {
+                let edge = &self.edges[i];
+                let dist = distances[node] + edge.dist;
+
+                if dist < distances[edge.tgt] {
+                    distances[edge.tgt] = dist;
+                    predecessors[edge.tgt] = node;
+
+                    if pq.contains(edge.tgt) {
+                        pq.decrease_key(edge.tgt, &distances);
+                    } else {
+                        pq.push(edge.tgt, &distances);
+                    }
+                } else if dist == distances[edge.tgt] {
+                    let pred = predecessors[edge.tgt];
+                    if pred != usize::MAX {
+                        let pred_dist = distances[pred];
+                        let node_dist = distances[node];
+                        if node_dist < pred_dist {
+                            predecessors[edge.tgt] = node;
+                        }
+                    }
+                }
+            }
+        }
+
+        (distances, predecessors)
     }
 
     /// Returns this graphs grid bounds, i.e. the minimal/maximal latitude/longitude
@@ -440,26 +503,32 @@ impl std::fmt::Display for ComputationError {
 
 #[cfg(test)]
 mod test {
+    use rand::prelude::IteratorRandom;
+    use rand::thread_rng;
     use crate::graph::Graph;
 
     #[test]
-    fn test_graph() {
+    fn test_nodes_edges() {
         let graph = Graph::from_files("data/bbgrund");
 
         assert_eq!(graph.nodes.len(), 350);
         assert_eq!(graph.edges.len(), 685);
+    }
+
+    #[test]
+    fn test_grid_bounds() {
+        let graph = Graph::from_files("data/bbgrund");
 
         let gb = graph.get_grid_bounds();
         assert!(gb.min_lat >= 48.67);
         assert!(gb.max_lat < 48.68);
         assert!(gb.min_lon >= 8.99);
         assert!(gb.max_lon < 9.02);
+    }
 
-        for i in 0..graph.nodes.len() {
-            let node = graph.nodes.get(i).unwrap();
-            assert!(node.lat >= 48.67 && node.lat < 48.68);
-            assert!(node.lon >= 8.99 && node.lon < 9.02);
-        }
+    #[test]
+    fn test_node() {
+        let graph = Graph::from_files("data/bbgrund");
 
         let edges_with_src_70: Vec<_> = graph.edges.iter()
             .filter(|&e| e.src == 70)
@@ -468,6 +537,11 @@ mod test {
 
         assert_eq!(graph.nodes[70].bwd_hubs.len(), 6);
         assert_eq!(graph.nodes[70].fwd_hubs.len(), 3);
+    }
+
+    #[test]
+    fn test_hubs() {
+        let graph = Graph::from_files("data/bbgrund");
 
         for node in &graph.nodes {
             if !node.bwd_hubs.is_empty() {
@@ -477,7 +551,20 @@ mod test {
                 assert!(node.fwd_hubs[0].hub_id <= node.fwd_hubs[node.fwd_hubs.len()-1].hub_id);
             }
         }
+    }
 
-        assert_eq!(graph.get_shortest_dist(1, 321).unwrap(), 822);
+    #[test]
+    fn test_distance_calculation() {
+        let graph = Graph::from_files("data/stgcenter");
+
+        let mut rng = thread_rng();
+        let src = graph.nodes.iter()
+            .choose(&mut rng)
+            .unwrap();
+
+        let (dists, _) = graph.run_dijkstra(src.id);
+        for node in &graph.nodes {
+            assert_eq!(dists[node.id], graph.unchecked_get_shortest_dist(src.id, node.id));
+        }
     }
 }

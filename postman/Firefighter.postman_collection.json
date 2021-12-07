@@ -42,39 +42,74 @@
 			"response": []
 		},
 		{
+			"name": "List strategies",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}:{{port}}/strategies",
+					"host": [
+						"{{host}}"
+					],
+					"port": "{{port}}",
+					"path": [
+						"strategies"
+					]
+				}
+			},
+			"response": []
+		},
+		{
 			"name": "Simulate problem",
 			"request": {
 				"method": "POST",
 				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"graph_name\": \"{{graph}}\",\r\n    \"strategy_name\": \"{{strategy}}\",\r\n    \"num_roots\": {{num_roots}},\r\n    \"num_ffs\": {{num_firefighters}},\r\n    \"strategy_every\": {{strategy_every}}\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
 				"url": {
-					"raw": "{{host}}:{{port}}/simulate?graph={{graph}}&strategy={{strategy}}&num_ffs={{num_firefighters}}&num_roots={{num_roots}}",
+					"raw": "{{host}}:{{port}}/simulate",
 					"host": [
 						"{{host}}"
 					],
 					"port": "{{port}}",
 					"path": [
 						"simulate"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "View",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{host}}:{{port}}/view?zoom={{zoom}}&time={{time}}",
+					"host": [
+						"{{host}}"
+					],
+					"port": "{{port}}",
+					"path": [
+						"view"
 					],
 					"query": [
 						{
-							"key": "graph",
-							"value": "{{graph}}",
-							"description": "The graph to simulate the firefighter problem on"
+							"key": "zoom",
+							"value": "{{zoom}}",
+							"description": "The view zoom"
 						},
 						{
-							"key": "strategy",
-							"value": "{{strategy}}",
-							"description": "The fire containment strategy"
-						},
-						{
-							"key": "num_ffs",
-							"value": "{{num_firefighters}}",
-							"description": "The number of available firefighters"
-						},
-						{
-							"key": "num_roots",
-							"value": "{{num_roots}}",
-							"description": "The number of fire roots"
+							"key": "time",
+							"value": "{{time}}",
+							"description": "The time step for which the view shall be drawn"
 						}
 					]
 				}

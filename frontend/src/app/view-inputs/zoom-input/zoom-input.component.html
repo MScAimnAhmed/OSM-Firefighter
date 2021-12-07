@@ -1,0 +1,22 @@
+<div class='zoom-Input'>
+  <table>
+    <tr>
+      <td>
+        <mat-form-field>
+          <mat-label>Zoom</mat-label>
+          <span matPrefix>x</span>
+          <input matInput type='number' min='1' [(ngModel)]='currentZoom' [formControl]='currentZoomFormControl'>
+        </mat-form-field>
+      </td>
+      <td style='display: flex; flex-direction: column'>
+        <button mat-icon-button (click)='this.changeZoom(true);'>
+          <mat-icon>zoom_in</mat-icon>
+        </button>
+        <button mat-icon-button [disabled]='this.currentZoom <= 1'
+                (click)='this.changeZoom(false)'>
+          <mat-icon>zoom_out</mat-icon>
+        </button>
+      </td>
+    </tr>
+  </table>
+</div>
