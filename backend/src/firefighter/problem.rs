@@ -99,6 +99,9 @@ impl NodeDataStorage {
 
     /// Mark all nodes in `nodes` as burning at time `time`
     pub fn mark_burning(&mut self, nodes: &Vec<usize>, time: TimeUnit) {
+        if !nodes.is_empty() {
+            log::debug!("Burning nodes {:?} in round {}", nodes, time);
+        }
         for node_id in nodes {
             self.burning.insert(*node_id, NodeData {
                 node_id: *node_id,
@@ -109,6 +112,9 @@ impl NodeDataStorage {
 
     /// Mark all nodes in `nodes` as defended at time `time`
     pub fn mark_defended(&mut self, nodes: &Vec<usize>, time: TimeUnit) {
+        if !nodes.is_empty() {
+            log::debug!("Defending nodes {:?} in round {}", nodes, time);
+        }
         for node_id in nodes {
             self.defended.insert(*node_id, NodeData {
                 node_id: *node_id,
@@ -119,6 +125,9 @@ impl NodeDataStorage {
 
     /// Mark all nodes in `nodes` as defended at time `time`
     pub fn mark_defended2(&mut self, nodes: &[usize], time: TimeUnit) {
+        if !nodes.is_empty() {
+            log::debug!("Defending nodes {:?} in round {}", nodes, time);
+        }
         for node_id in nodes {
             self.defended.insert(*node_id, NodeData {
                 node_id: *node_id,
@@ -227,7 +236,6 @@ impl OSMFProblem {
             .map(|node| node.id)
             .choose_multiple(&mut rng, self.settings.num_roots);
 
-        log::debug!("Setting nodes {:?} as fire roots", &roots);
         self.node_data.mark_burning(&roots, self.global_time);
 
         roots
@@ -259,8 +267,6 @@ impl OSMFProblem {
                         // Burn the node if the global time exceeds the time at which the edge source
                         // started burning plus the edge weight
                         if self.global_time >= node_data.time + edge.dist as u64 {
-                            log::debug!("Distance of node to burn {}: {}",
-                                node_data.node_id, node_data.time + edge.dist as u64);
                             to_burn.push(edge.tgt);
                         }
                     }
@@ -269,7 +275,6 @@ impl OSMFProblem {
         }
 
         // Burn all nodes in `to_burn`
-        log::debug!("Burning nodes {:?}", &to_burn);
         self.node_data.mark_burning(&to_burn, self.global_time);
     }
 
