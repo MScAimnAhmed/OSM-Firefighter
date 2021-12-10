@@ -200,20 +200,44 @@ impl OSMFProblem {
         };
 
         let roots = problem.gen_fire_roots();
-
-        if let OSMFStrategy::MultiMinDistanceSets(ref mut min_dist_sets_strategy_strategy) = problem.strategy {
-            min_dist_sets_strategy_strategy.initialize_undefended_roots(&roots);
-            min_dist_sets_strategy_strategy.compute_nodes_to_defend(&roots, &problem.settings,
-                                                          &problem.node_data);
-        } else if let OSMFStrategy::SingleMinDistanceSet(ref mut min_dist_sets_strategy) = problem.strategy {
-            min_dist_sets_strategy.compute_nodes_to_defend(&roots, &problem.settings);
-        } else if let OSMFStrategy::Priority(ref mut priority_strategy) = problem.strategy {
-            priority_strategy.initialize_undefended_roots(&roots);
-            priority_strategy.compute_nodes_to_defend(&roots, &problem.settings,
-                                                      &problem.node_data);
-        }
+        problem.initialize_strategy(&roots);
 
         problem
+    }
+
+    /// Create a new firefighter problem instance with given roots
+    fn new_with_roots(graph: Arc<RwLock<Graph>>, settings: OSMFSettings, strategy: OSMFStrategy, roots: Vec<usize>) -> Self {
+        let num_nodes = graph.read().unwrap().num_nodes;
+        if roots.len() > num_nodes {
+            panic!("Number of fire roots must not be greater than {}", num_nodes);
+        }
+
+        let mut problem = Self {
+            graph: graph.clone(),
+            settings,
+            strategy,
+            node_data: NodeDataStorage::new(),
+            global_time: 0,
+            is_active: true,
+            view: View::new(graph, 1920, 1080),
+        };
+
+        problem.initialize_strategy(&roots);
+
+        problem
+    }
+
+    /// Initialize the strategy used to contain the fire
+    fn initialize_strategy(&mut self, roots: &Vec<usize>) {
+        if let OSMFStrategy::MultiMinDistanceSets(ref mut min_dist_sets_strategy_strategy) = self.strategy {
+            min_dist_sets_strategy_strategy.initialize_undefended_roots(roots);
+            min_dist_sets_strategy_strategy.compute_nodes_to_defend(roots, &self.settings, &self.node_data);
+        } else if let OSMFStrategy::SingleMinDistanceSet(ref mut min_dist_sets_strategy) = self.strategy {
+            min_dist_sets_strategy.compute_nodes_to_defend(roots, &self.settings);
+        } else if let OSMFStrategy::Priority(ref mut priority_strategy) = self.strategy {
+            priority_strategy.initialize_undefended_roots(roots);
+            priority_strategy.compute_nodes_to_defend(roots, &self.settings, &self.node_data);
+        }
     }
 
     /// Generate `num_roots` fire roots
