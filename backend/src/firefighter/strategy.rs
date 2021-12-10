@@ -459,21 +459,28 @@ impl PriorityStrategy {
         let mut priority_map = HashMap::with_capacity(graph.num_nodes);
 
         for node in &graph.nodes {
-            if node_data.is_undefended(&node.id) {
-                let prio = graph.get_out_degree(node.id);
+            if node_data.is_undefended(&node.id) && graph.get_out_degree(node.id) > 0 {
+                let mut prio = 0.0;
+                for i in graph.offsets[node.id]..graph.offsets[node.id+1] {
+                    let edge = &graph.edges[i];
+                    prio += 1.0 / edge.dist as f64;
+                }
                 priority_map.insert(node.id, prio);
             }
         }
         log::debug!("priority map: {:?}", priority_map);
 
+        /*
         let mut sorted_priorities: Vec<_> = priority_map.values().map(|prio|*prio).collect();
         sorted_priorities.sort_unstable_by(|p1, p2| {
-            p1.cmp(p2)
+            p1.cmp(&p2)
         });
 
         log::debug!("sorted prios {:?}", sorted_priorities);
 
-        let mean = sorted_priorities.iter().sum::<usize>() as f64 / sorted_priorities.len() as f64;
+         */
+
+        let mean = priority_map.values().sum::<f64>() as f64 / priority_map.len() as f64;
         log::debug!("mean {}", mean);
 
         let mut nodes_by_sho_dist = group_nodes_by_distance(undefended_roots,
@@ -482,9 +489,9 @@ impl PriorityStrategy {
         // Sort Node groups by priority
         for (_, nodes) in nodes_by_sho_dist.iter_mut() {
             nodes.sort_unstable_by(|n1, n2| {
-                let prio1 = priority_map.get(n1).unwrap();
-                let prio2 = priority_map.get(n2).unwrap();
-                prio2.cmp(prio1)
+                let prio1 = priority_map.get(n1).unwrap_or(&0.0);
+                let prio2 = priority_map.get(n2).unwrap_or(&0.0);
+                prio2.partial_cmp(&prio1).unwrap()
             });
         }
 
@@ -497,7 +504,7 @@ impl PriorityStrategy {
         for (&dist, nodes) in nodes_by_sho_dist.iter() {
             let high_prio_nodes: Vec<_> = nodes.iter()
                 .filter(|&node| {
-                    *priority_map.get(node).unwrap() as f64 >= mean
+                    *priority_map.get(node).unwrap_or(&0.0) as f64 >= mean
                 })
                 .map(|node| *node)
                 .collect();
@@ -509,7 +516,7 @@ impl PriorityStrategy {
         for (&dist, nodes) in nodes_by_sho_dist.iter() {
             let low_prio_nodes: Vec<_> = nodes.iter()
                 .filter(|&node| {
-                    (*priority_map.get(node).unwrap() as f64) < mean
+                    (*priority_map.get(node).unwrap_or(&0.0) as f64) < mean
                 })
                 .map(|node| *node)
                 .collect();
