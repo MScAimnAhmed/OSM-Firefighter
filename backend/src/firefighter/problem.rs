@@ -205,28 +205,6 @@ impl OSMFProblem {
         problem
     }
 
-    /// Create a new firefighter problem instance with given roots
-    fn new_with_roots(graph: Arc<RwLock<Graph>>, settings: OSMFSettings, strategy: OSMFStrategy, roots: Vec<usize>) -> Self {
-        let num_nodes = graph.read().unwrap().num_nodes;
-        if roots.len() > num_nodes {
-            panic!("Number of fire roots must not be greater than {}", num_nodes);
-        }
-
-        let mut problem = Self {
-            graph: graph.clone(),
-            settings,
-            strategy,
-            node_data: NodeDataStorage::new(),
-            global_time: 0,
-            is_active: true,
-            view: View::new(graph, 1920, 1080),
-        };
-
-        problem.initialize_strategy(&roots);
-
-        problem
-    }
-
     /// Initialize the strategy used to contain the fire
     fn initialize_strategy(&mut self, roots: &Vec<usize>) {
         if let OSMFStrategy::MultiMinDistanceSets(ref mut min_dist_sets_strategy_strategy) = self.strategy {
