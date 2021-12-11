@@ -9,7 +9,7 @@ use serde::Serialize;
 use crate::binary_minheap::BinaryMinHeap;
 
 /// Type alias for the result of a run of the Dijkstra algorithm
-type DijkstraResult = (Vec<usize>, Vec<usize>);
+type DijkstraResult = Vec<usize>;
 
 /// Was the hub calculated via backward or forward search?
 #[derive(Debug, Serialize)]
@@ -375,8 +375,6 @@ impl Graph {
         let mut distances = vec![usize::MAX; self.num_nodes];
         distances[src_id] = 0;
 
-        let mut predecessors = vec![usize::MAX; self.num_nodes];
-
         let mut pq = BinaryMinHeap::with_capacity(self.num_nodes);
         pq.push(src_id, &distances);
 
@@ -389,27 +387,17 @@ impl Graph {
 
                 if dist < distances[edge.tgt] {
                     distances[edge.tgt] = dist;
-                    predecessors[edge.tgt] = node;
 
                     if pq.contains(edge.tgt) {
                         pq.decrease_key(edge.tgt, &distances);
                     } else {
                         pq.push(edge.tgt, &distances);
                     }
-                } else if dist == distances[edge.tgt] {
-                    let pred = predecessors[edge.tgt];
-                    if pred != usize::MAX {
-                        let pred_dist = distances[pred];
-                        let node_dist = distances[node];
-                        if node_dist < pred_dist {
-                            predecessors[edge.tgt] = node;
-                        }
-                    }
                 }
             }
         }
 
-        (distances, predecessors)
+        distances
     }
 
     /// Returns this graphs grid bounds, i.e. the minimal/maximal latitude/longitude

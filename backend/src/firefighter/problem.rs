@@ -53,7 +53,7 @@ impl NodeDataStorage {
     }
 
     /// Is node with id `node_id` burning?
-    pub(crate) fn is_burning(&self, node_id: &usize) -> bool {
+    pub fn is_burning(&self, node_id: &usize) -> bool {
         self.burning.contains_key(node_id)
     }
 

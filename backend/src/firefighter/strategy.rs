@@ -318,40 +318,37 @@ impl SingleMinDistSetStrategy {
     pub fn compute_nodes_to_defend(&mut self, roots: &Vec<usize>, settings: &OSMFSettings) {
         let graph = self.graph.read().unwrap();
 
-        let mut global_dists = HashMap::with_capacity(graph.num_nodes);
-        let mut global_preds = vec![usize::MAX; graph.num_nodes];
-
-        // For each root, run a one-to-all Dijkstra to all nodes in the underlying graph.
+        // For each root, run an one-to-all Dijkstra to all nodes in the underlying graph.
         // Then, filter the distances to the nodes for the minimum distance from any fire root.
-        // Additionally, remember for each node the predecessor on the path from the nearest
-        // fire root.
+        let mut global_dists = HashMap::with_capacity(graph.num_nodes);
         for &root in roots {
-            let (dists, preds) = graph.run_dijkstra(root);
-
-            for (i, &dist) in dists.iter().enumerate() {
+            let dists = graph.run_dijkstra(root);
+            for (node, &dist) in dists.iter().enumerate() {
                 if dist < usize::MAX {
-                    match global_dists.get(&i) {
-                        Some(&cur_dist) => {
-                            if dist < cur_dist {
-                                global_dists.insert(i, dist);
-                                global_preds[i] = preds[i];
-                            } else if dist == cur_dist {
-                                let curr_pred = global_preds[i];
-                                let curr_pred_dist = global_dists.get(&curr_pred).unwrap_or(&usize::MAX);
-                                let pred_dist = global_dists.get(&preds[i]).unwrap_or(&usize::MAX);
-                                if pred_dist < curr_pred_dist {
-                                    global_preds[i] = preds[i]
-                                }
-                            }
-                        }
-                        None => {
-                            global_dists.insert(i, dist);
-                            global_preds[i] = preds[i];
-                        }
-                    }
+                    global_dists.entry(node)
+                        .and_modify(|cur_dist| if dist < *cur_dist { *cur_dist = dist })
+                        .or_insert(dist);
                 }
             }
         }
+
+        // For each node, get its predecessor with the lowest _global distance_ and
+        // store that predecessor as its respective _global predecessor_
+        let mut global_preds = vec![usize::MAX; graph.num_nodes];
+        for edge in &graph.edges {
+            let cur_pred = global_preds[edge.tgt];
+            if cur_pred < usize::MAX {
+                let cur_dist = global_dists.get(&cur_pred).unwrap();
+                let dist = global_dists.get(&edge.src).unwrap();
+                if dist < cur_dist {
+                    global_preds[edge.tgt] = edge.src;
+                }
+            } else if global_dists.contains_key(&edge.src) {
+                global_preds[edge.tgt] = edge.src;
+            }
+        }
+
+        log::debug!("Global distances:\n{:?}", &global_dists);
 
         // Transform the global distance map into a data structure that maps each distance
         // to the nodes that have to be defended in order to protect all nodes with a higher
@@ -367,6 +364,8 @@ impl SingleMinDistSetStrategy {
                 }
             }
         }
+
+        log::debug!("Distance nodes map:\n{:?}", &distance_nodes_map);
 
         let strategy_every = settings.strategy_every as usize;
         let num_ffs = settings.num_ffs as usize;
@@ -436,9 +435,8 @@ impl PriorityStrategy {
     pub fn compute_nodes_to_defend(&mut self, undefended_roots: &Vec<usize>, settings: &OSMFSettings,
                                    node_data: &NodeDataStorage) {
         let graph = self.graph.read().unwrap();
-        //let mut priority_map = HashMap::with_capacity(graph.num_nodes);
-        let mut priority_map = BTreeMap::new();
 
+        let mut priority_map = HashMap::with_capacity(graph.num_nodes);
         for node in &graph.nodes {
             if node_data.is_undefended(&node.id) && graph.get_out_degree(node.id) > 0 {
                 let mut prio = 0.0;
