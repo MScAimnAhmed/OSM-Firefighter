@@ -84,7 +84,6 @@ impl Strategy for GreedyStrategy {
         let to_defend: Vec<_> = edges[0..num_to_defend].iter()
             .map(|&e| e.tgt)
             .collect();
-        log::debug!("Defending nodes {:?}", &to_defend);
         node_data.mark_defended(&to_defend, global_time);
     }
 }
@@ -98,9 +97,7 @@ fn compute_undefended_roots(undefended_roots: &mut HashMap<usize, (Visited, Risk
                             graph: &Arc<RwLock<Graph>>, node_data: &NodeDataStorage) -> Option<Vec<usize>> {
     let graph = graph.read().unwrap();
 
-    for (&root, (visited, risky_nodes)) in undefended_roots.iter_mut() {
-        log::debug!("Old risky nodes for root {}: {:?}", root, &risky_nodes);
-
+    for (_, (visited, risky_nodes)) in undefended_roots.iter_mut() {
         // Filter all burning risky nodes
         let mut burning: VecDeque<_> = risky_nodes.iter()
             .filter(|&node| node_data.is_burning(node))
@@ -116,9 +113,6 @@ fn compute_undefended_roots(undefended_roots: &mut HashMap<usize, (Visited, Risk
         while !burning.is_empty() {
             let node = burning.pop_front().unwrap();
             visited.insert(node);
-            log::debug!("Processing node {}", node);
-            log::debug!("Burning before: {:?}", burning);
-            log::debug!("Risky nodes before: {:?}", &risky_nodes);
             let out_deg = graph.get_out_degree(node);
             risky_nodes.reserve(out_deg);
             burning.reserve(out_deg);
@@ -130,10 +124,7 @@ fn compute_undefended_roots(undefended_roots: &mut HashMap<usize, (Visited, Risk
                     burning.push_back(edge.tgt);
                 }
             }
-            log::debug!("Burning after: {:?}", burning);
-            log::debug!("Risky nodes after: {:?}", &risky_nodes);
         }
-        log::debug!("New risky nodes for root {}: {:?}", root, &risky_nodes);
     }
 
     let old_num_roots = undefended_roots.len();
@@ -166,8 +157,6 @@ fn group_nodes_by_distance(undefended_roots: &Vec<usize>, graph: &RwLockReadGuar
                 }
             }
         }
-
-        log::debug!("Computed shortest distances to fire root {}", root);
     }
 
     let mut nodes_by_sho_dist: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
@@ -177,7 +166,7 @@ fn group_nodes_by_distance(undefended_roots: &Vec<usize>, graph: &RwLockReadGuar
             .or_insert(vec![node_id]);
     }
 
-    log::debug!("Grouped nodes by minimum shortest distance to any fire root");
+    log::debug!("Computed distance sets:\n{:?}", &nodes_by_sho_dist);
 
     nodes_by_sho_dist
 }
@@ -294,16 +283,9 @@ impl Strategy for MultiMinDistSetsStrategy {
     }
 
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
-        // One or more fire roots have been defended and hence shouldn't be considered
-        // in the min_distance_groups anymore
-        if let Some(roots) = self.compute_undefended_roots(node_data) {
-            self.compute_nodes_to_defend(&roots, settings, node_data);
-        }
-
         let num_to_defend = min(settings.num_ffs, self.nodes_to_defend.len());
         let len = self.nodes_to_defend.len();
         let to_defend = &self.nodes_to_defend.as_slices().0[(len-num_to_defend)..len];
-        log::debug!("Defending nodes {:?}", to_defend);
 
         for node in to_defend {
             assert!(node_data.is_undefended(node));
@@ -313,6 +295,12 @@ impl Strategy for MultiMinDistSetsStrategy {
 
         self.nodes_to_defend.truncate(len-num_to_defend);
         self.current_defended += num_to_defend;
+
+        // One or more fire roots have been defended and hence shouldn't be considered
+        // in the min_distance_groups anymore
+        if let Some(roots) = self.compute_undefended_roots(node_data) {
+            self.compute_nodes_to_defend(&roots, settings, node_data);
+        }
     }
 }
 
@@ -330,43 +318,37 @@ impl SingleMinDistSetStrategy {
     pub fn compute_nodes_to_defend(&mut self, roots: &Vec<usize>, settings: &OSMFSettings) {
         let graph = self.graph.read().unwrap();
 
-        let mut global_dists = HashMap::with_capacity(graph.num_nodes);
-        let mut global_preds = vec![usize::MAX; graph.num_nodes];
-
-        // For each root, run a one-to-all Dijkstra to all nodes in the underlying graph.
+        // For each root, run an one-to-all Dijkstra to all nodes in the underlying graph.
         // Then, filter the distances to the nodes for the minimum distance from any fire root.
-        // Additionally, remember for each node the predecessor on the path from the nearest
-        // fire root.
+        let mut global_dists = HashMap::with_capacity(graph.num_nodes);
         for &root in roots {
-            let (dists, preds) = graph.run_dijkstra(root);
-
-            for (i, &dist) in dists.iter().enumerate() {
+            let dists = graph.run_dijkstra(root);
+            for (node, &dist) in dists.iter().enumerate() {
                 if dist < usize::MAX {
-                    match global_dists.get(&i) {
-                        Some(&cur_dist) => {
-                            if dist < cur_dist {
-                                global_dists.insert(i, dist);
-                                global_preds[i] = preds[i];
-                            } else if dist == cur_dist && dist < usize::MAX {
-                                let curr_pred = global_preds[i];
-                                let curr_pred_dist = global_dists.get(&curr_pred).unwrap_or(&usize::MAX);
-                                let pred_dist = global_dists.get(&preds[i]).unwrap_or(&usize::MAX);
-                                log::debug!("dist: {}, pred dist: {}, curr pred dist: {}", dist, pred_dist, curr_pred_dist);
-                                if pred_dist < curr_pred_dist {
-                                    global_preds[i] = preds[i]
-                                }
-                            }
-                        }
-                        None => {
-                            global_dists.insert(i, dist);
-                            global_preds[i] = preds[i];
-                        }
-                    }
+                    global_dists.entry(node)
+                        .and_modify(|cur_dist| if dist < *cur_dist { *cur_dist = dist })
+                        .or_insert(dist);
                 }
             }
-
-            log::debug!("Executed Dijkstra to fire root {} and updated global distance map", root);
         }
+
+        // For each node, get its predecessor with the lowest _global distance_ and
+        // store that predecessor as its respective _global predecessor_
+        let mut global_preds = vec![usize::MAX; graph.num_nodes];
+        for edge in &graph.edges {
+            let cur_pred = global_preds[edge.tgt];
+            if cur_pred < usize::MAX {
+                let cur_dist = global_dists.get(&cur_pred).unwrap();
+                let dist = global_dists.get(&edge.src).unwrap();
+                if dist < cur_dist {
+                    global_preds[edge.tgt] = edge.src;
+                }
+            } else if global_dists.contains_key(&edge.src) {
+                global_preds[edge.tgt] = edge.src;
+            }
+        }
+
+        log::debug!("Global distances:\n{:?}", &global_dists);
 
         // Transform the global distance map into a data structure that maps each distance
         // to the nodes that have to be defended in order to protect all nodes with a higher
@@ -374,9 +356,7 @@ impl SingleMinDistSetStrategy {
         let mut distance_nodes_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
         for (&node_id, &dist) in global_dists.iter() {
             let pred_id = global_preds[node_id];
-            log::debug!("Predecessor of {}: {}", node_id, pred_id);
             if let Some(pred_dist) = global_dists.get(&pred_id) {
-                log::debug!("Inserting {} into distance sets {}-{}", node_id, *pred_dist+1, dist);
                 for d in (*pred_dist+1)..=dist {
                     distance_nodes_map.entry(d)
                         .and_modify(|nodes| nodes.push(node_id))
@@ -385,7 +365,7 @@ impl SingleMinDistSetStrategy {
             }
         }
 
-        log::debug!("Mapped global distance map to distance sets of nodes");
+        log::debug!("Distance nodes map:\n{:?}", &distance_nodes_map);
 
         let strategy_every = settings.strategy_every as usize;
         let num_ffs = settings.num_ffs as usize;
@@ -419,7 +399,6 @@ impl Strategy for SingleMinDistSetStrategy {
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
         let num_to_defend = min(settings.num_ffs, self.nodes_to_defend.len() - self.current_defended);
         let to_defend = &self.nodes_to_defend[self.current_defended..self.current_defended + num_to_defend];
-        log::debug!("Defending nodes {:?}", to_defend);
         node_data.mark_defended2(to_defend, global_time);
 
         self.current_defended += num_to_defend;
@@ -456,38 +435,33 @@ impl PriorityStrategy {
     pub fn compute_nodes_to_defend(&mut self, undefended_roots: &Vec<usize>, settings: &OSMFSettings,
                                    node_data: &NodeDataStorage) {
         let graph = self.graph.read().unwrap();
-        let mut priority_map = HashMap::with_capacity(graph.num_nodes);
 
+        let mut priority_map = HashMap::with_capacity(graph.num_nodes);
         for node in &graph.nodes {
-            if node_data.is_undefended(&node.id) {
-                //let prio = 2 * graph.get_in_degree(node.id) + (5 * graph.get_out_degree(node.id));
-                let prio = graph.get_out_degree(node.id);
+            if node_data.is_undefended(&node.id) && graph.get_out_degree(node.id) > 0 {
+                let mut prio = 0.0;
+                for i in graph.offsets[node.id]..graph.offsets[node.id+1] {
+                    let edge = &graph.edges[i];
+                    prio += 1.0 / edge.dist as f64;
+                }
                 priority_map.insert(node.id, prio);
-                //log::debug!("node: {}, in_deg {}, out_deg {} -> prio: {}", node.id, graph.get_in_degree(node.id), graph.get_out_degree(node.id), prio);
             }
         }
-        log::debug!("priority map: {:?}", priority_map);
 
+        log::debug!("Computed priority map:\n{:?}", &priority_map);
+
+        /*
         let mut sorted_priorities: Vec<_> = priority_map.values().map(|prio|*prio).collect();
         sorted_priorities.sort_unstable_by(|p1, p2| {
-            p1.cmp(p2)
+            p1.cmp(&p2)
         });
 
         log::debug!("sorted prios {:?}", sorted_priorities);
-        // let mid = graph.num_nodes / 2;
-        // log::debug!("num of nodes {}, mid {}", graph.num_nodes, mid);
-        /*let mut median = {
-            if mid % 2 == 0 {
-                log::debug!("mid - 1 {}, and mid {} -> median {}", sorted_priorities[mid - 1], sorted_priorities[mid], (sorted_priorities[mid - 1] + sorted_priorities[mid]) / 2);
-                (sorted_priorities[mid - 1] + sorted_priorities[mid]) / 2
-            } else {
-                log::debug!("median {}", sorted_priorities[mid]);
-                sorted_priorities[mid]
-            }
-        };*/
 
-        let median = sorted_priorities.iter().sum::<usize>() as f64 / sorted_priorities.len() as f64;
-        log::debug!("median {}", median);
+         */
+
+        let mean = priority_map.values().sum::<f64>() as f64 / priority_map.len() as f64;
+        log::debug!("Computed mean: {}", mean);
 
         let mut nodes_by_sho_dist = group_nodes_by_distance(undefended_roots,
                                                         &graph, node_data);
@@ -495,41 +469,43 @@ impl PriorityStrategy {
         // Sort Node groups by priority
         for (_, nodes) in nodes_by_sho_dist.iter_mut() {
             nodes.sort_unstable_by(|n1, n2| {
-                let prio1 = priority_map.get(n1).unwrap();
-                let prio2 = priority_map.get(n2).unwrap();
-                prio2.cmp(prio1)
+                let prio1 = priority_map.get(n1).unwrap_or(&0.0);
+                let prio2 = priority_map.get(n2).unwrap_or(&0.0);
+                prio2.partial_cmp(&prio1).unwrap()
             });
         }
+
+        log::debug!("Distance sets after sorting by priority:\n{:?}", &nodes_by_sho_dist);
 
         let strategy_every = settings.strategy_every as usize;
         let num_ffs = settings.num_ffs;
         let mut total_defended = self.current_defended;
 
-        // Filter nodes with higher priority based on median
+        // Filter nodes with higher priority based on mean
         let mut high_prio_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
         for (&dist, nodes) in nodes_by_sho_dist.iter() {
             let high_prio_nodes: Vec<_> = nodes.iter()
                 .filter(|&node| {
-                    *priority_map.get(node).unwrap() as f64 >= median
+                    *priority_map.get(node).unwrap_or(&0.0) as f64 >= mean
                 })
                 .map(|node| *node)
                 .collect();
             high_prio_map.insert(dist, high_prio_nodes);
         }
 
-        // Filter nodes with higher priority based on median
+        // Filter nodes with higher priority based on mean
         let mut low_prio_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
         for (&dist, nodes) in nodes_by_sho_dist.iter() {
             let low_prio_nodes: Vec<_> = nodes.iter()
                 .filter(|&node| {
-                    (*priority_map.get(node).unwrap() as f64) < median
+                    (*priority_map.get(node).unwrap_or(&0.0) as f64) < mean
                 })
                 .map(|node| *node)
                 .collect();
             low_prio_map.insert(dist, low_prio_nodes);
         }
 
-        // Nodes with a higher priority than the median should be defended
+        // Nodes with a higher priority than the mean should be defended
         let mut high_prio_defend = Vec::new();
         for (&dist, nodes) in high_prio_map.iter() {
             let can_defend_total = dist / strategy_every * num_ffs;
@@ -544,7 +520,7 @@ impl PriorityStrategy {
             }
         }
 
-        // Nodes with a lower priority than the median should be defended
+        // Nodes with a lower priority than the mean should be defended
         let mut low_prio_defend = Vec::with_capacity(graph.num_nodes - high_prio_defend.len());
         for (&dist, nodes) in low_prio_map.iter() {
             let can_defend_total = dist / strategy_every * num_ffs;
@@ -559,9 +535,7 @@ impl PriorityStrategy {
         }
         assert!(high_prio_defend.len() + low_prio_defend.len() <= graph.num_nodes);
 
-        if !self.nodes_to_defend.is_empty() {
-            self.nodes_to_defend.clear();
-        }
+        self.nodes_to_defend.clear();
         self.nodes_to_defend.reserve_exact(total_defended - self.current_defended);
 
         for node in high_prio_defend {
@@ -587,16 +561,9 @@ impl Strategy for PriorityStrategy {
     }
 
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
-        // One or more fire roots have been defended and hence shouldn't be considered
-        // in the min_distance_groups anymore
-        if let Some(roots) = self.compute_undefended_roots(node_data) {
-            self.compute_nodes_to_defend(&roots, settings, node_data);
-        }
-
         let num_to_defend = min(settings.num_ffs, self.nodes_to_defend.len());
         let len = self.nodes_to_defend.len();
         let to_defend = &self.nodes_to_defend.as_slices().0[(len-num_to_defend)..len];
-        log::debug!("Defending nodes {:?}", to_defend);
 
         for node in to_defend {
             assert!(node_data.is_undefended(node));
@@ -606,6 +573,12 @@ impl Strategy for PriorityStrategy {
 
         self.nodes_to_defend.truncate(len-num_to_defend);
         self.current_defended += num_to_defend;
+
+        // One or more fire roots have been defended and hence shouldn't be considered
+        // in the min_distance_groups anymore
+        if let Some(roots) = self.compute_undefended_roots(node_data) {
+            self.compute_nodes_to_defend(&roots, settings, node_data);
+        }
     }
 }
 
@@ -637,7 +610,6 @@ impl Strategy for RandomStrategy {
             .cloned()
             .collect();
 
-        log::debug!("Defending nodes {:?}", &to_defend);
         node_data.mark_defended(&to_defend, global_time);
     }
 }

@@ -54,32 +54,32 @@ impl From<ParseFloatError> for ParseError {
 }
 
 /// An undirected graph edge between two nodes a and b
-pub struct Edge {
-    pub a: usize,
-    pub b: usize,
-    pub dist: usize,
-    pub edge_type: String,
-    pub maxspeed: String,
+struct Edge {
+    a: usize,
+    b: usize,
+    dist: usize,
+    edge_type: String,
+    maxspeed: String,
 }
 
 /// A graph node with id, latitude and longitude
-pub struct Node {
-    pub id: usize,
-    pub id2: usize,
-    pub lat: String,
-    pub lon: String,
-    pub elevation: String,
+struct Node {
+    id: usize,
+    id2: usize,
+    lat: String,
+    lon: String,
+    elevation: String,
 }
 
 /// An undirected graph with nodes and edges
-pub struct Graph {
-    pub meta: String,
-    pub nodes: Vec<Node>,
-    pub edges: Vec<Edge>,
-    pub new_edges: Vec<(usize, usize, usize, String, String)>,
-    pub num_nodes: usize,
-    pub num_edges: usize,
-    pub new_num_edges: usize,
+struct Graph {
+    meta: String,
+    nodes: Vec<Node>,
+    edges: Vec<Edge>,
+    new_edges: Vec<(usize, usize, usize, String, String)>,
+    num_nodes: usize,
+    num_edges: usize,
+    new_num_edges: usize,
 }
 
 impl Graph {
@@ -125,7 +125,7 @@ impl Graph {
                 id2: split.next()
                     .expect(&format!("Unexpected EOL while parsing node latitude in line {}",
                                      line_no))
-                    .parse().unwrap(),
+                    .parse()?,
                 lat: split.next()
                     .expect(&format!("Unexpected EOL while parsing node latitude in line {}",
                                      line_no))
@@ -141,8 +141,8 @@ impl Graph {
             };
             self.nodes.push(node);
         }
-        self.edges.reserve_exact(self.num_edges);
 
+        self.edges.reserve_exact(self.num_edges);
         let mut new_temp_edges: BTreeMap<(usize, usize), Vec<(usize, usize, usize, String, String)>> = BTreeMap::new();
         for _ in 0..self.num_edges {
             let line = lines.next()
@@ -154,15 +154,15 @@ impl Graph {
                 a: split.next()
                     .expect(&format!("Unexpected EOL while parsing edge source in line {}",
                                      line_no))
-                    .parse().unwrap(),
+                    .parse()?,
                 b: split.next()
                     .expect(&format!("Unexpected EOL while parsing edge target in line {}",
                                      line_no))
-                    .parse().unwrap(),
+                    .parse()?,
                 dist: split.next()
                     .expect(&format!("Unexpected EOL while parsing edge weight in line {}",
                                      line_no))
-                    .parse().unwrap(),
+                    .parse()?,
                 edge_type: split.next()
                     .expect(&format!("Unexpected EOL while parsing edge weight in line {}",
                                      line_no))
@@ -173,27 +173,19 @@ impl Graph {
                     .to_string(),
             };
 
-            if edge.a <= edge.b {
-                new_temp_edges.entry((edge.a, edge.b))
-                    .and_modify(|edges|{
-                        if edge.dist < edges[0].2 {
-                            edges[0].2 = edge.dist;
-                            edges[1].2 = edge.dist;
-                        }
-                    })
-                    .or_insert(vec![(edge.a, edge.b, edge.dist, edge.edge_type.clone(), edge.maxspeed.clone()), (edge.b, edge.a, edge.dist, edge.edge_type, edge.maxspeed)]);
-            } else if edge.a > edge.b {
-                new_temp_edges.entry((edge.b, edge.a))
-                    .and_modify(|edges|{
-                        if edge.dist < edges[0].2 {
-                            edges[0].2 = edge.dist;
-                            edges[1].2 = edge.dist;
-                        }
-                    })
-                    .or_insert(vec![(edge.a, edge.b, edge.dist, edge.edge_type.clone(), edge.maxspeed.clone()), (edge.b, edge.a, edge.dist, edge.edge_type, edge.maxspeed)]);
-            }
+            let min_vertex = edge.a.min(edge.b);
+            let max_vertex = edge.a.max(edge.b);
+            new_temp_edges.entry((min_vertex, max_vertex))
+                .and_modify(|edges|{
+                    if edge.dist < edges[0].2 {
+                        edges[0].2 = edge.dist;
+                        edges[1].2 = edge.dist;
+                    }
+                })
+                .or_insert(vec![(edge.a, edge.b, edge.dist, edge.edge_type.clone(), edge.maxspeed.clone()), (edge.b, edge.a, edge.dist, edge.edge_type, edge.maxspeed)]);
         }
 
+        self.new_edges.reserve_exact(new_temp_edges.len() * 2);
         for edge_values in new_temp_edges.values() {
             for (a, b, dist, edge_type, maxspeed) in edge_values {
                 self.new_edges.push((*a, *b, *dist, edge_type.clone(), maxspeed.clone()));
@@ -209,6 +201,7 @@ impl Graph {
             })
         });
         self.new_num_edges = self.new_edges.len();
+
         Ok(())
     }
 
@@ -234,10 +227,6 @@ impl Graph {
 
 /// Given arguments look like: "path/graphname.fmi path/new_graphname.fmi". Parses "graphname.fmi", creates an undirected graph and writes it in "new_graphname.fmi".
 fn main() -> Result<(), ParseError> {
-    // Initialize logger
-    env::set_var("RUST_LOG", "debug");
-    env::set_var("RUST_BACKTRACE", "1");
-
     let args: Vec<_> = env::args().collect();
 
     if args.len() < 3 {
@@ -259,5 +248,6 @@ fn main() -> Result<(), ParseError> {
     };
     graph.parse_graph(&in_graph)?;
     graph.write_graph(&out_graph)?;
+
     Ok(())
 }

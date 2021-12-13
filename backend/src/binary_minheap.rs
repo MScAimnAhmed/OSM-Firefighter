@@ -120,3 +120,43 @@ impl BinaryMinHeap {
         self.heap.is_empty()
     }
 }
+
+#[cfg(test)]
+mod test {
+    use crate::binary_minheap::BinaryMinHeap;
+
+    #[test]
+    fn test_push_pop() {
+        let mut heap = BinaryMinHeap::with_capacity(5);
+        let prios = vec![0, 4, 2, 5, 1];
+
+        heap.push(0, &prios);
+        heap.push(1, &prios);
+        heap.push(2, &prios);
+        heap.push(3, &prios);
+        heap.push(4, &prios);
+
+        assert_eq!(0, heap.pop(&prios));
+        assert_eq!(4, heap.pop(&prios));
+        assert_eq!(2, heap.pop(&prios));
+        assert_eq!(1, heap.pop(&prios));
+        assert_eq!(3, heap.pop(&prios));
+    }
+
+    #[test]
+    fn test_decrease_key() {
+        let mut heap = BinaryMinHeap::with_capacity(5);
+        let mut prios = vec![0, 4, 2, 5, 3];
+
+        heap.push(0, &prios);
+        heap.push(1, &prios);
+        heap.push(2, &prios);
+        heap.push(3, &prios);
+        heap.push(4, &prios);
+
+        prios[1] = 1;
+        heap.decrease_key(1, &prios);
+
+        assert_eq!(1, heap.heap[1]);
+    }
+}
