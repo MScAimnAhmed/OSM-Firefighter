@@ -120,7 +120,7 @@ impl View {
 
     /// (Re-)compute this view
     pub fn compute(&mut self, center: Coords, zoom: f64, time: &TimeUnit, node_data: &NodeDataStorage) {
-        let z = if zoom < 1.0 { 1.0 } else { zoom };
+        let z = if zoom < 0.0 { 0.0 } else { zoom };
 
         // Reset view
         for px in self.img_buf.pixels_mut() {
