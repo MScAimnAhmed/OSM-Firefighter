@@ -97,7 +97,7 @@ fn compute_undefended_roots(undefended_roots: &mut HashMap<usize, (Visited, Risk
                             graph: &Arc<RwLock<Graph>>, node_data: &NodeDataStorage) -> Option<Vec<usize>> {
     let graph = graph.read().unwrap();
 
-    for (&root, (visited, risky_nodes)) in undefended_roots.iter_mut() {
+    for (_, (visited, risky_nodes)) in undefended_roots.iter_mut() {
         // Filter all burning risky nodes
         let mut burning: VecDeque<_> = risky_nodes.iter()
             .filter(|&node| node_data.is_burning(node))

@@ -27,7 +27,6 @@ use crate::session::OSMFSessionStorage;
 /// Storage for data associated to the web app
 struct AppData {
     sessions: Mutex<OSMFSessionStorage>,
-    graphs_path: String,
     graphs: HashMap<String, Arc<RwLock<Graph>>>,
 }
 
@@ -65,45 +64,9 @@ async fn ping(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
 
 /// List all graph files that can be parsed by the server
 #[get("/graphs")]
-async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> Result<HttpResponse, OSMFError> {
-    match fs::read_dir(&data.graphs_path) {
-        Ok(paths) => {
-            let (mut res, _) = init_response(&data, &req, HttpResponse::Ok());
-            let mut graph_files = Vec::new();
-            for path in paths {
-                let path = path.unwrap();
-                let filetype = path.file_type().unwrap();
-                if filetype.is_dir() {
-                    continue;
-                }
-                let filename = String::from(
-                    path.file_name()
-                        .to_str()
-                        .unwrap()
-                );
-                let mut ext_len;
-                if filename.ends_with(".fmi") || filename.ends_with(".hub") {
-                    ext_len = 4;
-                    if filename.ends_with(".ch.hub") {
-                        ext_len += 3;
-                    }
-                } else {
-                    continue;
-                }
-                let graph_file = filename[0..filename.len()-ext_len].to_string();
-                if !graph_files.contains(&graph_file) {
-                    graph_files.push(graph_file);
-                }
-            }
-            Ok(res.json(json!(graph_files)))
-        }
-        Err(err) => {
-            log::warn!("Failed to list graph files: {}", err.to_string());
-            Err(OSMFError::Internal {
-                message: "Could not find graph file directory".to_string()
-            })
-        }
-    }
+async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
+    let (mut res, _) = init_response(&data, &req, HttpResponse::Ok());
+    res.json(json!(data.graphs.keys().collect::<Vec<_>>()))
 }
 
 /// List all available firefighter containment strategies
@@ -256,7 +219,6 @@ async fn main() -> std::io::Result<()> {
     // Initialize app data
     let data = web::Data::new(AppData {
         sessions: Mutex::new(OSMFSessionStorage::new()),
-        graphs_path,
         graphs,
     });
 

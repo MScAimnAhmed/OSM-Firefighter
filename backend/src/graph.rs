@@ -550,7 +550,7 @@ mod test {
             .choose(&mut rng)
             .unwrap();
 
-        let (dists, _) = graph.run_dijkstra(src.id);
+        let dists = graph.run_dijkstra(src.id);
         for node in &graph.nodes {
             assert_eq!(dists[node.id], graph.unchecked_get_shortest_dist(src.id, node.id));
         }
