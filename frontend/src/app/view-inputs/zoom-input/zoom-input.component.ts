@@ -18,7 +18,7 @@ export class ZoomInputComponent implements OnInit {
   ngOnInit(): void {
     this.currentZoomFormControl = new FormControl(this.currentZoom, [Validators.required]);
     this.currentZoomFormControl.valueChanges.pipe(
-      debounceTime(500),
+      debounceTime(100),
       distinctUntilChanged()
     ).subscribe(_ => {
       this.onChange.emit(this.currentZoom);

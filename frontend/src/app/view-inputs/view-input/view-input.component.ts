@@ -63,16 +63,26 @@ export class ViewInputComponent implements OnInit {
     }
   }
 
+  resetView() {
+    this.currentCoord.lon = (this.maxCoord.lon - this.minCoord.lon) / 2 + this.minCoord.lon;
+    this.currentCoord.lat = (this.maxCoord.lat - this.minCoord.lat) / 2 + this.minCoord.lat;
+    this.latSubject.next(this.currentCoord.lat);
+  }
+
   moveViewHorizontally(moveRight: boolean) {
     //step size is always 1% of the dif between max and min value
     let stepsize = (this.maxCoord.lon - this.minCoord.lon) / 100;
     if (moveRight) {
       if (this.currentCoord.lon + stepsize <= this.maxCoord.lon) {
         this.currentCoord.lon += stepsize;
+      } else {
+        this.currentCoord.lon = this.maxCoord.lon;
       }
     } else {
       if (this.currentCoord.lon - stepsize >= this.minCoord.lon) {
         this.currentCoord.lon -= stepsize;
+      } else {
+        this.currentCoord.lon = this.minCoord.lon;
       }
     }
     this.lonSubject.next(this.currentCoord.lon);
@@ -84,10 +94,14 @@ export class ViewInputComponent implements OnInit {
     if (moveUp) {
       if (this.currentCoord.lat + stepsize <= this.maxCoord.lat) {
         this.currentCoord.lat += stepsize;
+      } else {
+        this.currentCoord.lat = this.maxCoord.lat;
       }
     } else {
       if (this.currentCoord.lat - stepsize >= this.minCoord.lat) {
         this.currentCoord.lat -= stepsize;
+      } else {
+        this.currentCoord.lat = this.minCoord.lat;
       }
     }
     this.latSubject.next(this.currentCoord.lat);

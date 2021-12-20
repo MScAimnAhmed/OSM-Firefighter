@@ -22,6 +22,7 @@ export class GraphViewerComponent implements OnInit {
   @ViewChild(MetaInfoBoxComponent) infoBox: MetaInfoBoxComponent;
 
   refreshing: boolean;
+  pending: boolean;
   activeSimulation: boolean;
   simConfig: SimulationConfig;
 
@@ -61,17 +62,24 @@ export class GraphViewerComponent implements OnInit {
   }
 
   public refreshView() {
-    if (this.activeSimulation && !this.refreshing) {
-      this.refreshing = true;
+    if (this.activeSimulation) {
       this.infoBox.updateStepMetaData(this.turnInput.currentTurn);
-      this.graphservice.refreshView(this.turnInput.currentTurn, this.zoomInput.currentZoom, this.viewInput.currentCoord)
-        .subscribe((data: Blob) => {
-          this.refreshing = false;
-          this.createImageFromBlob(data);
-        }, _ => {
-          console.log('Could not refresh the View');
-          this.refreshing = false;
-        });
+      if (!this.refreshing) {
+        this.refreshing = true;this.graphservice.refreshView(this.turnInput.currentTurn, this.zoomInput.currentZoom, this.viewInput.currentCoord)
+          .subscribe((data: Blob) => {
+            this.refreshing = false;
+            this.createImageFromBlob(data);
+            if (this.pending) {
+              this.pending = false;
+              this.refreshView();
+            }
+          }, _ => {
+            console.log('Could not refresh the View');
+            this.refreshing = false;
+          });
+      } else {
+        this.pending = true;
+      }
     }
   }
 
