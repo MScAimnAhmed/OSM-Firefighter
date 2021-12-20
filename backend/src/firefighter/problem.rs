@@ -364,7 +364,7 @@ mod test {
     use crate::graph::Graph;
 
     static GRAPH: Lazy<Arc<RwLock<Graph>>> = Lazy::new(||
-        Arc::new(RwLock::new(Graph::from_files("data/bbgrund"))));
+        Arc::new(RwLock::new(Graph::from_file("data/bbgrund"))));
 
     fn initialize(strategy: OSMFStrategy) -> OSMFProblem {
         OSMFProblem::new(
