@@ -74,8 +74,8 @@ impl Strategy for GreedyStrategy {
         // Sort the edges by their weight and by the _out degree_ of their targets
         edges.sort_unstable_by(|&e1, &e2|
             e1.dist.cmp(&e2.dist).then_with(|| {
-                let tgt1_deg = graph.get_out_degree(e1.tgt);
-                let tgt2_deg = graph.get_out_degree(e2.tgt);
+                let tgt1_deg = graph.get_degree(e1.tgt);
+                let tgt2_deg = graph.get_degree(e2.tgt);
                 tgt2_deg.cmp(&tgt1_deg)
             }));
 
@@ -113,7 +113,7 @@ fn compute_undefended_roots(undefended_roots: &mut HashMap<usize, (Visited, Risk
         while !burning.is_empty() {
             let node = burning.pop_front().unwrap();
             visited.insert(node);
-            let out_deg = graph.get_out_degree(node);
+            let out_deg = graph.get_degree(node);
             risky_nodes.reserve(out_deg);
             burning.reserve(out_deg);
             for i in graph.offsets[node]..graph.offsets[node+1] {
@@ -147,14 +147,12 @@ fn group_nodes_by_distance(undefended_roots: &Vec<usize>, graph: &RwLockReadGuar
                            node_data: &NodeDataStorage) -> BTreeMap<usize, Vec<usize>> {
     let mut sho_dists = HashMap::with_capacity(graph.num_nodes);
     for &root in undefended_roots {
-        for node in &graph.nodes {
-            if node_data.is_undefended(&node.id) {
-                let new_dist = graph.unchecked_get_shortest_dist(root, node.id);
-                if new_dist < usize::MAX {
-                    sho_dists.entry(node.id)
-                        .and_modify(|cur_dist| if new_dist < *cur_dist { *cur_dist = new_dist })
-                        .or_insert(new_dist);
-                }
+        let dists = graph.run_dijkstra(root);
+        for (node, &dist) in dists.iter().enumerate() {
+            if node_data.is_undefended(&node) && dist < usize::MAX {
+                sho_dists.entry(node)
+                    .and_modify(|cur_dist| if dist < *cur_dist { *cur_dist = dist })
+                    .or_insert(dist);
             }
         }
     }
@@ -243,8 +241,8 @@ impl MultiMinDistSetsStrategy {
                     // Sort by out degree
                     let mut nodes = nodes.clone();
                     nodes.sort_unstable_by(|&n1, &n2| {
-                        let deg1 = graph.get_out_degree(n1);
-                        let deg2 = graph.get_out_degree(n2);
+                        let deg1 = graph.get_degree(n1);
+                        let deg2 = graph.get_degree(n2);
                         deg2.cmp(&deg1)
                     });
                     // Take first 'can_defend' number of nodes
@@ -438,7 +436,7 @@ impl PriorityStrategy {
 
         let mut priority_map = HashMap::with_capacity(graph.num_nodes);
         for node in &graph.nodes {
-            if node_data.is_undefended(&node.id) && graph.get_out_degree(node.id) > 0 {
+            if node_data.is_undefended(&node.id) && graph.get_degree(node.id) > 0 {
                 let mut prio = 0.0;
                 for i in graph.offsets[node.id]..graph.offsets[node.id+1] {
                     let edge = &graph.edges[i];

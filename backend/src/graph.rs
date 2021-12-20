@@ -1,7 +1,7 @@
 use std::{cmp::Ordering,
           fmt::Formatter,
           fs::File,
-          io::{prelude::*, BufReader, Lines},
+          io::{prelude::*, BufReader},
           num::{ParseIntError, ParseFloatError}};
 
 use serde::Serialize;
@@ -10,21 +10,6 @@ use crate::binary_minheap::BinaryMinHeap;
 
 /// Type alias for the result of a run of the Dijkstra algorithm
 type DijkstraResult = Vec<usize>;
-
-/// Was the hub calculated via backward or forward search?
-#[derive(Debug, Serialize)]
-enum HubDirection {
-    Backward,
-    Forward,
-}
-
-/// Hub label for a node
-#[derive(Debug, Serialize)]
-struct HubLabel {
-    hub_id: usize,
-    dist: usize,
-    dir: HubDirection,
-}
 
 /// Struct to hold the grid bounds of a graph or part of a graph
 #[derive(Debug, Serialize)]
@@ -62,8 +47,6 @@ pub struct Node {
     pub id: usize,
     pub lat: f64,
     pub lon: f64,
-    bwd_hubs: Vec<HubLabel>,
-    fwd_hubs: Vec<HubLabel>,
 }
 
 impl Node {
@@ -111,7 +94,6 @@ pub struct Graph {
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
     pub offsets: Vec<usize>,
-    pub in_degrees: Vec<usize>,
     pub num_nodes: usize,
     pub num_edges: usize,
 }
@@ -131,17 +113,9 @@ impl Graph {
             nodes: Vec::new(),
             edges: Vec::new(),
             offsets: Vec::new(),
-            in_degrees: Vec::new(),
             num_nodes: 0,
             num_edges: 0,
         }
-    }
-
-    /// Parse node and edge data from one file and hub labels from another file
-    /// into a directed graph
-    fn parse_graph_with_hubs(&mut self, file_path: String) -> Result<(), ParseError> {
-        self.parse_graph((file_path.clone() + ".fmi").as_str())?;
-        self.parse_hubs((file_path + ".ch.hub").as_str())
     }
 
     /// Parse node and edge data from a file into a directed graph
@@ -189,8 +163,6 @@ impl Graph {
                     .expect(&format!("Unexpected EOL while parsing node longitude in line {}",
                                      line_no))
                     .parse()?,
-                bwd_hubs: Vec::new(),
-                fwd_hubs: Vec::new(),
             };
             self.nodes.push(node);
         }
@@ -199,7 +171,6 @@ impl Graph {
         let mut offset: usize = 0;
         self.edges.reserve_exact(self.num_edges);
         self.offsets.resize(self.num_nodes + 1, 0);
-        self.in_degrees.resize(self.num_nodes, 0);
         for _ in 0..self.num_edges {
             let line = lines.next()
                 .expect(&format!("Unexpected EOF while parsing edges in line {}", line_no))?;
@@ -229,7 +200,6 @@ impl Graph {
             }
             offset += 1;
 
-            self.in_degrees[edge.tgt] += 1;
             self.edges.push(edge);
         }
         self.offsets[self.num_nodes] = self.num_edges;
@@ -237,73 +207,10 @@ impl Graph {
         Ok(())
     }
 
-    /// Parse hub labels from a file and add them to their respective nodes
-    fn parse_hubs(&mut self, hub_file_path: &str) -> Result<(), ParseError> {
-        let hub_file = File::open(hub_file_path)?;
-        let hub_reader = BufReader::new(hub_file);
-
-        let mut lines = hub_reader.lines();
-        let mut line_no = 0;
-
-        let num_bwd_hubs: usize = lines.next()
-            .expect("Unexpected EOF while parsing number of backward hubs")?
-            .parse()?;
-        let num_fwd_hubs: usize = lines.next()
-            .expect("Unexpected EOF while parsing number of forward hubs")?
-            .parse()?;
-        line_no += 2;
-
-        for _ in 0..num_bwd_hubs {
-            line_no += 1;
-            self.parse_hub(&mut lines, line_no, HubDirection::Backward)?;
-        }
-        for _ in 0..num_fwd_hubs {
-            line_no += 1;
-            self.parse_hub(&mut lines, line_no, HubDirection::Forward)?;
-        }
-
-        Ok(())
-    }
-
-    /// Parse a single hub label and add it to its respective node
-    fn parse_hub(&mut self, lines: &mut Lines<BufReader<File>>, line_no: usize, direction: HubDirection) -> Result<(), ParseError> {
-        let line = lines.next()
-            .expect(&format!("Unexpected EOF while parsing hub label in line {}", line_no))?;
-        let mut split = line.split(" ");
-
-        let node_id: usize = split.next()
-            .expect(&format!("Unexpected EOL while parsing node id in line {}",
-                             line_no))
-            .parse()?;
-
-        let hub_label = HubLabel {
-            hub_id: split.next()
-                .expect(&format!("Unexpected EOL while parsing hub id in line {}",
-                                 line_no))
-                .parse()?,
-            dist: split.next()
-                .expect(&format!("Unexpected EOL while parsing distance to hub in line {}",
-                                 line_no))
-                .parse()?,
-            dir: direction,
-        };
-
-        match self.nodes.get_mut(node_id) {
-            Some(node) => {
-                match hub_label.dir {
-                    HubDirection::Backward => node.bwd_hubs.push(hub_label),
-                    HubDirection::Forward => node.fwd_hubs.push(hub_label)
-                }
-                Ok(())
-            },
-            None => Err(ParseError::InvalidNode(node_id))
-        }
-    }
-
     /// Create a directed graph from files that contains node and edge data and hub labels
-    pub fn from_files(file_path: &str) -> Self {
+    pub fn from_file(file_path: &str) -> Self {
         let mut graph = Graph::new();
-        match graph.parse_graph_with_hubs(file_path.to_string()) {
+        match graph.parse_graph(file_path) {
             Ok(_) => (),
             Err(err) => panic!("Failed to create graph from files at {}: {}", file_path,
                                err.to_string())
@@ -312,62 +219,8 @@ impl Graph {
     }
 
     /// Get the number of outgoing edges of the node with id `node_id`
-    pub fn get_out_degree(&self, node_id: usize) -> usize {
+    pub fn get_degree(&self, node_id: usize) -> usize {
         self.offsets[node_id + 1] - self.offsets[node_id]
-    }
-
-    /// Get the number of incoming edges of the node with id `node_id`
-    pub fn get_in_degree(&self, node_id: usize) -> usize {
-        self.in_degrees[node_id]
-    }
-
-    /// Get the shortest distance between the node with id `src_id` and the node with id `tgt_id`.
-    /// Returns `usize::MAX` if no path exists.
-    pub fn unchecked_get_shortest_dist(&self, src_id: usize, tgt_id: usize) -> usize {
-        let src = &self.nodes[src_id];
-        let tgt = &self.nodes[tgt_id];
-
-        let mut ind_s = 0;
-        let mut ind_t = 0;
-        let sz_s = src.fwd_hubs.len();
-        let sz_t = tgt.bwd_hubs.len();
-
-        let mut best_dist = usize::MAX;
-
-        while (ind_s < sz_s) && (ind_t < sz_t) {
-            let src_hub = &src.fwd_hubs[ind_s];
-            let tgt_hub = &tgt.bwd_hubs[ind_t];
-
-            match src_hub.hub_id.cmp(&tgt_hub.hub_id) {
-                Ordering::Equal => {
-                    let hub_dist = src_hub.dist + tgt_hub.dist;
-                    if best_dist > hub_dist {
-                        best_dist = hub_dist;
-                    }
-                    ind_s += 1;
-                    ind_t += 1;
-                }
-                Ordering::Less => {
-                    ind_s += 1;
-                }
-                Ordering::Greater => {
-                    ind_t += 1;
-                }
-            }
-        }
-
-        best_dist
-    }
-
-    /// Get the shortest distance between the node with id `src_id` and the node with id `tgt_id`.
-    /// Returns error if no path exists.
-    pub fn get_shortest_dist(&self, src_id: usize, tgt_id: usize) -> Result<usize, ComputationError> {
-        let best_dist = self.unchecked_get_shortest_dist(src_id, tgt_id);
-        if best_dist < usize::MAX {
-            Ok(best_dist)
-        } else {
-            Err(ComputationError::NoPath(src_id, tgt_id))
-        }
     }
 
     /// Run an one-to-all Dijkstra from the source node with id `src_id`
@@ -432,7 +285,6 @@ enum ParseError {
     IO(std::io::Error),
     ParseInt(ParseIntError),
     ParseFloat(ParseFloatError),
-    InvalidNode(usize),
 }
 
 impl std::fmt::Display for ParseError {
@@ -441,7 +293,6 @@ impl std::fmt::Display for ParseError {
             Self::IO(err) => write!(f, "{}", err.to_string()),
             Self::ParseInt(err) => write!(f, "{}", err.to_string()),
             Self::ParseFloat(err) => write!(f, "{}", err.to_string()),
-            Self::InvalidNode(node_id) => write!(f, "Invalid node {}", node_id)
         }
     }
 }
@@ -452,7 +303,6 @@ impl std::error::Error for ParseError {
             Self::IO(ref err) => Some(err),
             Self::ParseInt(ref err) => Some(err),
             Self::ParseFloat(ref err) => Some(err),
-           _ => None
         }
     }
 }
@@ -475,20 +325,6 @@ impl From<ParseFloatError> for ParseError {
     }
 }
 
-#[derive(Debug)]
-pub enum ComputationError {
-    NoPath(usize, usize),
-}
-
-impl std::fmt::Display for ComputationError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::NoPath(src_id, tgt_id) =>
-                write!(f, "No path between nodes {} and {}", src_id, tgt_id)
-        }
-    }
-}
-
 #[cfg(test)]
 mod test {
     use rand::prelude::IteratorRandom;
@@ -497,7 +333,7 @@ mod test {
 
     #[test]
     fn test_nodes_edges() {
-        let graph = Graph::from_files("data/bbgrund");
+        let graph = Graph::from_file("data/bbgrund");
 
         assert_eq!(graph.nodes.len(), 350);
         assert_eq!(graph.edges.len(), 685);
@@ -505,7 +341,7 @@ mod test {
 
     #[test]
     fn test_grid_bounds() {
-        let graph = Graph::from_files("data/bbgrund");
+        let graph = Graph::from_file("data/bbgrund");
 
         let gb = graph.get_grid_bounds();
         assert!(gb.min_lat >= 48.67);
@@ -516,34 +352,17 @@ mod test {
 
     #[test]
     fn test_node() {
-        let graph = Graph::from_files("data/bbgrund");
+        let graph = Graph::from_file("data/bbgrund");
 
         let edges_with_src_70: Vec<_> = graph.edges.iter()
             .filter(|&e| e.src == 70)
             .collect();
         assert_eq!(edges_with_src_70.len(), 3);
-
-        assert_eq!(graph.nodes[70].bwd_hubs.len(), 6);
-        assert_eq!(graph.nodes[70].fwd_hubs.len(), 3);
-    }
-
-    #[test]
-    fn test_hubs() {
-        let graph = Graph::from_files("data/bbgrund");
-
-        for node in &graph.nodes {
-            if !node.bwd_hubs.is_empty() {
-                assert!(node.bwd_hubs[0].hub_id <= node.bwd_hubs[node.bwd_hubs.len()-1].hub_id);
-            }
-            if !node.fwd_hubs.is_empty() {
-                assert!(node.fwd_hubs[0].hub_id <= node.fwd_hubs[node.fwd_hubs.len()-1].hub_id);
-            }
-        }
     }
 
     #[test]
     fn test_distance_calculation() {
-        let graph = Graph::from_files("data/stgcenter");
+        let graph = Graph::from_file("data/stgcenter");
 
         let mut rng = thread_rng();
         let src = graph.nodes.iter()
