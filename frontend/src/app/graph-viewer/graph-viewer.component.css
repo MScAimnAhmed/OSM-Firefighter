@@ -73,3 +73,7 @@ button {
   border-top-color: #000000;
   animation: spinner .8s linear infinite;
 }
+
+app-meta-info-box {
+  width: 100%;
+}
