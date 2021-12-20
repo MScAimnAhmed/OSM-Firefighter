@@ -31,6 +31,18 @@ impl OSMFStrategy {
             .map(<&str>::to_string)
             .collect::<Vec<_>>()
     }
+
+    /// Return a new strategy for given strategy name
+    pub fn from_name(strategy_name: &str, graph: Arc<RwLock<Graph>>) -> Option<OSMFStrategy> {
+        match strategy_name {
+            "Greedy" => Some(OSMFStrategy::Greedy(GreedyStrategy::new(graph))),
+            "MultiMinDistanceSets" => Some(OSMFStrategy::MultiMinDistanceSets(MultiMinDistSetsStrategy::new(graph))),
+            "SingleMinDistanceSet" => Some(OSMFStrategy::SingleMinDistanceSet(SingleMinDistSetStrategy::new(graph))),
+            "Priority" => Some(OSMFStrategy::Priority(PriorityStrategy::new(graph))),
+            "Random" => Some(OSMFStrategy::Random(RandomStrategy::new(graph))),
+            _ => None
+        }
+    }
 }
 
 /// Strategy trait that each strategy needs to implement

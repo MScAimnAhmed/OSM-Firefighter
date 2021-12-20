@@ -1,13 +1,5 @@
-mod error;
-mod graph;
-mod session;
-mod firefighter;
-mod query;
-mod binary_minheap;
-
 use std::{collections::HashMap,
           env,
-          fs,
           sync::{Arc, Mutex, RwLock}};
 
 use actix_cors::Cors;
@@ -16,13 +8,13 @@ use log;
 use serde::Serialize;
 use serde_json::json;
 
-use crate::error::OSMFError;
-use crate::firefighter::{problem::{OSMFProblem, OSMFSettings},
-                         strategy::{GreedyStrategy, OSMFStrategy, MultiMinDistSetsStrategy, SingleMinDistSetStrategy, Strategy, PriorityStrategy, RandomStrategy},
-                         TimeUnit};
-use crate::graph::Graph;
-use crate::query::Query;
-use crate::session::OSMFSessionStorage;
+use lib::error::OSMFError;
+use lib::firefighter::{problem::{OSMFProblem, OSMFSettings},
+                       strategy::OSMFStrategy,
+                       TimeUnit};
+use lib::graph::Graph;
+use lib::query::Query;
+use lib::session::OSMFSessionStorage;
 
 /// Storage for data associated to the web app
 struct AppData {
@@ -101,13 +93,9 @@ async fn simulate_problem(data: web::Data<AppData>, settings: web::Json<OSMFSett
         }
     };
 
-    let strategy = match settings.strategy_name.as_str() {
-        "Greedy" => OSMFStrategy::Greedy(GreedyStrategy::new(graph.clone())),
-        "MultiMinDistanceSets" => OSMFStrategy::MultiMinDistanceSets(MultiMinDistSetsStrategy::new(graph.clone())),
-        "SingleMinDistanceSet" => OSMFStrategy::SingleMinDistanceSet(SingleMinDistSetStrategy::new(graph.clone())),
-        "Priority" => OSMFStrategy::Priority(PriorityStrategy::new(graph.clone())),
-        "Random" => OSMFStrategy::Random(RandomStrategy::new(graph.clone())),
-        _ => {
+    let strategy = match OSMFStrategy::from_name(&settings.strategy_name, graph.clone()) {
+        Some(s) => s,
+        None => {
             log::warn!("Unknown strategy {}", settings.strategy_name);
             return Err(OSMFError::BadRequest {
                 message: format!("Unknown value for parameter 'strategy': '{}'", settings.strategy_name)
@@ -208,27 +196,7 @@ async fn main() -> std::io::Result<()> {
 
     // Initialize graphs
     let graphs_path = args[1].to_string();
-    let paths: Vec<_> = match fs::read_dir(&graphs_path) {
-        Ok(paths) => paths
-            .filter_map(|path| path.ok())
-            .filter(|path| path.path().to_str()
-                .expect("Invalid unicode path")
-                .ends_with(".fmi"))
-            .collect(),
-        Err(err) => panic!("{}", err.to_string())
-    };
-    let mut graphs = HashMap::with_capacity(graphs_path.len());
-    for path in paths {
-        let file_name = path.file_name().to_str().unwrap().split(".").collect::<Vec<_>>()[0].to_string();
-        let file_path = path.path().to_str().unwrap().to_string();
-        graphs.entry(file_name.clone()).or_insert_with(|| {
-            let graph = Arc::new(RwLock::new(Graph::from_file(&file_path)));
-
-            log::info!("Loaded graph {}", file_name);
-
-            graph
-        });
-    }
+    let graphs = lib::load_graphs(&graphs_path);
 
     // Initialize app data
     let data = web::Data::new(AppData {

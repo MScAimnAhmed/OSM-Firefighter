@@ -12,11 +12,11 @@ use crate::firefighter::{strategy::{OSMFStrategy, Strategy},
 use crate::graph::{Graph, GridBounds};
 
 /// Settings for a firefighter problem instance
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct OSMFSettings {
     pub graph_name: String,
     pub strategy_name: String,
-    num_roots: usize,
+    pub num_roots: usize,
     pub num_ffs: usize,
     pub strategy_every: TimeUnit,
 }
@@ -161,10 +161,10 @@ impl NodeDataStorage {
 /// Container for data about the simulation of a firefighter problem instance
 #[derive(Serialize)]
 pub struct OSMFSimulationResponse<'a> {
-    nodes_burned: usize,
-    nodes_defended: usize,
+    pub nodes_burned: usize,
+    pub nodes_defended: usize,
     nodes_total: usize,
-    end_time: TimeUnit,
+    pub end_time: TimeUnit,
     view_bounds: &'a GridBounds,
     view_center: Coords,
 }

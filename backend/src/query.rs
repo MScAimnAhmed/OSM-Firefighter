@@ -1,7 +1,7 @@
 use qstring::QString;
 use std::str::FromStr;
 
-use crate::OSMFError;
+use crate::error::OSMFError;
 
 /// Thin wrapper for query strings with an API to get values
 /// from the query easily
