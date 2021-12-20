@@ -13,5 +13,4 @@ Cargo.lock
 data/*.png
 
 # Large graph files
-data/MV.fmi
-data/MV.ch.hub
+data/berlin_undirected.fmi
