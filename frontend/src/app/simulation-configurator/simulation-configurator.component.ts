@@ -1,17 +1,18 @@
-import { Component, Inject, OnInit } from '@angular/core';
+import { Component, Inject } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { GraphServiceService } from '../service/graph-service.service';
 import { FormControl, Validators } from '@angular/forms';
 import { SimulationConfig } from '../data/SimulationConfig';
+import { GraphData } from '../data/GraphData';
 
 @Component({
   selector: 'app-simulation-configurator',
   templateUrl: './simulation-configurator.component.html',
   styleUrls: ['./simulation-configurator.component.css']
 })
-export class SimulationConfiguratorComponent implements OnInit {
+export class SimulationConfiguratorComponent {
 
-  graphOptions: string[] = [];
+  graphOptions: GraphData[] = [];
   strategyOptions: string[] = [];
 
   graphFormControl: FormControl;
@@ -20,7 +21,7 @@ export class SimulationConfiguratorComponent implements OnInit {
   fireFighterFrequencyFormControl: FormControl;
   strategyFormcontrol: FormControl;
 
-  selectedGraph = '';
+  selectedGraph = GraphData;
   fireSources = 1;
   fireFighters = 1;
   fireFighterFrequency = 1;
@@ -31,7 +32,11 @@ export class SimulationConfiguratorComponent implements OnInit {
     private graphService: GraphServiceService,
     @Inject(MAT_DIALOG_DATA) public data: SimulationConfig
   ) {
-    this.tryToLoadInputValues(data);
+    if (data) {
+      this.fireSources = data.num_roots;
+      this.fireFighters = data.num_ffs;
+      this.fireFighterFrequency = data.strategy_every;
+    }
     this.graphFormControl = new FormControl(this.selectedGraph, [Validators.required]);
     this.graphFormControl.valueChanges
       .subscribe(value => this.selectedGraph = value);
@@ -47,30 +52,21 @@ export class SimulationConfiguratorComponent implements OnInit {
     this.strategyFormcontrol = new FormControl(this.selectedStrategy, [Validators.required]);
     this.strategyFormcontrol.valueChanges
       .subscribe(value => this.selectedStrategy = value);
-  }
-
-  tryToLoadInputValues(data: SimulationConfig): void {
-    if (data) {
-      this.selectedGraph = data.graph_name;
-      this.fireSources = data.num_roots;
-      this.fireFighters = data.num_ffs;
-      this.fireFighterFrequency = data.strategy_every;
-      this.selectedStrategy = data.strategy_name;
-    }
-  }
-
-  ngOnInit(): void {
-    //retrieve Dropdown Options here
     this.graphService.getGraphs().subscribe(
-      data => {
-        this.graphOptions = data;
+      res => {
+        this.graphOptions = res;
+        let graph = data ? this.graphOptions.find(graph => graph.name === data.graph_name): undefined;
+        if (graph) {
+          this.graphFormControl.setValue(graph);
+        }
       }
     );
     this.graphService.getStrategies().subscribe(
-      data => {
-        this.strategyOptions = data;
+      res => {
+        this.strategyOptions = res;
+        if (data) this.strategyFormcontrol.setValue(data.strategy_name);
       }
-    )
+    );
   }
 
   cancel() {
@@ -82,10 +78,14 @@ export class SimulationConfiguratorComponent implements OnInit {
       || this.fireFighterFormControl.invalid || this.fireFighterFrequencyFormControl.invalid;
   }
 
+  getNumberOfNodes(): number {
+    return this.graphFormControl.value.num_of_nodes ? this.graphFormControl.value.num_of_nodes : 1;
+  }
+
   confirm() {
     this.dialogRef.close()
     this.dialogRef.close({
-        graph_name: this.selectedGraph,
+        graph_name: this.selectedGraph.name,
         strategy_name: this.selectedStrategy,
         num_ffs: this.fireFighters,
         num_roots: this.fireSources,
