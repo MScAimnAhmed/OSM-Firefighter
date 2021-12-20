@@ -42,7 +42,6 @@ export class GraphViewerComponent implements OnInit {
 
     dialogRef.afterClosed().subscribe((data: SimulationConfig) => {
       if (data) {
-        this.refreshing = true;
         this.simConfig = data;
         this.graphservice.simulate(data).subscribe((response: SimulationMetaData) => {
           this.activeSimulation = true;
@@ -62,7 +61,7 @@ export class GraphViewerComponent implements OnInit {
   }
 
   public refreshView() {
-    if (this.activeSimulation) {
+    if (this.activeSimulation && !this.refreshing) {
       this.refreshing = true;
       this.infoBox.updateStepMetaData(this.turnInput.currentTurn);
       this.graphservice.refreshView(this.turnInput.currentTurn, this.zoomInput.currentZoom, this.viewInput.currentCoord)
