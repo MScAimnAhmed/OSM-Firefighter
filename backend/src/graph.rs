@@ -207,7 +207,7 @@ impl Graph {
         Ok(())
     }
 
-    /// Create a directed graph from files that contains node and edge data and hub labels
+    /// Create a directed graph from a file that contains node and edge data
     pub fn from_file(file_path: &str) -> Self {
         let mut graph = Graph::new();
         match graph.parse_graph(file_path) {
