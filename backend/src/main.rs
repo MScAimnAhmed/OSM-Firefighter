@@ -13,6 +13,7 @@ use std::{collections::HashMap,
 use actix_cors::Cors;
 use actix_web::{App, dev::HttpResponseBuilder, get, HttpMessage, HttpRequest, HttpResponse, HttpServer, middleware::Logger, post, Responder, web, http};
 use log;
+use serde::Serialize;
 use serde_json::json;
 
 use crate::error::OSMFError;
@@ -27,6 +28,12 @@ use crate::session::OSMFSessionStorage;
 struct AppData {
     sessions: Mutex<OSMFSessionStorage>,
     graphs: HashMap<String, Arc<RwLock<Graph>>>,
+}
+
+#[derive(Serialize)]
+struct GraphData {
+    name: String,
+    num_of_nodes: usize
 }
 
 /// Common function to initialize a `HttpResponseBuilder` for an incoming `HttpRequest`.
@@ -65,7 +72,11 @@ async fn ping(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
 #[get("/graphs")]
 async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
     let (mut res, _) = init_response(&data, &req, HttpResponse::Ok());
-    res.json(json!(data.graphs.keys().collect::<Vec<_>>()))
+    res.json(json!(data.graphs.keys().map(|key|
+        {
+            return GraphData{name: key.clone(), num_of_nodes: data.graphs.get(key).unwrap().read().unwrap().num_nodes}
+        }
+    ).collect::<Vec<_>>()))
 }
 
 /// List all available firefighter containment strategies

@@ -5,14 +5,14 @@
         <mat-form-field>
           <mat-label>Zoom</mat-label>
           <span matPrefix>x</span>
-          <input matInput type='number' min='1' [(ngModel)]='currentZoom' [formControl]='currentZoomFormControl'>
+          <input matInput type='number' min='0' [(ngModel)]='currentZoom' [formControl]='currentZoomFormControl'>
         </mat-form-field>
       </td>
       <td style='display: flex; flex-direction: column'>
         <button mat-icon-button (click)='this.changeZoom(true);'>
           <mat-icon>zoom_in</mat-icon>
         </button>
-        <button mat-icon-button [disabled]='this.currentZoom <= 1'
+        <button mat-icon-button [disabled]='this.currentZoom <= 0'
                 (click)='this.changeZoom(false)'>
           <mat-icon>zoom_out</mat-icon>
         </button>

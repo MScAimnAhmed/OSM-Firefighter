@@ -6,6 +6,7 @@ import { Coordinates } from '../view-inputs/view-input/view-input.component';
 import { environment } from '../../environments/environment';
 import { SimulationMetaData } from '../data/SimulationMetaData';
 import { StepMetaData } from '../data/StepMetaData';
+import { GraphData } from '../data/GraphData';
 
 @Injectable({
   providedIn: 'root'
@@ -20,8 +21,8 @@ export class GraphServiceService {
     return this.http.get(this.path + "/ping");
   }
 
-  getGraphs(): Observable<string[]> {
-    return this.http.get<string[]>(this.path + "/graphs");
+  getGraphs(): Observable<GraphData[]> {
+    return this.http.get<GraphData[]>(this.path + "/graphs");
   }
 
   getStrategies(): Observable<string[]> {
