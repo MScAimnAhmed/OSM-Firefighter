@@ -195,7 +195,9 @@ impl OSMFProblem {
     pub fn new(graph: Arc<RwLock<Graph>>, settings: OSMFSettings, strategy: OSMFStrategy) -> Self {
         let num_nodes = graph.read().unwrap().num_nodes;
         if settings.num_roots > num_nodes {
-            panic!("Number of fire roots must not be greater than {}", num_nodes);
+            let err_msg = format!("Number of fire roots must not be greater than {}", num_nodes);
+            log::warn!("{}", &err_msg);
+            panic!("{}", err_msg);
         }
 
         let mut problem = Self {
@@ -211,6 +213,8 @@ impl OSMFProblem {
         let roots = problem.gen_fire_roots();
         problem.initialize_strategy(&roots);
 
+        log::info!("Initialized problem configuration. settings={:?}.", &problem.settings);
+
         problem
     }
 
@@ -225,6 +229,8 @@ impl OSMFProblem {
             priority_strategy.initialize_undefended_roots(roots);
             priority_strategy.compute_nodes_to_defend(roots, &self.settings, &self.node_data);
         }
+
+        log::info!("Initialized fire containment strategy");
     }
 
     /// Generate `num_roots` fire roots
@@ -237,6 +243,8 @@ impl OSMFProblem {
             .choose_multiple(&mut rng, self.settings.num_roots);
 
         self.node_data.mark_burning(&roots, self.global_time);
+
+        log::info!("Generated fire roots");
 
         roots
     }
@@ -309,6 +317,8 @@ impl OSMFProblem {
 
     /// Simulate the firefighter problem until the `is_active` flag is set to `false`
     pub fn simulate(&mut self) {
+        log::info!("Starting problem simulation");
+
         while self.is_active {
             self.exec_step();
         }
@@ -316,6 +326,8 @@ impl OSMFProblem {
 
     /// Generate the simulation response for this firefighter problem instance
     pub fn simulation_response(&self) -> OSMFSimulationResponse {
+        log::info!("Generating simulation response");
+
         OSMFSimulationResponse {
             nodes_burned: self.node_data.burning.len(),
             nodes_defended: self.node_data.defended.len(),
@@ -328,17 +340,23 @@ impl OSMFProblem {
 
     /// Generate the view response for this firefighter problem instance
     pub fn view_response(&mut self, center: Coords, zoom: f64, time: &TimeUnit) -> Vec<u8> {
+        log::info!("Generating view response. center={:?}, zoom={}, time={}.", center, zoom, time);
+
         self.view.compute(center, zoom, time, &self.node_data);
         self.view.png_bytes()
     }
 
     /// Generate the alternative view response for this firefighter problem instance
     pub fn view_response_alt(&mut self, zoom: f64, time: &TimeUnit) -> Vec<u8> {
+        log::info!("Generating view response. zoom={}, time={}.", zoom, time);
+
         self.view.compute_alt(zoom, time, &self.node_data);
         self.view.png_bytes()
     }
 
     pub fn sim_step_metadata_response(&self, time: &TimeUnit) -> OSMFSimulationStepMetadata {
+        log::info!("Generating simulation step metadata response. time={}.", time);
+
         OSMFSimulationStepMetadata {
             nodes_burned_by: self.node_data.count_burning_by(time),
             nodes_defended_by: self.node_data.count_defended_by(time),
