@@ -187,7 +187,7 @@ fn group_nodes_by_distance(undefended_roots: &Vec<usize>, graph: &RwLockReadGuar
 pub struct MultiMinDistSetsStrategy {
     graph: Arc<RwLock<Graph>>,
     nodes_to_defend: VecDeque<usize>,
-    current_defended: usize,
+    possible_defended: usize,
     undefended_roots: HashMap<usize, (Visited, RiskyNodes)>,
 }
 
@@ -213,36 +213,38 @@ impl MultiMinDistSetsStrategy {
                                    node_data: &NodeDataStorage) {
         let graph = self.graph.read().unwrap();
 
-        let nodes_by_sho_dist = group_nodes_by_distance(undefended_roots,
-                                                        &graph, node_data);
+        let mut nodes_by_sho_dist = group_nodes_by_distance(undefended_roots,
+                                                            &graph, node_data);
 
         let strategy_every = settings.strategy_every as usize;
         let num_ffs = settings.num_ffs;
-        let mut total_defended = self.current_defended;
+        let mut total_defended = self.possible_defended;
 
         // Node groups that can be defended completely
-        let defend_completely: Vec<_> = nodes_by_sho_dist.iter()
-            .filter(|(&dist, nodes)| {
-                let can_defend_total = dist / strategy_every * num_ffs;
+        let orig_len = nodes_by_sho_dist.len();
+        let mut defend_completely = Vec::with_capacity(nodes_by_sho_dist.len());
+        nodes_by_sho_dist = nodes_by_sho_dist.into_iter()
+            .filter(|(dist, nodes)| {
+                let can_defend_total = *dist / strategy_every * num_ffs;
                 if can_defend_total > total_defended {
                     let must_defend = nodes.len();
                     let can_defend = can_defend_total - total_defended;
                     if can_defend >= must_defend {
+                        defend_completely.push(nodes.clone());
                         total_defended += must_defend;
-                        true
-                    } else {
                         false
+                    } else {
+                        true
                     }
                 } else {
                     false
                 }
             })
-            .map(|(_, nodes)| nodes)
             .collect();
 
         // Node groups that can be defended partially
         let mut defend_partially = Vec::with_capacity(
-            nodes_by_sho_dist.len() - defend_completely.len());
+            orig_len - defend_completely.len());
         for (&dist, nodes) in nodes_by_sho_dist.iter() {
             let must_defend = nodes.len();
             let could_defend_total = dist / strategy_every * num_ffs;
@@ -264,10 +266,10 @@ impl MultiMinDistSetsStrategy {
         }
 
         self.nodes_to_defend.clear();
-        self.nodes_to_defend.reserve_exact(total_defended - self.current_defended);
+        self.nodes_to_defend.reserve_exact(total_defended - self.possible_defended);
 
         for nodes in defend_completely {
-            for &node in nodes {
+            for node in nodes {
                 self.nodes_to_defend.push_front(node);
             }
         }
@@ -287,7 +289,7 @@ impl Strategy for MultiMinDistSetsStrategy {
         Self {
             graph,
             nodes_to_defend: VecDeque::new(),
-            current_defended: 0,
+            possible_defended: 0,
             undefended_roots: HashMap::new(),
         }
     }
@@ -304,7 +306,7 @@ impl Strategy for MultiMinDistSetsStrategy {
         node_data.mark_defended2(to_defend, global_time);
 
         self.nodes_to_defend.truncate(len-num_to_defend);
-        self.current_defended += num_to_defend;
+        self.possible_defended += settings.num_ffs;
 
         // One or more fire roots have been defended and hence shouldn't be considered
         // in the min_distance_groups anymore
@@ -420,7 +422,7 @@ impl Strategy for SingleMinDistSetStrategy {
 pub struct PriorityStrategy {
     graph: Arc<RwLock<Graph>>,
     nodes_to_defend: VecDeque<usize>,
-    current_defended: usize,
+    possible_defended: usize,
     undefended_roots: HashMap<usize, (Visited, RiskyNodes)>,
 }
 
@@ -449,29 +451,30 @@ impl PriorityStrategy {
         let mut priority_map = HashMap::with_capacity(graph.num_nodes);
         for node in &graph.nodes {
             if node_data.is_undefended(&node.id) && graph.get_degree(node.id) > 0 {
-                let mut prio = 0.0;
-                for i in graph.offsets[node.id]..graph.offsets[node.id+1] {
-                    let edge = &graph.edges[i];
-                    prio += 1.0 / edge.dist as f64;
-                }
+                let prio = graph.get_degree(node.id);
+                // for i in graph.offsets[node.id]..graph.offsets[node.id+1] {
+                //     let edge = &graph.edges[i];
+                //     prio += 1.0 / edge.dist as f64;
+                // }
                 priority_map.insert(node.id, prio);
             }
         }
 
         log::debug!("Computed priority map:\n{:?}", &priority_map);
 
-        /*
         let mut sorted_priorities: Vec<_> = priority_map.values().map(|prio|*prio).collect();
         sorted_priorities.sort_unstable_by(|p1, p2| {
-            p1.cmp(&p2)
+            p1.partial_cmp(&p2).unwrap()
         });
-
-        log::debug!("sorted prios {:?}", sorted_priorities);
-
-         */
-
-        let mean = priority_map.values().sum::<f64>() as f64 / priority_map.len() as f64;
-        log::debug!("Computed mean: {}", mean);
+        // let mean = priority_map.values().sum::<f64>() as f64 / priority_map.len() as f64;
+        // log::debug!("Computed mean: {}", mean);
+        let q25 = if sorted_priorities.len() % 4 != 0 {
+            sorted_priorities[(sorted_priorities.len() / 4) + 1]
+        } else {
+            (sorted_priorities[sorted_priorities.len() / 4]
+                + sorted_priorities[(sorted_priorities.len() / 4) + 1]) / 2
+        };
+        log::debug!("Computed 25 percent quantile: {}", q25);
 
         let mut nodes_by_sho_dist = group_nodes_by_distance(undefended_roots,
                                                         &graph, node_data);
@@ -479,8 +482,8 @@ impl PriorityStrategy {
         // Sort Node groups by priority
         for (_, nodes) in nodes_by_sho_dist.iter_mut() {
             nodes.sort_unstable_by(|n1, n2| {
-                let prio1 = priority_map.get(n1).unwrap_or(&0.0);
-                let prio2 = priority_map.get(n2).unwrap_or(&0.0);
+                let prio1 = priority_map.get(n1).unwrap_or(&0);
+                let prio2 = priority_map.get(n2).unwrap_or(&0);
                 prio2.partial_cmp(&prio1).unwrap()
             });
         }
@@ -489,14 +492,14 @@ impl PriorityStrategy {
 
         let strategy_every = settings.strategy_every as usize;
         let num_ffs = settings.num_ffs;
-        let mut total_defended = self.current_defended;
+        let mut total_defended = self.possible_defended;
 
         // Filter nodes with higher priority based on mean
         let mut high_prio_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
         for (&dist, nodes) in nodes_by_sho_dist.iter() {
             let high_prio_nodes: Vec<_> = nodes.iter()
                 .filter(|&node| {
-                    *priority_map.get(node).unwrap_or(&0.0) as f64 >= mean
+                    *priority_map.get(node).unwrap_or(&0) >= q25
                 })
                 .map(|node| *node)
                 .collect();
@@ -508,7 +511,7 @@ impl PriorityStrategy {
         for (&dist, nodes) in nodes_by_sho_dist.iter() {
             let low_prio_nodes: Vec<_> = nodes.iter()
                 .filter(|&node| {
-                    (*priority_map.get(node).unwrap_or(&0.0) as f64) < mean
+                    *priority_map.get(node).unwrap_or(&0) < q25
                 })
                 .map(|node| *node)
                 .collect();
@@ -546,7 +549,7 @@ impl PriorityStrategy {
         assert!(high_prio_defend.len() + low_prio_defend.len() <= graph.num_nodes);
 
         self.nodes_to_defend.clear();
-        self.nodes_to_defend.reserve_exact(total_defended - self.current_defended);
+        self.nodes_to_defend.reserve_exact(total_defended - self.possible_defended);
 
         for node in high_prio_defend {
             self.nodes_to_defend.push_front(node);
@@ -565,7 +568,7 @@ impl Strategy for PriorityStrategy {
         Self {
             graph,
             nodes_to_defend: VecDeque::new(),
-            current_defended: 0,
+            possible_defended: 0,
             undefended_roots: HashMap::new(),
         }
     }
@@ -582,7 +585,7 @@ impl Strategy for PriorityStrategy {
         node_data.mark_defended2(to_defend, global_time);
 
         self.nodes_to_defend.truncate(len-num_to_defend);
-        self.current_defended += num_to_defend;
+        self.possible_defended += settings.num_ffs;
 
         // One or more fire roots have been defended and hence shouldn't be considered
         // in the min_distance_groups anymore
