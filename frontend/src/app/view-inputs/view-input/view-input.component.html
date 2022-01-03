@@ -1,0 +1,36 @@
+<div class='view-input'>
+  <div style='display: flex; align-items: center; justify-content: flex-start; font-size: small'>
+    <div>
+      <p>Longitude:<br> {{roundForDisplay(this.currentCoord.lon)}}</p>
+      <p>Latitude:<br> {{roundForDisplay(this.currentCoord.lat)}}</p>
+    </div>
+    <div>
+      <button mat-icon-button (click)='this.moveViewHorizontally(false)'
+              [disabled]='currentCoord.lon <= minCoord.lon'>
+        <mat-icon>keyboard_arrow_left</mat-icon>
+      </button>
+    </div>
+    <div style='display: flex; flex-direction: column; justify-content: center; height: 100%'>
+      <button mat-icon-button (click)='this.moveViewVertically(true)'
+              [disabled]='currentCoord.lat >= maxCoord.lat'>
+        <mat-icon>keyboard_arrow_up</mat-icon>
+      </button>
+      <button mat-icon-button (click)='this.moveViewVertically(false)'
+              [disabled]='currentCoord.lat <= minCoord.lat'>
+        <mat-icon>keyboard_arrow_down</mat-icon>
+      </button>
+    </div>
+    <div>
+      <button mat-icon-button (click)='this.moveViewHorizontally(true)'
+              [disabled]='currentCoord.lon >= maxCoord.lon'>
+        <mat-icon>keyboard_arrow_right</mat-icon>
+      </button>
+    </div>
+    <div>
+      <button mat-icon-button (click)='this.resetView()'
+              [disabled]='minCoord.lat === maxCoord.lat'>
+        <mat-icon>replay</mat-icon>
+      </button>
+    </div>
+  </div>
+</div>
