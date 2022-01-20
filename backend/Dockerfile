@@ -13,4 +13,4 @@ RUN cargo build --release
 
 EXPOSE 8080
 # When `docker run` is executed, launch the binary!
-ENTRYPOINT ["./target/release/osm_firefighter_backend", "./data"]
+ENTRYPOINT ["./target/release/main", "./data"]

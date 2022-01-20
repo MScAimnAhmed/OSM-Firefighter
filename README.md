@@ -27,7 +27,10 @@ Backend:
 
 Entweder über die Runconfigurations für IntelliJ (benötigt Plugin) oder über:
 
-``cargo run data/``
+```
+cargo build [--release]
+cargo run --bin main [--release] data/
+```
 
 Das Backend ist dann über den Port 8080 erreichbar.
 
@@ -73,3 +76,29 @@ Durch diesen Befehl werden bestehende Docker image benutzt. Falls keine existier
 
 Das Bauen der images kann einige Minuten dauern (ca 10 min).
 Wurde das compose-file gestartet ist das frontend über den Port 80 erreichbar und das backend über den Port 8080.
+
+### Neue Graphen hinzufügen
+
+Die Graphen, mit der diese Anwendung arbeitet, basieren auf OSM-Kartendaten und sind als Dateien im FMI-Textformat
+gespeichert.
+
+Das Repository beinhaltet bereits eine kleine Auswahl an Testgraphen.
+Diese sind an den folgenden Orten zu finden:
+* [`backend/data`](backend/data)
+* [`graphs`](graphs).
+
+Beim Starten der Anwendung muss als Kommandozeilenargument der Pfad zu dem Ordner angegeben werden, der die
+einzulesenden Graphen beinhaltet.
+Für den Fall, dass der Service via Docker gestartet wird, ist der `graphs` Ordner zu verwenden.
+
+Um einen neuen Graphen hinzuzufügen, muss dieser lediglich in den gewünschten Ordner kopiert werden.
+
+Zudem haben wir ein Tool geschrieben, welches gerichtete Graphen im FMI-Textformat in ungerichtete Graphen umwandelt.
+Dieses Tool ist [hier](graph_tool) zu finden und kann folgendermaßen benutzt werden:
+
+```
+cargo build --release
+cargo run --release <path_to_directed_graph> <output_path>
+```
+
+Viel Spaß ;-)
