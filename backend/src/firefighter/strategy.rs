@@ -21,6 +21,7 @@ pub enum OSMFStrategy {
     MultiMinDistanceSets(MultiMinDistSetsStrategy),
     SingleMinDistanceSet(SingleMinDistSetStrategy),
     Priority(PriorityStrategy),
+    Score(ScoreStrategy),
     Random(RandomStrategy),
 }
 
@@ -36,6 +37,7 @@ impl OSMFStrategy {
     pub fn from_name(strategy_name: &str, graph: Arc<RwLock<Graph>>) -> Option<OSMFStrategy> {
         match strategy_name {
             "Greedy" => Some(OSMFStrategy::Greedy(GreedyStrategy::new(graph))),
+            "Score" => Some(OSMFStrategy::Score(ScoreStrategy::new(graph))),
             "MultiMinDistanceSets" => Some(OSMFStrategy::MultiMinDistanceSets(MultiMinDistSetsStrategy::new(graph))),
             "SingleMinDistanceSet" => Some(OSMFStrategy::SingleMinDistanceSet(SingleMinDistSetStrategy::new(graph))),
             "Priority" => Some(OSMFStrategy::Priority(PriorityStrategy::new(graph))),
@@ -584,6 +586,80 @@ impl Strategy for PriorityStrategy {
         if let Some(roots) = self.compute_undefended_roots(node_data) {
             self.compute_nodes_to_defend(&roots, settings, node_data);
         }
+    }
+}
+
+/// Score based fire containment strategy
+#[derive(Debug, Default)]
+pub struct ScoreStrategy {
+    graph: Arc<RwLock<Graph>>,
+}
+
+impl Strategy for ScoreStrategy {
+    fn new(graph: Arc<RwLock<Graph>>) -> Self {
+        Self {
+            graph,
+        }
+    }
+
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
+        let graph = self.graph.read().unwrap();
+
+        // Run burning-to-all dijkstra to compute shortest distances for all nodes to the fire
+        let burning: Vec<_> = node_data.get_burning().iter()
+            .map(|&nd| nd.node_id)
+            .collect();
+        let dists = graph.run_dijkstra(burning.as_slice());
+
+        // Compute max distance for normalization
+        let max_dist = graph.nodes.iter()
+            .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
+            .map(|node| dists[node.id])
+            .max()
+            .unwrap_or(0);
+        if max_dist == 0 {
+            log::warn!("Score strategy: Max distance is 0");
+            return;
+        }
+
+        // Store node degrees
+        let degs: Vec<_> = graph.nodes.iter()
+            .map(|node| graph.get_degree(node.id))
+            .collect();
+
+        // Compute max degree for normalization
+        let max_deg = graph.nodes.iter()
+            .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
+            .map(|node| degs[node.id])
+            .max()
+            .unwrap_or(0);
+        if max_deg == 0 {
+            log::warn!("Score strategy: Max degree is 0");
+            return;
+        }
+
+        // Compute normalized scores and sort them in descending order
+        let mut scores: Vec<_> = graph.nodes.iter()
+            .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
+            .map(|node| {
+                let norm_dist_score = 1.0 - dists[node.id] as f64 / max_dist as f64;
+                let norm_deg_score = degs[node.id] as f64 / max_deg as f64;
+                let score = (2.0 * norm_dist_score + norm_deg_score) / 3.0;
+                (node.id, score)
+            })
+            .collect();
+        scores.sort_unstable_by(|(_, score1), &(_, score2)| {
+            score2.partial_cmp(score1).unwrap()
+        });
+
+        log::debug!("Scores: {:?}", &scores);
+
+        // Defend as many targets as firefighters are available
+        let num_to_defend = min(scores.len(), settings.num_ffs);
+        let to_defend: Vec<_> = scores[0..num_to_defend].iter()
+            .map(|&(node_id, _)| node_id)
+            .collect();
+        node_data.mark_defended(&to_defend, global_time);
     }
 }
 
