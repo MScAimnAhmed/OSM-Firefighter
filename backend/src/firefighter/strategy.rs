@@ -157,15 +157,11 @@ fn compute_undefended_roots(undefended_roots: &mut HashMap<usize, (Visited, Risk
 /// Then, group the nodes by minimum shortest distance.
 fn group_nodes_by_distance(undefended_roots: &Vec<usize>, graph: &RwLockReadGuard<Graph>,
                            node_data: &NodeDataStorage) -> BTreeMap<usize, Vec<usize>> {
+    let dists = graph.run_dijkstra(undefended_roots.as_slice());
     let mut sho_dists = HashMap::with_capacity(graph.num_nodes);
-    for &root in undefended_roots {
-        let dists = graph.run_dijkstra(root);
-        for (node, &dist) in dists.iter().enumerate() {
-            if node_data.is_undefended(&node) && dist < usize::MAX {
-                sho_dists.entry(node)
-                    .and_modify(|cur_dist| if dist < *cur_dist { *cur_dist = dist })
-                    .or_insert(dist);
-            }
+    for (node, &dist) in dists.iter().enumerate() {
+        if node_data.is_undefended(&node) && dist < usize::MAX {
+            sho_dists.insert(node, dist);
         }
     }
 
@@ -332,15 +328,11 @@ impl SingleMinDistSetStrategy {
 
         // For each root, run an one-to-all Dijkstra to all nodes in the underlying graph.
         // Then, filter the distances to the nodes for the minimum distance from any fire root.
+        let dists = graph.run_dijkstra(roots.as_slice());
         let mut global_dists = HashMap::with_capacity(graph.num_nodes);
-        for &root in roots {
-            let dists = graph.run_dijkstra(root);
-            for (node, &dist) in dists.iter().enumerate() {
-                if dist < usize::MAX {
-                    global_dists.entry(node)
-                        .and_modify(|cur_dist| if dist < *cur_dist { *cur_dist = dist })
-                        .or_insert(dist);
-                }
+        for (node, &dist) in dists.iter().enumerate() {
+            if dist < usize::MAX {
+                global_dists.insert(node, dist);
             }
         }
 
