@@ -206,11 +206,12 @@ async fn main() -> std::io::Result<()> {
 
     // Initialize and start server
     let server = HttpServer::new(move || {
+        // Initialize cors settings
         let cors = Cors::default()
             .allow_any_origin()
             .allowed_methods(vec!["GET", "POST"])
-            .allowed_headers(vec![http::header::AUTHORIZATION, http::header::ACCEPT])
-            .allowed_header(http::header::CONTENT_TYPE)
+            .allowed_headers(vec![http::header::ACCEPT, http::header::CONTENT_TYPE,
+                                  http::header::AUTHORIZATION,])
             .supports_credentials()
             .max_age(3600);
         App::new()

@@ -327,21 +327,19 @@ impl From<ParseFloatError> for ParseError {
 
 #[cfg(test)]
 mod test {
-    use rand::prelude::IteratorRandom;
-    use rand::thread_rng;
     use crate::graph::Graph;
 
     #[test]
     fn test_nodes_edges() {
-        let graph = Graph::from_file("data/bbgrund");
+        let graph = Graph::from_file("data/bbgrund_undirected.fmi");
 
         assert_eq!(graph.nodes.len(), 350);
-        assert_eq!(graph.edges.len(), 685);
+        assert_eq!(graph.edges.len(), 706);
     }
 
     #[test]
     fn test_grid_bounds() {
-        let graph = Graph::from_file("data/bbgrund");
+        let graph = Graph::from_file("data/bbgrund_undirected.fmi");
 
         let gb = graph.get_grid_bounds();
         assert!(gb.min_lat >= 48.67);
@@ -352,26 +350,11 @@ mod test {
 
     #[test]
     fn test_node() {
-        let graph = Graph::from_file("data/bbgrund");
+        let graph = Graph::from_file("data/bbgrund_undirected.fmi");
 
         let edges_with_src_70: Vec<_> = graph.edges.iter()
             .filter(|&e| e.src == 70)
             .collect();
         assert_eq!(edges_with_src_70.len(), 3);
-    }
-
-    #[test]
-    fn test_distance_calculation() {
-        let graph = Graph::from_file("data/stgcenter");
-
-        let mut rng = thread_rng();
-        let src = graph.nodes.iter()
-            .choose(&mut rng)
-            .unwrap();
-
-        let dists = graph.run_dijkstra(src.id);
-        for node in &graph.nodes {
-            assert_eq!(dists[node.id], graph.unchecked_get_shortest_dist(src.id, node.id));
-        }
     }
 }
