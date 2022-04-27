@@ -224,12 +224,16 @@ impl Graph {
     }
 
     /// Run an one-to-all Dijkstra from the source node with id `src_id`
-    pub fn run_dijkstra(&self, src_id: usize) -> DijkstraResult {
+    pub fn run_dijkstra(&self, src_ids: &[usize]) -> DijkstraResult {
         let mut distances = vec![usize::MAX; self.num_nodes];
-        distances[src_id] = 0;
+        for &src_id in src_ids {
+            distances[src_id] = 0;
+        }
 
         let mut pq = BinaryMinHeap::with_capacity(self.num_nodes);
-        pq.push(src_id, &distances);
+        for &src_id in src_ids {
+            pq.push(src_id, &distances);
+        }
 
         while !pq.is_empty() {
             let node = pq.pop(&distances);
@@ -327,6 +331,9 @@ impl From<ParseFloatError> for ParseError {
 
 #[cfg(test)]
 mod test {
+    use std::cmp::min;
+    use rand::prelude::*;
+
     use crate::graph::Graph;
 
     #[test]
@@ -356,5 +363,22 @@ mod test {
             .filter(|&e| e.src == 70)
             .collect();
         assert_eq!(edges_with_src_70.len(), 3);
+    }
+
+    #[test]
+    fn test_dists() {
+        let graph = Graph::from_file("data/bbgrund_undirected.fmi");
+
+        let mut rng = thread_rng();
+        let sources: Vec<_> = graph.nodes.iter()
+            .map(|node| node.id)
+            .choose_multiple(&mut rng, 2);
+        let tgt = rng.gen_range(0..graph.num_nodes);
+
+        let dists1 = graph.run_dijkstra(sources.as_slice());
+        let dists2 = graph.run_dijkstra(&[sources[0]]);
+        let dists3 = graph.run_dijkstra(&[sources[1]]);
+
+        assert_eq!(min(dists2[tgt], dists3[tgt]), dists1[tgt]);
     }
 }

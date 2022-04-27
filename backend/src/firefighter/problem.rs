@@ -299,6 +299,8 @@ impl OSMFProblem {
                     min_dist_sets_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
                 OSMFStrategy::Priority(ref mut priority_strategy) =>
                     priority_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
+                OSMFStrategy::Score(ref mut score_strategy) =>
+                    score_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
                 OSMFStrategy::Random(ref mut random_strategy) =>
                     random_strategy.execute(&self.settings, &mut self.node_data, self.global_time)
             }
