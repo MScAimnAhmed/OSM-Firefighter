@@ -1,11 +1,9 @@
-use std::{collections::HashMap,
-          env,
-          sync::{Arc, Mutex, RwLock}};
+use std::{collections::HashMap, env, fs, sync::{Arc, Mutex, RwLock}};
 
 use actix_cors::Cors;
 use actix_web::{App, dev::HttpResponseBuilder, get, HttpMessage, HttpRequest, HttpResponse, HttpServer, middleware::Logger, post, Responder, web, http};
 use log;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use serde_json::json;
 
 use lib::error::OSMFError;
@@ -15,6 +13,25 @@ use lib::firefighter::{problem::{OSMFProblem, OSMFSettings},
 use lib::graph::Graph;
 use lib::query::Query;
 use lib::session::OSMFSessionStorage;
+
+const CONFIG_PATH: &str = "./config.json";
+
+/// Server and backend service configuration
+#[derive(Deserialize)]
+struct Config {
+    host: String,
+    port: u16,
+    graphs_path: String,
+}
+
+impl Config {
+    /// Parses the configuration file at `file_path` into a new `Config` instance
+    fn from_file(file_path: &str) -> Self {
+        let data = fs::read_to_string(file_path)
+            .expect("Could not find config file");
+        serde_json::from_str(&data).expect("Config file does not contain valid JSON")
+    }
+}
 
 /// Storage for data associated to the web app
 struct AppData {
@@ -186,17 +203,11 @@ async fn main() -> std::io::Result<()> {
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
-    let args: Vec<_> = env::args().collect();
-
-    if args.len() < 2 {
-        let err = "Missing argument: path to graph file";
-        log::error!("{}", err);
-        panic!("{}", err);
-    }
+    // Parse config file
+    let config = Config::from_file(CONFIG_PATH);
 
     // Initialize graphs
-    let graphs_path = args[1].to_string();
-    let graphs = lib::load_graphs(&graphs_path);
+    let graphs = lib::load_graphs(&config.graphs_path);
 
     // Initialize app data
     let data = web::Data::new(AppData {
@@ -225,7 +236,7 @@ async fn main() -> std::io::Result<()> {
             .service(display_view)
             .service(get_sim_step_metadata)
     });
-    server.bind("0.0.0.0:8080")?
+    server.bind((config.host.as_str(), config.port))?
         .run()
         .await
 }
