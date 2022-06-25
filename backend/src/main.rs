@@ -14,6 +14,7 @@ use lib::graph::Graph;
 use lib::query::Query;
 use lib::session::OSMFSessionStorage;
 
+/// Path to configuration file
 const CONFIG_PATH: &str = "./config.json";
 
 /// Server and backend service configuration
@@ -21,6 +22,7 @@ const CONFIG_PATH: &str = "./config.json";
 struct Config {
     host: String,
     port: u16,
+    log_level: String,
     graphs_path: String,
 }
 
@@ -198,8 +200,11 @@ async fn get_sim_step_metadata(data: web::Data<AppData>, req: HttpRequest) -> Re
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Parse config file
+    let config = Config::from_file(CONFIG_PATH);
+
     // Initialize logger
-    env::set_var("RUST_LOG", "info");
+    env::set_var("RUST_LOG", &config.log_level);
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
