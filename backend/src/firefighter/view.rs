@@ -1,8 +1,8 @@
 extern crate image;
 
-use std::{io::Cursor,
-          sync::{Arc, RwLock},
-          cmp::Ordering};
+use std::io::Cursor;
+use std::sync::{Arc, RwLock};
+use std::cmp::Ordering;
 
 use self::image::{DynamicImage, ImageBuffer, ImageOutputFormat, Rgb, RgbImage};
 
@@ -61,7 +61,7 @@ impl LineSegment {
     }
 
     /// Returns true if this line segment intersects with `other`
-    pub fn intersects(&self, other: &LineSegment) -> bool {
+    fn intersects(&self, other: &LineSegment) -> bool {
         let o1 = orientation(self.a, self.b, other.a);
         let o2 = orientation(self.a, self.b, other.b);
         let o3 = orientation(other.a, other.b, self.a);
@@ -87,7 +87,7 @@ impl LineSegment {
 #[derive(Debug)]
 pub struct View {
     graph: Arc<RwLock<Graph>>,
-    pub grid_bounds: GridBounds,
+    pub(crate) grid_bounds: GridBounds,
     delta_horiz: f64,
     delta_vert: f64,
     img_buf: RgbImage,
@@ -119,7 +119,7 @@ impl View {
     }
 
     /// (Re-)compute this view
-    pub fn compute(&mut self, center: Coords, zoom: f64, time: &TimeUnit, node_data: &NodeDataStorage) {
+    pub(super) fn compute(&mut self, center: Coords, zoom: f64, time: &TimeUnit, node_data: &NodeDataStorage) {
         let z = if zoom < 0.0 { 0.0 } else { zoom };
 
         // Reset view
@@ -301,7 +301,7 @@ impl View {
     }
 
     /// (Re-)compute this view, using the initial center
-    pub fn compute_alt(&mut self, zoom: f64, time: &TimeUnit, node_data: &NodeDataStorage) {
+    pub(super) fn compute_alt(&mut self, zoom: f64, time: &TimeUnit, node_data: &NodeDataStorage) {
         self.compute(self.initial_center, zoom, time, node_data)
     }
 
@@ -316,7 +316,8 @@ impl View {
     }
 
     /// Save the underlying image buffer to a file
-    fn save_to_file(&self, path: &str) {
+    #[allow(dead_code)]
+    pub fn save_to_file(&self, path: &str) {
         self.img_buf.save(path).unwrap();
     }
 }

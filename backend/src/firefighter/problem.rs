@@ -1,14 +1,13 @@
-use std::{collections::BTreeMap,
-          // fmt::Formatter,
-          sync::{Arc, RwLock}};
+use std::collections::BTreeMap;
+use std::sync::{Arc, RwLock};
 
 use log;
 use rand::prelude::*;
 use serde::{Serialize, Deserialize};
 
-use crate::firefighter::{strategy::{OSMFStrategy, Strategy},
-                         TimeUnit,
-                         view::{View, Coords}};
+use crate::firefighter::strategy::{OSMFStrategy, Strategy};
+use crate::firefighter::TimeUnit;
+use crate::firefighter::view::{View, Coords};
 use crate::graph::{Graph, GridBounds};
 
 /// Settings for a firefighter problem instance
@@ -23,14 +22,14 @@ pub struct OSMFSettings {
 
 /// Node data related to the firefighter problem
 #[derive(Debug, Serialize)]
-pub struct NodeData {
+pub(super) struct NodeData {
     pub node_id: usize,
     time: TimeUnit,
 }
 
 /// Storage for node data
 #[derive(Debug, Serialize)]
-pub struct NodeDataStorage {
+pub(super) struct NodeDataStorage {
     burning: BTreeMap<usize, NodeData>,
     defended: BTreeMap<usize, NodeData>,
 }

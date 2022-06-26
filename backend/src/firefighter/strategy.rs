@@ -1,16 +1,16 @@
-use std::{cmp::min,
-          collections::{BTreeMap, HashMap, VecDeque, HashSet},
-          fmt::Debug,
-          sync::{Arc, RwLock, RwLockReadGuard}};
+use std::cmp::min;
+use std::collections::{BTreeMap, HashMap, VecDeque, HashSet};
+use std::fmt::Debug;
+use std::sync::{Arc, RwLock, RwLockReadGuard};
 
-use rand::seq::SliceRandom;
 use rand::prelude::*;
+use rand::seq::SliceRandom;
 
 use strum::VariantNames;
 use strum_macros::{EnumString, EnumVariantNames};
 
-use crate::firefighter::{problem::{NodeDataStorage, OSMFSettings},
-                         TimeUnit};
+use crate::firefighter::problem::{NodeDataStorage, OSMFSettings};
+use crate::firefighter::TimeUnit;
 use crate::graph::Graph;
 
 /// Strategy to contain the fire in the firefighter problem
@@ -48,7 +48,7 @@ impl OSMFStrategy {
 }
 
 /// Strategy trait that each strategy needs to implement
-pub trait Strategy {
+pub(super) trait Strategy {
     /// Create a new fire containment strategy instance
     fn new (graph: Arc<RwLock<Graph>>) -> Self;
 
@@ -88,8 +88,8 @@ impl Strategy for GreedyStrategy {
         // Sort the edges by their weight and by the _out degree_ of their targets
         edges.sort_unstable_by(|&e1, &e2|
             e1.dist.cmp(&e2.dist).then_with(|| {
-                let tgt1_deg = graph.get_degree(e1.tgt);
-                let tgt2_deg = graph.get_degree(e2.tgt);
+                let tgt1_deg = graph.get_node_degree(e1.tgt);
+                let tgt2_deg = graph.get_node_degree(e2.tgt);
                 tgt2_deg.cmp(&tgt1_deg)
             }));
 
@@ -127,7 +127,7 @@ fn compute_undefended_roots(undefended_roots: &mut HashMap<usize, (Visited, Risk
         while !burning.is_empty() {
             let node = burning.pop_front().unwrap();
             visited.insert(node);
-            let out_deg = graph.get_degree(node);
+            let out_deg = graph.get_node_degree(node);
             risky_nodes.reserve(out_deg);
             burning.reserve(out_deg);
             for i in graph.offsets[node]..graph.offsets[node+1] {
@@ -191,7 +191,7 @@ pub struct MultiMinDistSetsStrategy {
 
 impl MultiMinDistSetsStrategy {
     /// Initialize the undefended roots datastructure
-    pub fn initialize_undefended_roots(&mut self, roots: &Vec<usize>) {
+    pub(super) fn initialize_undefended_roots(&mut self, roots: &Vec<usize>) {
         self.undefended_roots.reserve(roots.len());
         for &root in roots {
             self.undefended_roots.insert(root, (HashSet::new(), HashSet::from([root])));
@@ -207,7 +207,7 @@ impl MultiMinDistSetsStrategy {
     }
     
     /// Compute nodes to defend and order in which nodes should be defended
-    pub fn compute_nodes_to_defend(&mut self, undefended_roots: &Vec<usize>, settings: &OSMFSettings,
+    pub(super) fn compute_nodes_to_defend(&mut self, undefended_roots: &Vec<usize>, settings: &OSMFSettings,
                                    node_data: &NodeDataStorage) {
         let graph = self.graph.read().unwrap();
 
@@ -253,8 +253,8 @@ impl MultiMinDistSetsStrategy {
                     // Sort by out degree
                     let mut nodes = nodes.clone();
                     nodes.sort_unstable_by(|&n1, &n2| {
-                        let deg1 = graph.get_degree(n1);
-                        let deg2 = graph.get_degree(n2);
+                        let deg1 = graph.get_node_degree(n1);
+                        let deg2 = graph.get_node_degree(n2);
                         deg2.cmp(&deg1)
                     });
                     // Take first 'can_defend' number of nodes
@@ -325,7 +325,7 @@ pub struct SingleMinDistSetStrategy {
 
 impl SingleMinDistSetStrategy {
     /// Compute nodes to defend and order in which nodes should be defended
-    pub fn compute_nodes_to_defend(&mut self, roots: &Vec<usize>, settings: &OSMFSettings) {
+    pub(super) fn compute_nodes_to_defend(&mut self, roots: &Vec<usize>, settings: &OSMFSettings) {
         let graph = self.graph.read().unwrap();
 
         // For each root, run an one-to-all Dijkstra to all nodes in the underlying graph.
@@ -422,7 +422,7 @@ pub struct PriorityStrategy {
 
 impl PriorityStrategy {
     /// Initialize the undefended roots datastructure
-    pub fn initialize_undefended_roots(&mut self, roots: &Vec<usize>) {
+    pub(super) fn initialize_undefended_roots(&mut self, roots: &Vec<usize>) {
         self.undefended_roots.reserve(roots.len());
         for &root in roots {
             self.undefended_roots.insert(root, (HashSet::new(), HashSet::from([root])));
@@ -438,14 +438,14 @@ impl PriorityStrategy {
     }
     
     /// Compute nodes to defend and order in which nodes should be defended
-    pub fn compute_nodes_to_defend(&mut self, undefended_roots: &Vec<usize>, settings: &OSMFSettings,
+    pub(super) fn compute_nodes_to_defend(&mut self, undefended_roots: &Vec<usize>, settings: &OSMFSettings,
                                    node_data: &NodeDataStorage) {
         let graph = self.graph.read().unwrap();
 
         let mut priority_map = HashMap::with_capacity(graph.num_nodes);
         for node in &graph.nodes {
-            if node_data.is_undefended(&node.id) && graph.get_degree(node.id) > 0 {
-                let prio = graph.get_degree(node.id);
+            if node_data.is_undefended(&node.id) && graph.get_node_degree(node.id) > 0 {
+                let prio = graph.get_node_degree(node.id);
                 // for i in graph.offsets[node.id]..graph.offsets[node.id+1] {
                 //     let edge = &graph.edges[i];
                 //     prio += 1.0 / edge.dist as f64;
@@ -624,7 +624,7 @@ impl Strategy for ScoreStrategy {
 
         // Store node degrees
         let degs: Vec<_> = graph.nodes.iter()
-            .map(|node| graph.get_degree(node.id))
+            .map(|node| graph.get_node_degree(node.id))
             .collect();
 
         // Compute max degree for normalization

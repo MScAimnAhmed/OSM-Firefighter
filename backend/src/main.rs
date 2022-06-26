@@ -1,18 +1,21 @@
+mod web_utils;
+
 use std::{collections::HashMap, env, fs, sync::{Arc, Mutex, RwLock}};
 
 use actix_cors::Cors;
-use actix_web::{App, dev::HttpResponseBuilder, get, HttpMessage, HttpRequest, HttpResponse, HttpServer, middleware::Logger, post, Responder, web, http};
+use actix_web::{App, get, http, HttpRequest, HttpResponse, HttpResponseBuilder, HttpServer, middleware::Logger, post, Responder, web};
 use log;
 use serde::{Serialize, Deserialize};
 use serde_json::json;
 
-use lib::error::OSMFError;
-use lib::firefighter::{problem::{OSMFProblem, OSMFSettings},
-                       strategy::OSMFStrategy,
-                       TimeUnit};
-use lib::graph::Graph;
-use lib::query::Query;
-use lib::session::OSMFSessionStorage;
+use osmff_lib::firefighter::problem::{OSMFProblem, OSMFSettings};
+use osmff_lib::firefighter::strategy::OSMFStrategy;
+use osmff_lib::firefighter::TimeUnit;
+use osmff_lib::graph::Graph;
+
+use crate::web_utils::error::OSMFError;
+use crate::web_utils::query::Query;
+use crate::web_utils::session::OSMFSessionStorage;
 
 /// Path to configuration file
 const CONFIG_PATH: &str = "./config.json";
@@ -35,7 +38,7 @@ impl Config {
     }
 }
 
-/// Storage for data associated to the web app
+/// Storage for data associated to the web_utils app
 struct AppData {
     sessions: Mutex<OSMFSessionStorage>,
     graphs: HashMap<String, Arc<RwLock<Graph>>>,
@@ -208,11 +211,8 @@ async fn main() -> std::io::Result<()> {
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
-    // Parse config file
-    let config = Config::from_file(CONFIG_PATH);
-
     // Initialize graphs
-    let graphs = lib::load_graphs(&config.graphs_path);
+    let graphs = osmff_lib::load_graphs(&config.graphs_path);
 
     // Initialize app data
     let data = web::Data::new(AppData {

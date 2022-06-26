@@ -1,14 +1,12 @@
+pub mod graph;
+pub mod firefighter;
+pub(crate) mod binary_minheap;
+
 use std::collections::HashMap;
 use std::fs;
 use std::sync::{Arc, RwLock};
-use crate::graph::Graph;
 
-pub mod error;
-pub mod graph;
-pub mod session;
-pub mod firefighter;
-pub mod query;
-pub mod binary_minheap;
+use crate::graph::Graph;
 
 /// Load all available graphs from `graphs_path`
 pub fn load_graphs(graphs_path: &str) -> HashMap<String, Arc<RwLock<Graph>>> {

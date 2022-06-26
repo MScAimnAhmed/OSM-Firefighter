@@ -1,8 +1,8 @@
-use std::{cmp::Ordering,
-          fmt::Formatter,
-          fs::File,
-          io::{prelude::*, BufReader},
-          num::{ParseIntError, ParseFloatError}};
+use std::cmp::Ordering;
+use std::fmt::Formatter;
+use std::fs::File;
+use std::io::{prelude::*, BufReader};
+use std::num::{ParseIntError, ParseFloatError};
 
 use serde::Serialize;
 
@@ -13,7 +13,7 @@ type DijkstraResult = Vec<usize>;
 
 /// Struct to hold the grid bounds of a graph or part of a graph
 #[derive(Debug, Serialize)]
-pub struct GridBounds {
+pub(crate) struct GridBounds {
     pub min_lat: f64,
     pub max_lat: f64,
     pub min_lon: f64,
@@ -22,14 +22,14 @@ pub struct GridBounds {
 
 impl GridBounds {
     /// Returns true if this grid bounds are located within `other`
-    pub fn is_located_in(&self, other: &GridBounds) -> bool {
+    pub(crate) fn is_located_in(&self, other: &GridBounds) -> bool {
         self.min_lat >= other.min_lat && self.max_lat <= other.max_lat
             && self.min_lon >= other.min_lon && self.max_lon <= other.max_lon
     }
 }
 
 /// Compass directions related to grid bounds
-pub enum CompassDirection {
+pub(crate) enum CompassDirection {
     North,
     NorthEast,
     East,
@@ -51,13 +51,13 @@ pub struct Node {
 
 impl Node {
     /// Returns true if this node is located within the given grid bounds
-    pub fn is_located_in(&self, gb: &GridBounds) -> bool {
+    pub(crate) fn is_located_in(&self, gb: &GridBounds) -> bool {
         self.lat >= gb.min_lat && self.lat <= gb.max_lat
             && self.lon >= gb.min_lon && self.lon  <= gb.max_lon
     }
 
     /// Get the compass direction of this node relative to the given grid bounds
-    pub fn get_relative_compass_direction(&self, gb: &GridBounds) -> CompassDirection {
+    pub(crate) fn get_relative_compass_direction(&self, gb: &GridBounds) -> CompassDirection {
         if self.lon >= gb.min_lon && self.lon <= gb.max_lon && self.lat > gb.max_lat {
             CompassDirection::North
         } else if self.lon > gb.max_lon && self.lat > gb.max_lat {
@@ -219,7 +219,7 @@ impl Graph {
     }
 
     /// Get the number of outgoing edges of the node with id `node_id`
-    pub fn get_degree(&self, node_id: usize) -> usize {
+    pub fn get_node_degree(&self, node_id: usize) -> usize {
         self.offsets[node_id + 1] - self.offsets[node_id]
     }
 
@@ -259,7 +259,7 @@ impl Graph {
 
     /// Returns this graphs grid bounds, i.e. the minimal/maximal latitude/longitude
     /// of this graph
-    pub fn get_grid_bounds(&self) -> GridBounds {
+    pub(crate) fn get_grid_bounds(&self) -> GridBounds {
         let latitudes: Vec<_> = self.nodes.iter()
             .map(|n| n.lat)
             .collect();

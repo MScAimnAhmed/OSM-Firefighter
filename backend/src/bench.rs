@@ -1,6 +1,7 @@
 use std::env;
-use lib::firefighter::problem::{OSMFProblem, OSMFSettings};
-use lib::firefighter::strategy::OSMFStrategy;
+
+use osmff_lib::firefighter::problem::{OSMFProblem, OSMFSettings};
+use osmff_lib::firefighter::strategy::OSMFStrategy;
 
 #[derive(Debug)]
 struct BenchResults {
@@ -15,7 +16,7 @@ fn main() {
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
-    let graphs = lib::load_graphs("data/");
+    let graphs = osmff_lib::load_graphs("data/");
 
     let args: Vec<_> = env::args().collect();
 
