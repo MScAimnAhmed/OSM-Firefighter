@@ -67,6 +67,8 @@ pub(super) trait Strategy {
     /// Execute the fire containment strategy
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit);
 
+    /// Returns a mutable reference to the fire containment strategy as an object of
+    /// the `Strategy` trait
     fn as_mut_strategy(&mut self) -> &mut dyn Strategy where Self: Sized {
         self as &mut dyn Strategy
     }
