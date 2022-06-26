@@ -149,9 +149,9 @@ impl View {
 
         // For every edge, compute the pixel of its respective source node and iteratively draw the
         // edge until we reach the pixel of the target node
-        for edge in &self.graph.edges {
-            let src = &self.graph.nodes[edge.src];
-            let tgt = &self.graph.nodes[edge.tgt];
+        for edge in self.graph.edges() {
+            let src = self.graph.get_node(edge.src);
+            let tgt = self.graph.get_node(edge.tgt);
 
             let mut w_px = ((src.lon - gb.min_lon) / deg_per_px_hz) as i64;
             let mut h_px = ((src.lat - gb.min_lat) / deg_per_px_vert) as i64;
@@ -263,7 +263,7 @@ impl View {
 
         // For every node, compute a circle around its respective pixel and color it
         let mut pxs_to_draw = Vec::with_capacity(self.graph.num_nodes);
-        for node in &self.graph.nodes {
+        for node in self.graph.nodes() {
             if node.is_located_in(&gb) {
                 let w_px = ((node.lon - gb.min_lon) / deg_per_px_hz) as i64;
                 let h_px = ((node.lat - gb.min_lat) / deg_per_px_vert) as i64;

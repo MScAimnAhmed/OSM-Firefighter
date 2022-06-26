@@ -93,8 +93,7 @@ impl Strategy for GreedyStrategy {
         // Get all edges with targets that are not burned or defended yet
         let mut edges = Vec::new();
         for nd in burning {
-            for i in self.graph.offsets[nd.node_id]..self.graph.offsets[nd.node_id+1] {
-                let edge = &self.graph.edges[i];
+            for edge in self.graph.get_outgoing_edges(nd.node_id) {
                 if node_data.is_undefended(&edge.tgt) {
                     edges.push(edge);
                 }
@@ -139,7 +138,7 @@ impl Strategy for ScoreStrategy {
         let dists = self.graph.run_dijkstra(burning.as_slice());
 
         // Compute max distance for normalization
-        let max_dist = self.graph.nodes.iter()
+        let max_dist = self.graph.nodes().iter()
             .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
             .map(|node| dists[node.id])
             .max()
@@ -150,12 +149,12 @@ impl Strategy for ScoreStrategy {
         }
 
         // Store node degrees
-        let degs: Vec<_> = self.graph.nodes.iter()
+        let degs: Vec<_> = self.graph.nodes().iter()
             .map(|node| self.graph.get_node_degree(node.id))
             .collect();
 
         // Compute max degree for normalization
-        let max_deg = self.graph.nodes.iter()
+        let max_deg = self.graph.nodes().iter()
             .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
             .map(|node| degs[node.id])
             .max()
@@ -166,7 +165,7 @@ impl Strategy for ScoreStrategy {
         }
 
         // Compute normalized scores and sort them in descending order
-        let mut scores: Vec<_> = self.graph.nodes.iter()
+        let mut scores: Vec<_> = self.graph.nodes().iter()
             .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
             .map(|node| {
                 let norm_dist_score = 1.0 - dists[node.id] as f64 / max_dist as f64;
@@ -216,8 +215,7 @@ fn compute_undefended_roots(undefended_roots: &mut HashMap<usize, (Visited, Risk
             let out_deg = graph.get_node_degree(node);
             risky_nodes.reserve(out_deg);
             burning.reserve(out_deg);
-            for i in graph.offsets[node]..graph.offsets[node+1] {
-                let edge = &graph.edges[i];
+            for edge in graph.get_outgoing_edges(node) {
                 if node_data.is_undefended(&edge.tgt) {
                     risky_nodes.insert(edge.tgt);
                 } else if node_data.is_burning(&edge.tgt) && !visited.contains(&edge.tgt) {
@@ -423,7 +421,7 @@ impl SingleMinDistSetStrategy {
         // For each node, get its predecessor with the lowest _global distance_ and
         // store that predecessor as its respective _global predecessor_
         let mut global_preds = vec![usize::MAX; self.graph.num_nodes];
-        for edge in &self.graph.edges {
+        for edge in self.graph.edges() {
             let cur_pred = global_preds[edge.tgt];
             if cur_pred < usize::MAX {
                 let cur_dist = global_dists.get(&cur_pred).unwrap();
@@ -523,7 +521,7 @@ impl PriorityStrategy {
     pub(super) fn compute_nodes_to_defend(&mut self, undefended_roots: &Vec<usize>, settings: &OSMFSettings,
                                    node_data: &NodeDataStorage) {
         let mut priority_map = HashMap::with_capacity(self.graph.num_nodes);
-        for node in &self.graph.nodes {
+        for node in self.graph.nodes() {
             if node_data.is_undefended(&node.id) && self.graph.get_node_degree(node.id) > 0 {
                 let prio = self.graph.get_node_degree(node.id);
                 // for i in graph.offsets[node.id]..graph.offsets[node.id+1] {
@@ -683,7 +681,7 @@ impl Strategy for RandomStrategy {
     }
 
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
-        let nodes_to_defend: Vec<_> = self.graph.nodes.iter()
+        let nodes_to_defend: Vec<_> = self.graph.nodes().iter()
             .filter(|&node| node_data.is_undefended(&node.id))
             .map(|node| node.id)
             .collect();

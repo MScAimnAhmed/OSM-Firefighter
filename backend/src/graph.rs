@@ -41,7 +41,12 @@ pub(crate) enum CompassDirection {
     Zero,
 }
 
-/// A graph node with id, latitude and longitude
+/// A graph node
+///
+/// # Attributes
+/// * `id` - An id uniquely identifying the node
+/// * `lat` - The nodes latitude coordinate
+/// * `lon` - The nodes longitude coordinate
 #[derive(Debug, Serialize, Default)]
 pub struct Node {
     pub id: usize,
@@ -80,7 +85,12 @@ impl Node {
     }
 }
 
-/// A directed graph edge with source and target
+/// A directed and weighted graph edge
+///
+/// # Attributes
+/// * `src` - The id of the source node
+/// * `tgt` - The id of the target node
+/// * `dist` - The distance between source and target
 #[derive(Debug, Serialize, Default)]
 pub struct Edge {
     pub src: usize,
@@ -88,12 +98,12 @@ pub struct Edge {
     pub dist: usize,
 }
 
-/// A directed graph with nodes, edges and node offsets
+/// A directed and weighted graph with nodes and edges
 #[derive(Debug, Serialize, Default)]
 pub struct Graph {
-    pub nodes: Vec<Node>,
-    pub edges: Vec<Edge>,
-    pub offsets: Vec<usize>,
+    nodes: Vec<Node>,
+    edges: Vec<Edge>,
+    offsets: Vec<usize>,
     pub num_nodes: usize,
     pub num_edges: usize,
 }
@@ -218,9 +228,29 @@ impl Graph {
         graph
     }
 
+    /// Returns a reference to the vector containing all graph nodes
+    pub fn nodes(&self) -> &Vec<Node> {
+        &self.nodes
+    }
+
+    /// Returns a reference to the node with id `node_id`
+    pub fn get_node(&self, node_id: usize) -> &Node {
+        &self.nodes[node_id]
+    }
+
     /// Get the number of outgoing edges of the node with id `node_id`
     pub fn get_node_degree(&self, node_id: usize) -> usize {
         self.offsets[node_id + 1] - self.offsets[node_id]
+    }
+
+    /// Returns a reference to the vector containing all graph edges
+    pub fn edges(&self) -> &Vec<Edge> {
+        &self.edges
+    }
+
+    /// Get the outgoing edges of the node with id `node_id`
+    pub fn get_outgoing_edges(&self, node_id: usize) -> &[Edge] {
+        &self.edges[self.offsets[node_id]..self.offsets[node_id + 1]]
     }
 
     /// Run an one-to-all Dijkstra from the source node with id `src_id`

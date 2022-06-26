@@ -235,7 +235,7 @@ impl OSMFProblem {
     /// Generate `num_roots` fire roots
     fn gen_fire_roots(&mut self) -> Vec<usize> {
         let mut rng = thread_rng();
-        let roots = self.graph.nodes.iter()
+        let roots = self.graph.nodes().iter()
             .map(|node| node.id)
             .choose_multiple(&mut rng, self.settings.num_roots);
 
@@ -250,29 +250,21 @@ impl OSMFProblem {
     /// Defended nodes will remain defended.
     fn spread_fire(&mut self) {
         let mut to_burn = Vec::new();
-        {
-            let burning = self.node_data.get_burning();
 
-            let offsets = &self.graph.offsets;
-            let edges = &self.graph.edges;
-
-            // For all undefended neighbours that are not already burning, check whether they have
-            // to be added to `to_burn`
-            self.is_active = false;
-            for node_data in burning {
-                let node_id = node_data.node_id;
-                for i in offsets[node_id]..offsets[node_id + 1] {
-                    let edge = &edges[i];
-                    if self.node_data.is_undefended(&edge.tgt) {
-                        // There is at least one node to be burned at some point in the future
-                        if !self.is_active {
-                            self.is_active = true;
-                        }
-                        // Burn the node if the global time exceeds the time at which the edge source
-                        // started burning plus the edge weight
-                        if self.global_time >= node_data.time + edge.dist as u64 {
-                            to_burn.push(edge.tgt);
-                        }
+        // For all undefended neighbours that are not already burning, check whether they have
+        // to be added to `to_burn`
+        self.is_active = false;
+        for node_data in self.node_data.get_burning() {
+            for edge in self.graph.get_outgoing_edges(node_data.node_id) {
+                if self.node_data.is_undefended(&edge.tgt) {
+                    // There is at least one node to be burned at some point in the future
+                    if !self.is_active {
+                        self.is_active = true;
+                    }
+                    // Burn the node if the global time exceeds the time at which the edge source
+                    // started burning plus the edge weight
+                    if self.global_time >= node_data.time + edge.dist as TimeUnit {
+                        to_burn.push(edge.tgt);
                     }
                 }
             }
