@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use log;
 use rand::prelude::*;
@@ -180,7 +180,7 @@ pub struct OSMFSimulationStepMetadata {
 /// A firefighter problem instance
 #[derive(Debug)]
 pub struct OSMFProblem {
-    graph: Arc<RwLock<Graph>>,
+    graph: Arc<Graph>,
     settings: OSMFSettings,
     strategy: OSMFStrategy,
     node_data: NodeDataStorage,
@@ -191,10 +191,10 @@ pub struct OSMFProblem {
 
 impl OSMFProblem {
     /// Create a new firefighter problem instance
-    pub fn new(graph: Arc<RwLock<Graph>>, settings: OSMFSettings, strategy: OSMFStrategy) -> Self {
-        let num_nodes = graph.read().unwrap().num_nodes;
-        if settings.num_roots > num_nodes {
-            let err_msg = format!("Number of fire roots must not be greater than {}", num_nodes);
+    pub fn new(graph: Arc<Graph>, settings: OSMFSettings, strategy: OSMFStrategy) -> Self {
+        if settings.num_roots > graph.num_nodes {
+            let err_msg = format!("Number of fire roots must not be greater than {}",
+                                  graph.num_nodes);
             log::warn!("{}", &err_msg);
             panic!("{}", err_msg);
         }
@@ -234,10 +234,8 @@ impl OSMFProblem {
 
     /// Generate `num_roots` fire roots
     fn gen_fire_roots(&mut self) -> Vec<usize> {
-        let graph = self.graph.read().unwrap();
-
         let mut rng = thread_rng();
-        let roots = graph.nodes.iter()
+        let roots = self.graph.nodes.iter()
             .map(|node| node.id)
             .choose_multiple(&mut rng, self.settings.num_roots);
 
@@ -255,9 +253,8 @@ impl OSMFProblem {
         {
             let burning = self.node_data.get_burning();
 
-            let graph = self.graph.read().unwrap();
-            let offsets = &graph.offsets;
-            let edges = &graph.edges;
+            let offsets = &self.graph.offsets;
+            let edges = &self.graph.edges;
 
             // For all undefended neighbours that are not already burning, check whether they have
             // to be added to `to_burn`
@@ -332,7 +329,7 @@ impl OSMFProblem {
         OSMFSimulationResponse {
             nodes_burned: self.node_data.burning.len(),
             nodes_defended: self.node_data.defended.len(),
-            nodes_total: self.graph.read().unwrap().num_nodes,
+            nodes_total: self.graph.num_nodes,
             end_time: self.global_time,
             view_bounds: &self.view.grid_bounds,
             view_center: self.view.initial_center,
@@ -369,7 +366,7 @@ impl OSMFProblem {
 
 #[cfg(test)]
 mod test {
-    use std::sync::{Arc, RwLock};
+    use std::sync::Arc;
 
     use once_cell::sync::Lazy;
 
@@ -382,8 +379,8 @@ mod test {
                                         Strategy}};
     use crate::graph::Graph;
 
-    static GRAPH: Lazy<Arc<RwLock<Graph>>> = Lazy::new(||
-        Arc::new(RwLock::new(Graph::from_file("data/bbgrund_undirected.fmi"))));
+    static GRAPH: Lazy<Arc<Graph>> = Lazy::new(||
+        Arc::new(Graph::from_file("data/bbgrund_undirected.fmi")));
 
     fn initialize(strategy: OSMFStrategy) -> OSMFProblem {
         OSMFProblem::new(

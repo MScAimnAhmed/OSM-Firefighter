@@ -1,7 +1,7 @@
 use std::cmp::min;
 use std::collections::{BTreeMap, HashMap, VecDeque, HashSet};
 use std::fmt::Debug;
-use std::sync::{Arc, RwLock, RwLockReadGuard};
+use std::sync::Arc;
 
 use rand::prelude::*;
 use rand::seq::SliceRandom;
@@ -34,7 +34,7 @@ impl OSMFStrategy {
     }
 
     /// Return a new strategy for given strategy name
-    pub fn from_name(strategy_name: &str, graph: Arc<RwLock<Graph>>) -> Option<OSMFStrategy> {
+    pub fn from_name(strategy_name: &str, graph: Arc<Graph>) -> Option<OSMFStrategy> {
         match strategy_name {
             "Greedy" => Some(OSMFStrategy::Greedy(GreedyStrategy::new(graph))),
             "Score" => Some(OSMFStrategy::Score(ScoreStrategy::new(graph))),
@@ -50,7 +50,7 @@ impl OSMFStrategy {
 /// Strategy trait that each strategy needs to implement
 pub(super) trait Strategy {
     /// Create a new fire containment strategy instance
-    fn new (graph: Arc<RwLock<Graph>>) -> Self;
+    fn new (graph: Arc<Graph>) -> Self;
 
     /// Execute the fire containment strategy
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit);
@@ -59,11 +59,11 @@ pub(super) trait Strategy {
 /// Greedy fire containment strategy
 #[derive(Debug, Default)]
 pub struct GreedyStrategy {
-    graph: Arc<RwLock<Graph>>,
+    graph: Arc<Graph>,
 }
 
 impl Strategy for GreedyStrategy {
-    fn new(graph: Arc<RwLock<Graph>>) -> Self {
+    fn new(graph: Arc<Graph>) -> Self {
         Self {
             graph,
         }
@@ -72,13 +72,11 @@ impl Strategy for GreedyStrategy {
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
         let burning = node_data.get_burning();
 
-        let graph = self.graph.read().unwrap();
-
         // Get all edges with targets that are not burned or defended yet
         let mut edges = Vec::new();
         for nd in burning {
-            for i in graph.offsets[nd.node_id]..graph.offsets[nd.node_id+1] {
-                let edge = &graph.edges[i];
+            for i in self.graph.offsets[nd.node_id]..self.graph.offsets[nd.node_id+1] {
+                let edge = &self.graph.edges[i];
                 if node_data.is_undefended(&edge.tgt) {
                     edges.push(edge);
                 }
@@ -88,8 +86,8 @@ impl Strategy for GreedyStrategy {
         // Sort the edges by their weight and by the _out degree_ of their targets
         edges.sort_unstable_by(|&e1, &e2|
             e1.dist.cmp(&e2.dist).then_with(|| {
-                let tgt1_deg = graph.get_node_degree(e1.tgt);
-                let tgt2_deg = graph.get_node_degree(e2.tgt);
+                let tgt1_deg = self.graph.get_node_degree(e1.tgt);
+                let tgt2_deg = self.graph.get_node_degree(e2.tgt);
                 tgt2_deg.cmp(&tgt1_deg)
             }));
 
@@ -108,9 +106,7 @@ type Visited = HashSet<usize>;
 type RiskyNodes = HashSet<usize>;
 
 fn compute_undefended_roots(undefended_roots: &mut HashMap<usize, (Visited, RiskyNodes)>,
-                            graph: &Arc<RwLock<Graph>>, node_data: &NodeDataStorage) -> Option<Vec<usize>> {
-    let graph = graph.read().unwrap();
-
+                            graph: &Arc<Graph>, node_data: &NodeDataStorage) -> Option<Vec<usize>> {
     for (_, (visited, risky_nodes)) in undefended_roots.iter_mut() {
         // Filter all burning risky nodes
         let mut burning: VecDeque<_> = risky_nodes.iter()
@@ -157,7 +153,7 @@ fn compute_undefended_roots(undefended_roots: &mut HashMap<usize, (Visited, Risk
 
 /// For every node, compute the minimum shortest distance between the node and any fire root.
 /// Then, group the nodes by minimum shortest distance.
-fn group_nodes_by_distance(undefended_roots: &Vec<usize>, graph: &RwLockReadGuard<Graph>,
+fn group_nodes_by_distance(undefended_roots: &Vec<usize>, graph: &Arc<Graph>,
                            node_data: &NodeDataStorage) -> BTreeMap<usize, Vec<usize>> {
     let dists = graph.run_dijkstra(undefended_roots.as_slice());
     let mut sho_dists = HashMap::with_capacity(graph.num_nodes);
@@ -183,7 +179,7 @@ fn group_nodes_by_distance(undefended_roots: &Vec<usize>, graph: &RwLockReadGuar
 /// that selects multiple sets to defend
 #[derive(Debug, Default)]
 pub struct MultiMinDistSetsStrategy {
-    graph: Arc<RwLock<Graph>>,
+    graph: Arc<Graph>,
     nodes_to_defend: VecDeque<usize>,
     possible_defended: usize,
     undefended_roots: HashMap<usize, (Visited, RiskyNodes)>,
@@ -209,10 +205,8 @@ impl MultiMinDistSetsStrategy {
     /// Compute nodes to defend and order in which nodes should be defended
     pub(super) fn compute_nodes_to_defend(&mut self, undefended_roots: &Vec<usize>, settings: &OSMFSettings,
                                    node_data: &NodeDataStorage) {
-        let graph = self.graph.read().unwrap();
-
         let mut nodes_by_sho_dist = group_nodes_by_distance(undefended_roots,
-                                                            &graph, node_data);
+                                                            &self.graph, node_data);
 
         let strategy_every = settings.strategy_every as usize;
         let num_ffs = settings.num_ffs;
@@ -253,8 +247,8 @@ impl MultiMinDistSetsStrategy {
                     // Sort by out degree
                     let mut nodes = nodes.clone();
                     nodes.sort_unstable_by(|&n1, &n2| {
-                        let deg1 = graph.get_node_degree(n1);
-                        let deg2 = graph.get_node_degree(n2);
+                        let deg1 = self.graph.get_node_degree(n1);
+                        let deg2 = self.graph.get_node_degree(n2);
                         deg2.cmp(&deg1)
                     });
                     // Take first 'can_defend' number of nodes
@@ -283,7 +277,7 @@ impl MultiMinDistSetsStrategy {
 }
 
 impl Strategy for MultiMinDistSetsStrategy {
-    fn new(graph: Arc<RwLock<Graph>>) -> Self {
+    fn new(graph: Arc<Graph>) -> Self {
         Self {
             graph,
             nodes_to_defend: VecDeque::new(),
@@ -318,7 +312,7 @@ impl Strategy for MultiMinDistSetsStrategy {
 /// that selects
 #[derive(Debug, Default)]
 pub struct SingleMinDistSetStrategy {
-    graph: Arc<RwLock<Graph>>,
+    graph: Arc<Graph>,
     nodes_to_defend: Vec<usize>,
     current_defended: usize,
 }
@@ -326,12 +320,10 @@ pub struct SingleMinDistSetStrategy {
 impl SingleMinDistSetStrategy {
     /// Compute nodes to defend and order in which nodes should be defended
     pub(super) fn compute_nodes_to_defend(&mut self, roots: &Vec<usize>, settings: &OSMFSettings) {
-        let graph = self.graph.read().unwrap();
-
         // For each root, run an one-to-all Dijkstra to all nodes in the underlying graph.
         // Then, filter the distances to the nodes for the minimum distance from any fire root.
-        let dists = graph.run_dijkstra(roots.as_slice());
-        let mut global_dists = HashMap::with_capacity(graph.num_nodes);
+        let dists = self.graph.run_dijkstra(roots.as_slice());
+        let mut global_dists = HashMap::with_capacity(self.graph.num_nodes);
         for (node, &dist) in dists.iter().enumerate() {
             if dist < usize::MAX {
                 global_dists.insert(node, dist);
@@ -340,8 +332,8 @@ impl SingleMinDistSetStrategy {
 
         // For each node, get its predecessor with the lowest _global distance_ and
         // store that predecessor as its respective _global predecessor_
-        let mut global_preds = vec![usize::MAX; graph.num_nodes];
-        for edge in &graph.edges {
+        let mut global_preds = vec![usize::MAX; self.graph.num_nodes];
+        for edge in &self.graph.edges {
             let cur_pred = global_preds[edge.tgt];
             if cur_pred < usize::MAX {
                 let cur_dist = global_dists.get(&cur_pred).unwrap();
@@ -394,7 +386,7 @@ impl SingleMinDistSetStrategy {
 }
 
 impl Strategy for SingleMinDistSetStrategy {
-    fn new(graph: Arc<RwLock<Graph>>) -> Self {
+    fn new(graph: Arc<Graph>) -> Self {
         Self {
             graph,
             nodes_to_defend: vec![],
@@ -414,7 +406,7 @@ impl Strategy for SingleMinDistSetStrategy {
 /// Priority based fire containment strategy
 #[derive(Debug, Default)]
 pub struct PriorityStrategy {
-    graph: Arc<RwLock<Graph>>,
+    graph: Arc<Graph>,
     nodes_to_defend: VecDeque<usize>,
     possible_defended: usize,
     undefended_roots: HashMap<usize, (Visited, RiskyNodes)>,
@@ -440,12 +432,10 @@ impl PriorityStrategy {
     /// Compute nodes to defend and order in which nodes should be defended
     pub(super) fn compute_nodes_to_defend(&mut self, undefended_roots: &Vec<usize>, settings: &OSMFSettings,
                                    node_data: &NodeDataStorage) {
-        let graph = self.graph.read().unwrap();
-
-        let mut priority_map = HashMap::with_capacity(graph.num_nodes);
-        for node in &graph.nodes {
-            if node_data.is_undefended(&node.id) && graph.get_node_degree(node.id) > 0 {
-                let prio = graph.get_node_degree(node.id);
+        let mut priority_map = HashMap::with_capacity(self.graph.num_nodes);
+        for node in &self.graph.nodes {
+            if node_data.is_undefended(&node.id) && self.graph.get_node_degree(node.id) > 0 {
+                let prio = self.graph.get_node_degree(node.id);
                 // for i in graph.offsets[node.id]..graph.offsets[node.id+1] {
                 //     let edge = &graph.edges[i];
                 //     prio += 1.0 / edge.dist as f64;
@@ -471,7 +461,7 @@ impl PriorityStrategy {
         log::debug!("Computed 25 percent quantile: {}", q25);
 
         let mut nodes_by_sho_dist = group_nodes_by_distance(undefended_roots,
-                                                        &graph, node_data);
+                                                        &self.graph, node_data);
 
         // Sort Node groups by priority
         for (_, nodes) in nodes_by_sho_dist.iter_mut() {
@@ -528,7 +518,7 @@ impl PriorityStrategy {
         }
 
         // Nodes with a lower priority than the mean should be defended
-        let mut low_prio_defend = Vec::with_capacity(graph.num_nodes - high_prio_defend.len());
+        let mut low_prio_defend = Vec::with_capacity(self.graph.num_nodes - high_prio_defend.len());
         for (&dist, nodes) in low_prio_map.iter() {
             let can_defend_total = dist / strategy_every * num_ffs;
             if can_defend_total > total_defended {
@@ -540,7 +530,7 @@ impl PriorityStrategy {
                 total_defended += num_of_nodes;
             }
         }
-        assert!(high_prio_defend.len() + low_prio_defend.len() <= graph.num_nodes);
+        assert!(high_prio_defend.len() + low_prio_defend.len() <= self.graph.num_nodes);
 
         self.nodes_to_defend.clear();
         self.nodes_to_defend.reserve_exact(total_defended - self.possible_defended);
@@ -558,7 +548,7 @@ impl PriorityStrategy {
 }
 
 impl Strategy for PriorityStrategy {
-    fn new(graph: Arc<RwLock<Graph>>) -> Self {
+    fn new(graph: Arc<Graph>) -> Self {
         Self {
             graph,
             nodes_to_defend: VecDeque::new(),
@@ -592,27 +582,25 @@ impl Strategy for PriorityStrategy {
 /// Score based fire containment strategy
 #[derive(Debug, Default)]
 pub struct ScoreStrategy {
-    graph: Arc<RwLock<Graph>>,
+    graph: Arc<Graph>,
 }
 
 impl Strategy for ScoreStrategy {
-    fn new(graph: Arc<RwLock<Graph>>) -> Self {
+    fn new(graph: Arc<Graph>) -> Self {
         Self {
             graph,
         }
     }
 
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
-        let graph = self.graph.read().unwrap();
-
         // Run burning-to-all dijkstra to compute shortest distances for all nodes to the fire
         let burning: Vec<_> = node_data.get_burning().iter()
             .map(|&nd| nd.node_id)
             .collect();
-        let dists = graph.run_dijkstra(burning.as_slice());
+        let dists = self.graph.run_dijkstra(burning.as_slice());
 
         // Compute max distance for normalization
-        let max_dist = graph.nodes.iter()
+        let max_dist = self.graph.nodes.iter()
             .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
             .map(|node| dists[node.id])
             .max()
@@ -623,12 +611,12 @@ impl Strategy for ScoreStrategy {
         }
 
         // Store node degrees
-        let degs: Vec<_> = graph.nodes.iter()
-            .map(|node| graph.get_node_degree(node.id))
+        let degs: Vec<_> = self.graph.nodes.iter()
+            .map(|node| self.graph.get_node_degree(node.id))
             .collect();
 
         // Compute max degree for normalization
-        let max_deg = graph.nodes.iter()
+        let max_deg = self.graph.nodes.iter()
             .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
             .map(|node| degs[node.id])
             .max()
@@ -639,7 +627,7 @@ impl Strategy for ScoreStrategy {
         }
 
         // Compute normalized scores and sort them in descending order
-        let mut scores: Vec<_> = graph.nodes.iter()
+        let mut scores: Vec<_> = self.graph.nodes.iter()
             .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
             .map(|node| {
                 let norm_dist_score = 1.0 - dists[node.id] as f64 / max_dist as f64;
@@ -666,20 +654,18 @@ impl Strategy for ScoreStrategy {
 /// Random fire containment strategy
 #[derive(Debug, Default)]
 pub struct RandomStrategy {
-    graph: Arc<RwLock<Graph>>,
+    graph: Arc<Graph>,
 }
 
 impl Strategy for RandomStrategy {
-    fn new(graph: Arc<RwLock<Graph>>) -> Self {
+    fn new(graph: Arc<Graph>) -> Self {
         Self {
             graph,
         }
     }
 
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
-        let graph = self.graph.read().unwrap();
-
-        let nodes_to_defend: Vec<_> = graph.nodes.iter()
+        let nodes_to_defend: Vec<_> = self.graph.nodes.iter()
             .filter(|&node| node_data.is_undefended(&node.id))
             .map(|node| node.id)
             .collect();

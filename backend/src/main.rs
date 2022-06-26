@@ -1,6 +1,6 @@
 mod web_utils;
 
-use std::{collections::HashMap, env, fs, sync::{Arc, Mutex, RwLock}};
+use std::{collections::HashMap, env, fs, sync::{Arc, Mutex}};
 
 use actix_cors::Cors;
 use actix_web::{App, get, http, HttpRequest, HttpResponse, HttpResponseBuilder, HttpServer, middleware::Logger, post, Responder, web};
@@ -41,7 +41,7 @@ impl Config {
 /// Storage for data associated to the web_utils app
 struct AppData {
     sessions: Mutex<OSMFSessionStorage>,
-    graphs: HashMap<String, Arc<RwLock<Graph>>>,
+    graphs: HashMap<String, Arc<Graph>>,
 }
 
 #[derive(Serialize)]
@@ -86,11 +86,11 @@ async fn ping(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
 #[get("/graphs")]
 async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
     let (mut res, _) = init_response(&data, &req, HttpResponse::Ok());
-    res.json(json!(data.graphs.keys().map(|key|
-        {
-            return GraphData{name: key.clone(), num_of_nodes: data.graphs.get(key).unwrap().read().unwrap().num_nodes}
-        }
-    ).collect::<Vec<_>>()))
+    res.json(json!(
+        data.graphs.iter()
+        .map(|(graph_name, graph)| GraphData{name: graph_name.clone(), num_of_nodes: graph.num_nodes})
+        .collect::<Vec<_>>()
+    ))
 }
 
 /// List all available firefighter containment strategies

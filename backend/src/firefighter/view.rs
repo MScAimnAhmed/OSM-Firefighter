@@ -1,7 +1,7 @@
 extern crate image;
 
 use std::io::Cursor;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::cmp::Ordering;
 
 use self::image::{DynamicImage, ImageBuffer, ImageOutputFormat, Rgb, RgbImage};
@@ -86,7 +86,7 @@ impl LineSegment {
 /// View of a specific firefighter simulation
 #[derive(Debug)]
 pub struct View {
-    graph: Arc<RwLock<Graph>>,
+    graph: Arc<Graph>,
     pub(crate) grid_bounds: GridBounds,
     delta_horiz: f64,
     delta_vert: f64,
@@ -96,11 +96,11 @@ pub struct View {
 
 impl View {
     /// Create a new firefighter simulation view
-    pub fn new(graph: Arc<RwLock<Graph>>, width: u32, height: u32) -> Self {
+    pub fn new(graph: Arc<Graph>, width: u32, height: u32) -> Self {
         let w = if width > 0 { width } else { 1 };
         let h = if height > 0 { height } else { 1 };
 
-        let grid_bounds = graph.read().unwrap().get_grid_bounds();
+        let grid_bounds = graph.get_grid_bounds();
         let delta_horiz = grid_bounds.max_lon - grid_bounds.min_lon;
         let delta_vert = grid_bounds.max_lat - grid_bounds.min_lat;
         let initial_center = (grid_bounds.min_lat + (delta_vert / 2.0),
@@ -147,13 +147,11 @@ impl View {
         let deg_per_px_hz = d_hz / (w_max+1) as f64;
         let deg_per_px_vert = d_vert / (h_max+1) as f64;
 
-        let graph = self.graph.read().unwrap();
-
         // For every edge, compute the pixel of its respective source node and iteratively draw the
         // edge until we reach the pixel of the target node
-        for edge in &graph.edges {
-            let src = &graph.nodes[edge.src];
-            let tgt = &graph.nodes[edge.tgt];
+        for edge in &self.graph.edges {
+            let src = &self.graph.nodes[edge.src];
+            let tgt = &self.graph.nodes[edge.tgt];
 
             let mut w_px = ((src.lon - gb.min_lon) / deg_per_px_hz) as i64;
             let mut h_px = ((src.lat - gb.min_lat) / deg_per_px_vert) as i64;
@@ -264,8 +262,8 @@ impl View {
         }
 
         // For every node, compute a circle around its respective pixel and color it
-        let mut pxs_to_draw = Vec::with_capacity(graph.num_nodes);
-        for node in &graph.nodes {
+        let mut pxs_to_draw = Vec::with_capacity(self.graph.num_nodes);
+        for node in &self.graph.nodes {
             if node.is_located_in(&gb) {
                 let w_px = ((node.lon - gb.min_lon) / deg_per_px_hz) as i64;
                 let h_px = ((node.lat - gb.min_lat) / deg_per_px_vert) as i64;
