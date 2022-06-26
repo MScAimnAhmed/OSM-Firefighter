@@ -80,7 +80,7 @@ fn main() {
     let mut sum_end_time = 0;
     for _ in 0..loop_count {
         let graph = graphs.get(&settings.graph_name).unwrap().clone();
-        let strategy = OSMFStrategy::from_name(&settings.strategy_name, graph.clone())
+        let strategy = OSMFStrategy::from_name_and_graph(&settings.strategy_name, graph.clone())
             .expect("Invalid strategy specified");
         let mut problem = OSMFProblem::new(graph, settings.clone(), strategy);
 

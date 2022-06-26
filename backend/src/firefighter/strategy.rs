@@ -18,10 +18,10 @@ use crate::graph::Graph;
 #[strum(serialize_all = "PascalCase")]
 pub enum OSMFStrategy {
     Greedy(GreedyStrategy),
+    Score(ScoreStrategy),
     MultiMinDistanceSets(MultiMinDistSetsStrategy),
     SingleMinDistanceSet(SingleMinDistSetStrategy),
     Priority(PriorityStrategy),
-    Score(ScoreStrategy),
     Random(RandomStrategy),
 }
 
@@ -33,16 +33,28 @@ impl OSMFStrategy {
             .collect::<Vec<_>>()
     }
 
-    /// Return a new strategy for given strategy name
-    pub fn from_name(strategy_name: &str, graph: Arc<Graph>) -> Option<OSMFStrategy> {
+    /// Return a new strategy with given name that operates on given graph
+    pub fn from_name_and_graph(strategy_name: &str, graph: Arc<Graph>) -> Option<Self> {
         match strategy_name {
-            "Greedy" => Some(OSMFStrategy::Greedy(GreedyStrategy::new(graph))),
-            "Score" => Some(OSMFStrategy::Score(ScoreStrategy::new(graph))),
-            "MultiMinDistanceSets" => Some(OSMFStrategy::MultiMinDistanceSets(MultiMinDistSetsStrategy::new(graph))),
-            "SingleMinDistanceSet" => Some(OSMFStrategy::SingleMinDistanceSet(SingleMinDistSetStrategy::new(graph))),
-            "Priority" => Some(OSMFStrategy::Priority(PriorityStrategy::new(graph))),
-            "Random" => Some(OSMFStrategy::Random(RandomStrategy::new(graph))),
+            "Greedy" => Some(Self::Greedy(GreedyStrategy::new(graph))),
+            "Score" => Some(Self::Score(ScoreStrategy::new(graph))),
+            "MultiMinDistanceSets" => Some(Self::MultiMinDistanceSets(MultiMinDistSetsStrategy::new(graph))),
+            "SingleMinDistanceSet" => Some(Self::SingleMinDistanceSet(SingleMinDistSetStrategy::new(graph))),
+            "Priority" => Some(Self::Priority(PriorityStrategy::new(graph))),
+            "Random" => Some(Self::Random(RandomStrategy::new(graph))),
             _ => None
+        }
+    }
+
+    /// Returns a mutable reference to the strategy trait object contained in this strategy instance
+    pub(super) fn mut_inner(&mut self) -> &mut dyn Strategy {
+        match self {
+            Self::Greedy(ref mut strategy) => strategy.as_mut_strategy(),
+            Self::Score(ref mut strategy) => strategy.as_mut_strategy(),
+            Self::MultiMinDistanceSets(ref mut strategy) => strategy.as_mut_strategy(),
+            Self::SingleMinDistanceSet(ref mut strategy) => strategy.as_mut_strategy(),
+            Self::Priority(ref mut strategy) => strategy.as_mut_strategy(),
+            Self::Random(ref mut strategy) => strategy.as_mut_strategy(),
         }
     }
 }
@@ -50,10 +62,14 @@ impl OSMFStrategy {
 /// Strategy trait that each strategy needs to implement
 pub(super) trait Strategy {
     /// Create a new fire containment strategy instance
-    fn new (graph: Arc<Graph>) -> Self;
+    fn new (graph: Arc<Graph>) -> Self where Self: Sized;
 
     /// Execute the fire containment strategy
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit);
+
+    fn as_mut_strategy(&mut self) -> &mut dyn Strategy where Self: Sized {
+        self as &mut dyn Strategy
+    }
 }
 
 /// Greedy fire containment strategy
@@ -95,6 +111,78 @@ impl Strategy for GreedyStrategy {
         let num_to_defend = min(edges.len(), settings.num_ffs);
         let to_defend: Vec<_> = edges[0..num_to_defend].iter()
             .map(|&e| e.tgt)
+            .collect();
+        node_data.mark_defended(&to_defend, global_time);
+    }
+}
+
+/// Score based fire containment strategy
+#[derive(Debug, Default)]
+pub struct ScoreStrategy {
+    graph: Arc<Graph>,
+}
+
+impl Strategy for ScoreStrategy {
+    fn new(graph: Arc<Graph>) -> Self {
+        Self {
+            graph,
+        }
+    }
+
+    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
+        // Run burning-to-all dijkstra to compute shortest distances for all nodes to the fire
+        let burning: Vec<_> = node_data.get_burning().iter()
+            .map(|&nd| nd.node_id)
+            .collect();
+        let dists = self.graph.run_dijkstra(burning.as_slice());
+
+        // Compute max distance for normalization
+        let max_dist = self.graph.nodes.iter()
+            .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
+            .map(|node| dists[node.id])
+            .max()
+            .unwrap_or(0);
+        if max_dist == 0 {
+            log::warn!("Score strategy: Max distance is 0");
+            return;
+        }
+
+        // Store node degrees
+        let degs: Vec<_> = self.graph.nodes.iter()
+            .map(|node| self.graph.get_node_degree(node.id))
+            .collect();
+
+        // Compute max degree for normalization
+        let max_deg = self.graph.nodes.iter()
+            .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
+            .map(|node| degs[node.id])
+            .max()
+            .unwrap_or(0);
+        if max_deg == 0 {
+            log::warn!("Score strategy: Max degree is 0");
+            return;
+        }
+
+        // Compute normalized scores and sort them in descending order
+        let mut scores: Vec<_> = self.graph.nodes.iter()
+            .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
+            .map(|node| {
+                let norm_dist_score = 1.0 - dists[node.id] as f64 / max_dist as f64;
+                let norm_deg_score = degs[node.id] as f64 / max_deg as f64;
+                let score = (2.0 * norm_dist_score + norm_deg_score) / 3.0;
+                (node.id, score)
+            })
+            .collect();
+        scores.sort_unstable_by(|(_, score1), &(_, score2)| {
+            score2.partial_cmp(score1).unwrap()
+        });
+
+        log::debug!("Scores: {:?}", &scores);
+
+        // Defend as many targets as firefighters are available
+        let num_to_defend = min(scores.len(), settings.num_ffs);
+        let to_defend: Vec<_> = scores[0..num_to_defend].iter()
+            .map(|&(node_id, _)| node_id)
             .collect();
         node_data.mark_defended(&to_defend, global_time);
     }
@@ -576,78 +664,6 @@ impl Strategy for PriorityStrategy {
         if let Some(roots) = self.compute_undefended_roots(node_data) {
             self.compute_nodes_to_defend(&roots, settings, node_data);
         }
-    }
-}
-
-/// Score based fire containment strategy
-#[derive(Debug, Default)]
-pub struct ScoreStrategy {
-    graph: Arc<Graph>,
-}
-
-impl Strategy for ScoreStrategy {
-    fn new(graph: Arc<Graph>) -> Self {
-        Self {
-            graph,
-        }
-    }
-
-    fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
-        // Run burning-to-all dijkstra to compute shortest distances for all nodes to the fire
-        let burning: Vec<_> = node_data.get_burning().iter()
-            .map(|&nd| nd.node_id)
-            .collect();
-        let dists = self.graph.run_dijkstra(burning.as_slice());
-
-        // Compute max distance for normalization
-        let max_dist = self.graph.nodes.iter()
-            .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
-            .map(|node| dists[node.id])
-            .max()
-            .unwrap_or(0);
-        if max_dist == 0 {
-            log::warn!("Score strategy: Max distance is 0");
-            return;
-        }
-
-        // Store node degrees
-        let degs: Vec<_> = self.graph.nodes.iter()
-            .map(|node| self.graph.get_node_degree(node.id))
-            .collect();
-
-        // Compute max degree for normalization
-        let max_deg = self.graph.nodes.iter()
-            .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
-            .map(|node| degs[node.id])
-            .max()
-            .unwrap_or(0);
-        if max_deg == 0 {
-            log::warn!("Score strategy: Max degree is 0");
-            return;
-        }
-
-        // Compute normalized scores and sort them in descending order
-        let mut scores: Vec<_> = self.graph.nodes.iter()
-            .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
-            .map(|node| {
-                let norm_dist_score = 1.0 - dists[node.id] as f64 / max_dist as f64;
-                let norm_deg_score = degs[node.id] as f64 / max_deg as f64;
-                let score = (2.0 * norm_dist_score + norm_deg_score) / 3.0;
-                (node.id, score)
-            })
-            .collect();
-        scores.sort_unstable_by(|(_, score1), &(_, score2)| {
-            score2.partial_cmp(score1).unwrap()
-        });
-
-        log::debug!("Scores: {:?}", &scores);
-
-        // Defend as many targets as firefighters are available
-        let num_to_defend = min(scores.len(), settings.num_ffs);
-        let to_defend: Vec<_> = scores[0..num_to_defend].iter()
-            .map(|&(node_id, _)| node_id)
-            .collect();
-        node_data.mark_defended(&to_defend, global_time);
     }
 }
 

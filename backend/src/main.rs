@@ -115,7 +115,7 @@ async fn simulate_problem(data: web::Data<AppData>, settings: web::Json<OSMFSett
         }
     };
 
-    let strategy = match OSMFStrategy::from_name(&settings.strategy_name, graph.clone()) {
+    let strategy = match OSMFStrategy::from_name_and_graph(&settings.strategy_name, graph.clone()) {
         Some(s) => s,
         None => {
             log::warn!("Unknown strategy {}", settings.strategy_name);

@@ -5,7 +5,7 @@ use log;
 use rand::prelude::*;
 use serde::{Serialize, Deserialize};
 
-use crate::firefighter::strategy::{OSMFStrategy, Strategy};
+use crate::firefighter::strategy::OSMFStrategy;
 use crate::firefighter::TimeUnit;
 use crate::firefighter::view::{View, Coords};
 use crate::graph::{Graph, GridBounds};
@@ -286,20 +286,7 @@ impl OSMFProblem {
     /// possible from catching fire
     fn contain_fire(&mut self) {
         if self.global_time % self.settings.strategy_every == 0 {
-            match self.strategy {
-                OSMFStrategy::Greedy(ref mut greedy_strategy) =>
-                    greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
-                OSMFStrategy::MultiMinDistanceSets(ref mut min_dist_sets_strategy) =>
-                    min_dist_sets_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
-                OSMFStrategy::SingleMinDistanceSet(ref mut min_dist_sets_strategy) =>
-                    min_dist_sets_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
-                OSMFStrategy::Priority(ref mut priority_strategy) =>
-                    priority_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
-                OSMFStrategy::Score(ref mut score_strategy) =>
-                    score_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
-                OSMFStrategy::Random(ref mut random_strategy) =>
-                    random_strategy.execute(&self.settings, &mut self.node_data, self.global_time)
-            }
+            self.strategy.mut_inner().execute(&self.settings, &mut self.node_data, self.global_time);
         }
     }
 
