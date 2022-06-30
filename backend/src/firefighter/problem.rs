@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::time::Instant;
 
 use derive_more::{Display, Error};
 use log;
@@ -80,7 +81,7 @@ impl NodeDataStorage {
     }
 
     /// Is node with id `node_id` defended?
-    fn is_defended(&self, node_id: &usize) -> bool {
+    pub fn is_defended(&self, node_id: &usize) -> bool {
         self.defended.contains_key(node_id)
     }
 
@@ -156,6 +157,11 @@ impl NodeDataStorage {
             .collect::<Vec<_>>()
     }
 
+    /// Get the id's of all fire roots, i.e., all burning vertices at time `0`
+    pub fn get_roots(&self) -> Vec<usize> {
+        self.get_burning_at(&0)
+    }
+
     /// Get the id's of all defended vertices at time `time`
     pub fn get_defended_at(&self, time: &TimeUnit) -> Vec<usize> {
         self.defended.values()
@@ -172,6 +178,7 @@ pub struct OSMFSimulationResponse<'a> {
     pub nodes_defended: usize,
     nodes_total: usize,
     pub end_time: TimeUnit,
+    pub simulation_time_millis: u128,
     view_bounds: &'a GridBounds,
     view_center: Coords,
 }
@@ -193,6 +200,7 @@ pub struct OSMFProblem {
     strategy: OSMFStrategy,
     node_data: NodeDataStorage,
     global_time: TimeUnit,
+    simulation_time_millis: u128,
     is_active: bool,
     view: View,
 }
@@ -209,19 +217,16 @@ impl OSMFProblem {
             return Err(err);
         }
 
-        let mut problem = Self {
+        let problem = Self {
             graph: graph.clone(),
             settings,
             strategy,
             node_data: NodeDataStorage::new(),
             global_time: 0,
+            simulation_time_millis: 0,
             is_active: true,
             view: View::new(graph, 1920, 1080),
         };
-
-        let roots = problem.gen_fire_roots();
-        problem.initialize_strategy(&roots);
-
         log::info!("Initialized problem configuration. settings={:?}.", &problem.settings);
 
         Ok(problem)
@@ -289,11 +294,27 @@ impl OSMFProblem {
 
     /// Simulate the firefighter problem until the `is_active` flag is set to `false`
     pub fn simulate(&mut self) {
+        if !self.is_active {
+            return;
+        }
+
         log::info!("Starting problem simulation");
+
+        let roots = self.gen_fire_roots();
+
+        // Measure simulation time
+        let start = Instant::now();
+
+        self.strategy.initialize(&roots, &self.settings, &self.node_data);
+        log::info!("Initialized fire containment strategy");
 
         while self.is_active {
             self.exec_step();
         }
+
+        self.simulation_time_millis = start.elapsed().as_millis();
+
+        log::info!("Finished problem simulation");
     }
 
     /// Generate the simulation response for this firefighter problem instance
@@ -305,6 +326,7 @@ impl OSMFProblem {
             nodes_defended: self.node_data.defended.len(),
             nodes_total: self.graph.num_nodes,
             end_time: self.global_time,
+            simulation_time_millis: self.simulation_time_millis,
             view_bounds: &self.view.grid_bounds,
             view_center: self.view.initial_center,
         }

@@ -8,6 +8,7 @@ struct BenchResults {
     avg_burned: f64,
     avg_def: f64,
     avg_end_time: f64,
+    avg_sim_millis: f64,
 }
 
 fn main() {
@@ -81,6 +82,7 @@ fn main() {
     let mut sum_burned = 0;
     let mut sum_defended = 0;
     let mut sum_end_time = 0;
+    let mut sum_sim_millis = 0;
     for _ in 0..loop_count {
         let strategy = OSMFStrategy::from_name_and_graph(&settings.strategy_name, graph.clone())
             .expect("Invalid strategy specified");
@@ -93,12 +95,14 @@ fn main() {
         sum_burned += results.nodes_burned;
         sum_defended += results.nodes_defended;
         sum_end_time += results.end_time;
+        sum_sim_millis += results.simulation_time_millis;
     }
 
     let bench_results = BenchResults {
         avg_burned: sum_burned as f64 / loop_count as f64,
         avg_def: sum_defended as f64 / loop_count as f64,
         avg_end_time: sum_end_time as f64 / loop_count as f64,
+        avg_sim_millis: sum_sim_millis as f64 / loop_count as f64,
     };
 
     log::info!("Benchmark results:\n{:#?}", bench_results);
