@@ -159,11 +159,9 @@ impl Strategy for ScoreStrategy {
             .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
             .map(|node| dists[node.id])
             .max()
-            .unwrap_or(0);
-        if max_dist == 0 {
-            log::warn!("Score strategy: Max distance is 0");
-            return;
-        }
+            // Calling unwrap is safe because the implementation of parse_graph ensures that the graph
+            // consists of at least one node
+            .unwrap();
 
         // Store node degrees
         let degs: Vec<_> = self.graph.nodes().iter()
@@ -175,11 +173,7 @@ impl Strategy for ScoreStrategy {
             .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
             .map(|node| degs[node.id])
             .max()
-            .unwrap_or(0);
-        if max_deg == 0 {
-            log::warn!("Score strategy: Max degree is 0");
-            return;
-        }
+            .unwrap();
 
         // Compute normalized scores and sort them in descending order
         let mut scores: Vec<_> = self.graph.nodes().iter()
@@ -191,9 +185,8 @@ impl Strategy for ScoreStrategy {
                 (node.id, score)
             })
             .collect();
-        scores.sort_unstable_by(|(_, score1), &(_, score2)| {
-            score2.partial_cmp(score1).unwrap()
-        });
+        scores.sort_unstable_by(|(_, score1), &(_, score2)|
+            score2.partial_cmp(score1).unwrap());
 
         log::debug!("Scores: {:?}", &scores);
 
@@ -441,8 +434,8 @@ impl SingleMinDistSetStrategy {
         for edge in self.graph.edges() {
             let cur_pred = global_preds[edge.tgt];
             if cur_pred < usize::MAX {
-                let cur_dist = global_dists.get(&cur_pred).unwrap();
-                let dist = global_dists.get(&edge.src).unwrap();
+                let cur_dist = global_dists[&cur_pred];
+                let dist = global_dists[&edge.src];
                 if dist < cur_dist {
                     global_preds[edge.tgt] = edge.src;
                 }
@@ -552,9 +545,7 @@ impl PriorityStrategy {
         log::debug!("Computed priority map:\n{:?}", &priority_map);
 
         let mut sorted_priorities: Vec<_> = priority_map.values().map(|prio|*prio).collect();
-        sorted_priorities.sort_unstable_by(|p1, p2| {
-            p1.partial_cmp(&p2).unwrap()
-        });
+        sorted_priorities.sort_unstable_by(usize::cmp);
         // let mean = priority_map.values().sum::<f64>() as f64 / priority_map.len() as f64;
         // log::debug!("Computed mean: {}", mean);
         let q25 = if sorted_priorities.len() % 4 != 0 {
@@ -573,7 +564,7 @@ impl PriorityStrategy {
             nodes.sort_unstable_by(|n1, n2| {
                 let prio1 = priority_map.get(n1).unwrap_or(&0);
                 let prio2 = priority_map.get(n2).unwrap_or(&0);
-                prio2.partial_cmp(&prio1).unwrap()
+                prio2.cmp(&prio1)
             });
         }
 
@@ -587,9 +578,7 @@ impl PriorityStrategy {
         let mut high_prio_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
         for (&dist, nodes) in nodes_by_sho_dist.iter() {
             let high_prio_nodes: Vec<_> = nodes.iter()
-                .filter(|&node| {
-                    *priority_map.get(node).unwrap_or(&0) >= q25
-                })
+                .filter(|&node| *priority_map.get(node).unwrap_or(&0) >= q25)
                 .map(|node| *node)
                 .collect();
             high_prio_map.insert(dist, high_prio_nodes);
@@ -599,9 +588,7 @@ impl PriorityStrategy {
         let mut low_prio_map: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
         for (&dist, nodes) in nodes_by_sho_dist.iter() {
             let low_prio_nodes: Vec<_> = nodes.iter()
-                .filter(|&node| {
-                    *priority_map.get(node).unwrap_or(&0) < q25
-                })
+                .filter(|&node| *priority_map.get(node).unwrap_or(&0) < q25)
                 .map(|node| *node)
                 .collect();
             low_prio_map.insert(dist, low_prio_nodes);

@@ -1,6 +1,8 @@
 use std::collections::BTreeMap;
+use std::fmt::Debug;
 use std::sync::Arc;
 
+use derive_more::{Display, Error};
 use log;
 use rand::prelude::*;
 use serde::{Serialize, Deserialize};
@@ -18,6 +20,12 @@ pub struct OSMFSettings {
     pub num_roots: usize,
     pub num_ffs: usize,
     pub strategy_every: TimeUnit,
+}
+
+#[derive(Debug, Display, Error)]
+pub enum OSMFSettingsError {
+    #[display(fmt = "Number of fire roots must not be greater than {}: {}", num_nodes, num_roots)]
+    InvalidNumRoots { num_nodes: usize, num_roots: usize },
 }
 
 /// Node data related to the firefighter problem
@@ -191,12 +199,14 @@ pub struct OSMFProblem {
 
 impl OSMFProblem {
     /// Create a new firefighter problem instance
-    pub fn new(graph: Arc<Graph>, settings: OSMFSettings, strategy: OSMFStrategy) -> Self {
+    pub fn new(graph: Arc<Graph>, settings: OSMFSettings, strategy: OSMFStrategy) -> Result<Self, OSMFSettingsError> {
         if settings.num_roots > graph.num_nodes {
-            let err_msg = format!("Number of fire roots must not be greater than {}",
-                                  graph.num_nodes);
-            log::warn!("{}", &err_msg);
-            panic!("{}", err_msg);
+            let err = OSMFSettingsError::InvalidNumRoots {
+                num_nodes: graph.num_nodes,
+                num_roots: settings.num_roots,
+            };
+            log::warn!("{}", err.to_string());
+            return Err(err);
         }
 
         let mut problem = Self {
@@ -214,14 +224,7 @@ impl OSMFProblem {
 
         log::info!("Initialized problem configuration. settings={:?}.", &problem.settings);
 
-        problem
-    }
-
-    /// Initialize the strategy used to contain the fire
-    fn initialize_strategy(&mut self, roots: &Vec<usize>) {
-        self.strategy.initialize(roots, &self.settings, &self.node_data);
-
-        log::info!("Initialized fire containment strategy");
+        Ok(problem)
     }
 
     /// Generate `num_roots` fire roots
@@ -363,7 +366,8 @@ mod test {
                 num_ffs: 2,
                 strategy_every: 10,
             },
-            strategy)
+            strategy
+        ).unwrap()
     }
 
     #[test]

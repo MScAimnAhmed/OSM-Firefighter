@@ -309,13 +309,13 @@ impl View {
         let mut buf = Cursor::new(Vec::new());
         DynamicImage::ImageRgb8(self.img_buf.clone())
             .write_to(&mut buf, ImageOutputFormat::Png)
-            .unwrap();
+            .expect("Failed to encode view as PNG image");
         buf.into_inner()
     }
 
     /// Save the underlying image buffer to a file
     #[allow(dead_code)]
     pub fn save_to_file(&self, path: &str) {
-        self.img_buf.save(path).unwrap();
+        self.img_buf.save(path).expect("Failed to save view to file");
     }
 }

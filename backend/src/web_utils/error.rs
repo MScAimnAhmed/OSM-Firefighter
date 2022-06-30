@@ -1,6 +1,7 @@
 use actix_web::{HttpResponse, http::StatusCode, ResponseError};
 use derive_more::{Display, Error};
 use serde::Serialize;
+use osmff_lib::firefighter::problem::OSMFSettingsError;
 
 /// Blueprint for error responses
 #[derive(Serialize)]
@@ -30,15 +31,26 @@ pub enum OSMFError {
     BadRequest { message: String },
     #[display(fmt = "{}", message)]
     NoSimulation { message: String },
+    #[display(fmt = "{}", message)]
+    InvalidSimulationSettings { message: String },
 }
 
 impl OSMFError {
     /// Return the name of this error
     pub fn name(&self) -> String {
         match self {
-            Self::Internal { .. } => "Internal Server Error".to_string(),
-            Self::BadRequest { .. } => "Bad Request".to_string(),
-            Self::NoSimulation { .. } => "No Simulation".to_string()
+            Self::Internal { .. } => "Internal Server Error",
+            Self::BadRequest { .. } => "Bad Request",
+            Self::NoSimulation { .. } => "No Simulation",
+            Self::InvalidSimulationSettings { .. } => "Invalid Simulation Settings"
+        }.to_string()
+    }
+}
+
+impl From<OSMFSettingsError> for OSMFError {
+    fn from(err: OSMFSettingsError) -> Self {
+        Self::InvalidSimulationSettings {
+            message: err.to_string(),
         }
     }
 }
@@ -48,7 +60,8 @@ impl ResponseError for OSMFError {
         match *self {
             Self::Internal { .. } => StatusCode::INTERNAL_SERVER_ERROR,
             Self::BadRequest { .. } => StatusCode::BAD_REQUEST,
-            Self::NoSimulation { .. } => StatusCode::CONFLICT
+            Self::NoSimulation { .. } => StatusCode::CONFLICT,
+            Self::InvalidSimulationSettings { .. } => StatusCode::CONFLICT,
         }
     }
     fn error_response(&self) -> HttpResponse {

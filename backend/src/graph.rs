@@ -117,19 +117,10 @@ fn unstable_cmp_f64(a: f64, b: f64) -> Ordering {
 }
 
 impl Graph {
-    /// Create a new directed graph without any nodes or edges
-    fn new() -> Self {
-        Self {
-            nodes: Vec::new(),
-            edges: Vec::new(),
-            offsets: Vec::new(),
-            num_nodes: 0,
-            num_edges: 0,
-        }
-    }
-
-    /// Parse node and edge data from a file into a directed graph
-    fn parse_graph(&mut self, graph_file_path: &str) -> Result<(), ParseError> {
+    /// Parse node and edge data from a file into a directed graph.
+    /// Returns a `Result` containing the parsed graph if the operation succeeds, or an
+    /// `Err` otherwise.
+    pub fn parse_from_file(graph_file_path: &str) -> Result<Self, ParseError> {
         let graph_file = File::open(graph_file_path)?;
         let graph_reader = BufReader::new(graph_file);
 
@@ -146,16 +137,19 @@ impl Graph {
             }
         }
 
-        self.num_nodes = lines.next()
+        let num_nodes = lines.next()
             .expect("Unexpected EOF while parsing number of nodes")?
             .parse()?;
-        self.num_edges = lines.next()
+        if num_nodes <= 0 {
+            return Err(ParseError::EmptyNodes);
+        }
+        let num_edges = lines.next()
             .expect("Unexpected EOF while parsing number of edges")?
             .parse()?;
         line_no += 2;
 
-        self.nodes.reserve_exact(self.num_nodes);
-        for i in 0..self.num_nodes {
+        let mut nodes = Vec::with_capacity(num_nodes);
+        for i in 0..num_nodes {
             let line = lines.next()
                 .expect(&format!("Unexpected EOF while parsing nodes after line {}", line_no))?;
             let mut split = line.split(" ");
@@ -174,14 +168,14 @@ impl Graph {
                                      line_no))
                     .parse()?,
             };
-            self.nodes.push(node);
+            nodes.push(node);
         }
 
         let mut last_src: i64 = -1;
         let mut offset: usize = 0;
-        self.edges.reserve_exact(self.num_edges);
-        self.offsets.resize(self.num_nodes + 1, 0);
-        for _ in 0..self.num_edges {
+        let mut edges = Vec::with_capacity(num_edges);
+        let mut offsets = vec![0; num_nodes + 1];
+        for _ in 0..num_edges {
             let line = lines.next()
                 .expect(&format!("Unexpected EOF while parsing edges after line {}", line_no))?;
             let mut split = line.split(" ");
@@ -204,28 +198,23 @@ impl Graph {
 
             if edge.src as i64 > last_src {
                 for j in (last_src + 1) as usize..=edge.src {
-                    self.offsets[j] = offset;
+                    offsets[j] = offset;
                 }
                 last_src = edge.src as i64;
             }
             offset += 1;
 
-            self.edges.push(edge);
+            edges.push(edge);
         }
-        self.offsets[self.num_nodes] = self.num_edges;
+        offsets[num_nodes] = num_edges;
 
-        Ok(())
-    }
-
-    /// Create a directed graph from a file that contains node and edge data
-    pub fn from_file(file_path: &str) -> Self {
-        let mut graph = Graph::new();
-        match graph.parse_graph(file_path) {
-            Ok(_) => (),
-            Err(err) => panic!("Failed to create graph from files at {}: {}", file_path,
-                               err.to_string())
-        }
-        graph
+        Ok(Self {
+            nodes,
+            edges,
+            offsets,
+            num_nodes,
+            num_edges,
+        })
     }
 
     /// Returns a reference to the vector containing all graph nodes
@@ -300,25 +289,28 @@ impl Graph {
         GridBounds {
             min_lat: *latitudes.iter()
                 .min_by(|&lat1, &lat2| unstable_cmp_f64(*lat1, *lat2))
-                .unwrap_or(&f64::NAN),
+                // Calling unwrap is safe because the implementation of parse_graph ensures that the graph
+                // consists of at least one node
+                .unwrap(),
             max_lat: *latitudes.iter()
                 .max_by(|&lat1, &lat2| unstable_cmp_f64(*lat1, *lat2))
-                .unwrap_or(&f64::NAN),
+                .unwrap(),
             min_lon: *longitudes.iter()
                 .min_by(|&lon1, &lon2| unstable_cmp_f64(*lon1, *lon2))
-                .unwrap_or(&f64::NAN),
+                .unwrap(),
             max_lon: *longitudes.iter()
                 .max_by(|&lon1, &lon2| unstable_cmp_f64(*lon1, *lon2))
-                .unwrap_or(&f64::NAN),
+                .unwrap(),
         }
     }
 }
 
 #[derive(Debug)]
-enum ParseError {
+pub enum ParseError {
     IO(std::io::Error),
     ParseInt(ParseIntError),
     ParseFloat(ParseFloatError),
+    EmptyNodes,
 }
 
 impl std::fmt::Display for ParseError {
@@ -327,6 +319,7 @@ impl std::fmt::Display for ParseError {
             Self::IO(err) => write!(f, "{}", err.to_string()),
             Self::ParseInt(err) => write!(f, "{}", err.to_string()),
             Self::ParseFloat(err) => write!(f, "{}", err.to_string()),
+            Self::EmptyNodes => write!(f, "Graph must consist of at least one node"),
         }
     }
 }
@@ -337,6 +330,7 @@ impl std::error::Error for ParseError {
             Self::IO(ref err) => Some(err),
             Self::ParseInt(ref err) => Some(err),
             Self::ParseFloat(ref err) => Some(err),
+            Self::EmptyNodes => None,
         }
     }
 }

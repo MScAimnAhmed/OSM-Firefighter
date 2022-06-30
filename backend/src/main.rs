@@ -125,10 +125,12 @@ async fn simulate_problem(data: web::Data<AppData>, settings: web::Json<OSMFSett
         }
     };
 
-    let mut problem = OSMFProblem::new(
-        graph.clone(),
-        settings.into_inner(),
-        strategy);
+    let mut problem = match OSMFProblem::new(graph.clone(), settings.into_inner(), strategy) {
+        Ok(problem) => problem,
+        Err(err) => {
+            return Err(err.into());
+        }
+    };
     problem.simulate();
 
     let res = res.json(problem.simulation_response());
@@ -212,7 +214,12 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
 
     // Initialize graphs
-    let graphs = osmff_lib::load_graphs(&config.graphs_path);
+    let graphs = match osmff_lib::load_graphs(&config.graphs_path) {
+        Ok(graphs) => graphs,
+        Err(err) => {
+            panic!("Failed to load graphs: {}", err.to_string());
+        }
+    };
 
     // Initialize app data
     let data = web::Data::new(AppData {
