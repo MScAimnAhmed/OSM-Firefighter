@@ -1,14 +1,16 @@
-use std::{collections::BTreeMap,
-          // fmt::Formatter,
-          sync::{Arc, RwLock}};
+use std::collections::BTreeMap;
+use std::fmt::Debug;
+use std::sync::Arc;
+use std::time::Instant;
 
+use derive_more::{Display, Error};
 use log;
 use rand::prelude::*;
 use serde::{Serialize, Deserialize};
 
-use crate::firefighter::{strategy::{OSMFStrategy, Strategy},
-                         TimeUnit,
-                         view::{View, Coords}};
+use crate::firefighter::strategy::OSMFStrategy;
+use crate::firefighter::TimeUnit;
+use crate::firefighter::view::{View, Coords};
 use crate::graph::{Graph, GridBounds};
 
 /// Settings for a firefighter problem instance
@@ -21,16 +23,22 @@ pub struct OSMFSettings {
     pub strategy_every: TimeUnit,
 }
 
+#[derive(Debug, Display, Error)]
+pub enum OSMFSettingsError {
+    #[display(fmt = "Number of fire roots must not be greater than {}: {}", num_nodes, num_roots)]
+    InvalidNumRoots { num_nodes: usize, num_roots: usize },
+}
+
 /// Node data related to the firefighter problem
 #[derive(Debug, Serialize)]
-pub struct NodeData {
+pub(super) struct NodeData {
     pub node_id: usize,
     time: TimeUnit,
 }
 
 /// Storage for node data
 #[derive(Debug, Serialize)]
-pub struct NodeDataStorage {
+pub(super) struct NodeDataStorage {
     burning: BTreeMap<usize, NodeData>,
     defended: BTreeMap<usize, NodeData>,
 }
@@ -73,7 +81,7 @@ impl NodeDataStorage {
     }
 
     /// Is node with id `node_id` defended?
-    fn is_defended(&self, node_id: &usize) -> bool {
+    pub fn is_defended(&self, node_id: &usize) -> bool {
         self.defended.contains_key(node_id)
     }
 
@@ -149,6 +157,11 @@ impl NodeDataStorage {
             .collect::<Vec<_>>()
     }
 
+    /// Get the id's of all fire roots, i.e., all burning vertices at time `0`
+    pub fn get_roots(&self) -> Vec<usize> {
+        self.get_burning_at(&0)
+    }
+
     /// Get the id's of all defended vertices at time `time`
     pub fn get_defended_at(&self, time: &TimeUnit) -> Vec<usize> {
         self.defended.values()
@@ -165,6 +178,7 @@ pub struct OSMFSimulationResponse<'a> {
     pub nodes_defended: usize,
     nodes_total: usize,
     pub end_time: TimeUnit,
+    pub simulation_time_millis: u128,
     view_bounds: &'a GridBounds,
     view_center: Coords,
 }
@@ -181,64 +195,47 @@ pub struct OSMFSimulationStepMetadata {
 /// A firefighter problem instance
 #[derive(Debug)]
 pub struct OSMFProblem {
-    graph: Arc<RwLock<Graph>>,
+    graph: Arc<Graph>,
     settings: OSMFSettings,
     strategy: OSMFStrategy,
     node_data: NodeDataStorage,
     global_time: TimeUnit,
+    simulation_time_millis: u128,
     is_active: bool,
     view: View,
 }
 
 impl OSMFProblem {
     /// Create a new firefighter problem instance
-    pub fn new(graph: Arc<RwLock<Graph>>, settings: OSMFSettings, strategy: OSMFStrategy) -> Self {
-        let num_nodes = graph.read().unwrap().num_nodes;
-        if settings.num_roots > num_nodes {
-            let err_msg = format!("Number of fire roots must not be greater than {}", num_nodes);
-            log::warn!("{}", &err_msg);
-            panic!("{}", err_msg);
+    pub fn new(graph: Arc<Graph>, settings: OSMFSettings, strategy: OSMFStrategy) -> Result<Self, OSMFSettingsError> {
+        if settings.num_roots > graph.num_nodes {
+            let err = OSMFSettingsError::InvalidNumRoots {
+                num_nodes: graph.num_nodes,
+                num_roots: settings.num_roots,
+            };
+            log::warn!("{}", err.to_string());
+            return Err(err);
         }
 
-        let mut problem = Self {
+        let problem = Self {
             graph: graph.clone(),
             settings,
             strategy,
             node_data: NodeDataStorage::new(),
             global_time: 0,
+            simulation_time_millis: 0,
             is_active: true,
             view: View::new(graph, 1920, 1080),
         };
-
-        let roots = problem.gen_fire_roots();
-        problem.initialize_strategy(&roots);
-
         log::info!("Initialized problem configuration. settings={:?}.", &problem.settings);
 
-        problem
-    }
-
-    /// Initialize the strategy used to contain the fire
-    fn initialize_strategy(&mut self, roots: &Vec<usize>) {
-        if let OSMFStrategy::MultiMinDistanceSets(ref mut min_dist_sets_strategy_strategy) = self.strategy {
-            min_dist_sets_strategy_strategy.initialize_undefended_roots(roots);
-            min_dist_sets_strategy_strategy.compute_nodes_to_defend(roots, &self.settings, &self.node_data);
-        } else if let OSMFStrategy::SingleMinDistanceSet(ref mut min_dist_sets_strategy) = self.strategy {
-            min_dist_sets_strategy.compute_nodes_to_defend(roots, &self.settings);
-        } else if let OSMFStrategy::Priority(ref mut priority_strategy) = self.strategy {
-            priority_strategy.initialize_undefended_roots(roots);
-            priority_strategy.compute_nodes_to_defend(roots, &self.settings, &self.node_data);
-        }
-
-        log::info!("Initialized fire containment strategy");
+        Ok(problem)
     }
 
     /// Generate `num_roots` fire roots
     fn gen_fire_roots(&mut self) -> Vec<usize> {
-        let graph = self.graph.read().unwrap();
-
         let mut rng = thread_rng();
-        let roots = graph.nodes.iter()
+        let roots = self.graph.nodes().iter()
             .map(|node| node.id)
             .choose_multiple(&mut rng, self.settings.num_roots);
 
@@ -253,30 +250,21 @@ impl OSMFProblem {
     /// Defended nodes will remain defended.
     fn spread_fire(&mut self) {
         let mut to_burn = Vec::new();
-        {
-            let burning = self.node_data.get_burning();
 
-            let graph = self.graph.read().unwrap();
-            let offsets = &graph.offsets;
-            let edges = &graph.edges;
-
-            // For all undefended neighbours that are not already burning, check whether they have
-            // to be added to `to_burn`
-            self.is_active = false;
-            for node_data in burning {
-                let node_id = node_data.node_id;
-                for i in offsets[node_id]..offsets[node_id + 1] {
-                    let edge = &edges[i];
-                    if self.node_data.is_undefended(&edge.tgt) {
-                        // There is at least one node to be burned at some point in the future
-                        if !self.is_active {
-                            self.is_active = true;
-                        }
-                        // Burn the node if the global time exceeds the time at which the edge source
-                        // started burning plus the edge weight
-                        if self.global_time >= node_data.time + edge.dist as u64 {
-                            to_burn.push(edge.tgt);
-                        }
+        // For all undefended neighbours that are not already burning, check whether they have
+        // to be added to `to_burn`
+        self.is_active = false;
+        for node_data in self.node_data.get_burning() {
+            for edge in self.graph.get_outgoing_edges(node_data.node_id) {
+                if self.node_data.is_undefended(&edge.tgt) {
+                    // There is at least one node to be burned at some point in the future
+                    if !self.is_active {
+                        self.is_active = true;
+                    }
+                    // Burn the node if the global time exceeds the time at which the edge source
+                    // started burning plus the edge weight
+                    if self.global_time >= node_data.time + edge.dist as TimeUnit {
+                        to_burn.push(edge.tgt);
                     }
                 }
             }
@@ -290,20 +278,7 @@ impl OSMFProblem {
     /// possible from catching fire
     fn contain_fire(&mut self) {
         if self.global_time % self.settings.strategy_every == 0 {
-            match self.strategy {
-                OSMFStrategy::Greedy(ref mut greedy_strategy) =>
-                    greedy_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
-                OSMFStrategy::MultiMinDistanceSets(ref mut min_dist_sets_strategy) =>
-                    min_dist_sets_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
-                OSMFStrategy::SingleMinDistanceSet(ref mut min_dist_sets_strategy) =>
-                    min_dist_sets_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
-                OSMFStrategy::Priority(ref mut priority_strategy) =>
-                    priority_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
-                OSMFStrategy::Score(ref mut score_strategy) =>
-                    score_strategy.execute(&self.settings, &mut self.node_data, self.global_time),
-                OSMFStrategy::Random(ref mut random_strategy) =>
-                    random_strategy.execute(&self.settings, &mut self.node_data, self.global_time)
-            }
+            self.strategy.mut_inner().execute(&self.settings, &mut self.node_data, self.global_time);
         }
     }
 
@@ -319,11 +294,27 @@ impl OSMFProblem {
 
     /// Simulate the firefighter problem until the `is_active` flag is set to `false`
     pub fn simulate(&mut self) {
+        if !self.is_active {
+            return;
+        }
+
         log::info!("Starting problem simulation");
+
+        let roots = self.gen_fire_roots();
+
+        // Measure simulation time
+        let start = Instant::now();
+
+        self.strategy.initialize(&roots, &self.settings, &self.node_data);
+        log::info!("Initialized fire containment strategy");
 
         while self.is_active {
             self.exec_step();
         }
+
+        self.simulation_time_millis = start.elapsed().as_millis();
+
+        log::info!("Finished problem simulation");
     }
 
     /// Generate the simulation response for this firefighter problem instance
@@ -333,8 +324,9 @@ impl OSMFProblem {
         OSMFSimulationResponse {
             nodes_burned: self.node_data.burning.len(),
             nodes_defended: self.node_data.defended.len(),
-            nodes_total: self.graph.read().unwrap().num_nodes,
+            nodes_total: self.graph.num_nodes,
             end_time: self.global_time,
+            simulation_time_millis: self.simulation_time_millis,
             view_bounds: &self.view.grid_bounds,
             view_center: self.view.initial_center,
         }
@@ -370,7 +362,7 @@ impl OSMFProblem {
 
 #[cfg(test)]
 mod test {
-    use std::sync::{Arc, RwLock};
+    use std::sync::Arc;
 
     use once_cell::sync::Lazy;
 
@@ -383,8 +375,8 @@ mod test {
                                         Strategy}};
     use crate::graph::Graph;
 
-    static GRAPH: Lazy<Arc<RwLock<Graph>>> = Lazy::new(||
-        Arc::new(RwLock::new(Graph::from_file("data/bbgrund_undirected.fmi"))));
+    static GRAPH: Lazy<Arc<Graph>> = Lazy::new(||
+        Arc::new(Graph::from_file("data/bbgrund_undirected.fmi")));
 
     fn initialize(strategy: OSMFStrategy) -> OSMFProblem {
         OSMFProblem::new(
@@ -396,7 +388,8 @@ mod test {
                 num_ffs: 2,
                 strategy_every: 10,
             },
-            strategy)
+            strategy
+        ).unwrap()
     }
 
     #[test]

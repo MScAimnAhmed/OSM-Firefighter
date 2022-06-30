@@ -1,12 +1,14 @@
 use std::env;
-use lib::firefighter::problem::{OSMFProblem, OSMFSettings};
-use lib::firefighter::strategy::OSMFStrategy;
+
+use osmff_lib::firefighter::problem::{OSMFProblem, OSMFSettings};
+use osmff_lib::firefighter::strategy::OSMFStrategy;
 
 #[derive(Debug)]
 struct BenchResults {
     avg_burned: f64,
     avg_def: f64,
     avg_end_time: f64,
+    avg_sim_millis: f64,
 }
 
 fn main() {
@@ -15,7 +17,8 @@ fn main() {
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
-    let graphs = lib::load_graphs("data/");
+    let graphs = osmff_lib::load_graphs("data/")
+        .expect("Failed to load graphs. Check whether 'data/' directory exists.");
 
     let args: Vec<_> = env::args().collect();
 
@@ -74,14 +77,17 @@ fn main() {
     log::info!("Loop count: {}", loop_count);
     log::info!("Starting benchmarks");
 
+    let graph = graphs.get(&settings.graph_name)
+        .expect("No such graph parsed");
     let mut sum_burned = 0;
     let mut sum_defended = 0;
     let mut sum_end_time = 0;
+    let mut sum_sim_millis = 0;
     for _ in 0..loop_count {
-        let graph = graphs.get(&settings.graph_name).unwrap().clone();
-        let strategy = OSMFStrategy::from_name(&settings.strategy_name, graph.clone())
+        let strategy = OSMFStrategy::from_name_and_graph(&settings.strategy_name, graph.clone())
             .expect("Invalid strategy specified");
-        let mut problem = OSMFProblem::new(graph, settings.clone(), strategy);
+        let mut problem = OSMFProblem::new(graph.clone(), settings.clone(), strategy)
+            .expect("Invalid simulation settings");
 
         problem.simulate();
 
@@ -89,12 +95,14 @@ fn main() {
         sum_burned += results.nodes_burned;
         sum_defended += results.nodes_defended;
         sum_end_time += results.end_time;
+        sum_sim_millis += results.simulation_time_millis;
     }
 
     let bench_results = BenchResults {
         avg_burned: sum_burned as f64 / loop_count as f64,
         avg_def: sum_defended as f64 / loop_count as f64,
         avg_end_time: sum_end_time as f64 / loop_count as f64,
+        avg_sim_millis: sum_sim_millis as f64 / loop_count as f64,
     };
 
     log::info!("Benchmark results:\n{:#?}", bench_results);

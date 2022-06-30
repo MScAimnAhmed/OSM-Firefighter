@@ -1,25 +1,47 @@
-use std::{collections::HashMap,
-          env,
-          sync::{Arc, Mutex, RwLock}};
+mod web_utils;
+
+use std::{collections::HashMap, env, fs, sync::{Arc, Mutex}};
 
 use actix_cors::Cors;
-use actix_web::{App, dev::HttpResponseBuilder, get, HttpMessage, HttpRequest, HttpResponse, HttpServer, middleware::Logger, post, Responder, web, http};
+use actix_web::{App, get, http, HttpRequest, HttpResponse, HttpResponseBuilder, HttpServer, middleware::Logger, post, Responder, web};
 use log;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use serde_json::json;
 
-use lib::error::OSMFError;
-use lib::firefighter::{problem::{OSMFProblem, OSMFSettings},
-                       strategy::OSMFStrategy,
-                       TimeUnit};
-use lib::graph::Graph;
-use lib::query::Query;
-use lib::session::OSMFSessionStorage;
+use osmff_lib::firefighter::problem::{OSMFProblem, OSMFSettings};
+use osmff_lib::firefighter::strategy::OSMFStrategy;
+use osmff_lib::firefighter::TimeUnit;
+use osmff_lib::graph::Graph;
 
-/// Storage for data associated to the web app
+use crate::web_utils::error::OSMFError;
+use crate::web_utils::query::Query;
+use crate::web_utils::session::OSMFSessionStorage;
+
+/// Path to configuration file
+const CONFIG_PATH: &str = "./config.json";
+
+/// Server and backend service configuration
+#[derive(Deserialize)]
+struct Config {
+    host: String,
+    port: u16,
+    log_level: String,
+    graphs_path: String,
+}
+
+impl Config {
+    /// Parses the configuration file at `file_path` into a new `Config` instance
+    fn from_file(file_path: &str) -> Self {
+        let data = fs::read_to_string(file_path)
+            .expect("Could not find config file");
+        serde_json::from_str(&data).expect("Config file does not contain valid JSON")
+    }
+}
+
+/// Storage for data associated to the web_utils app
 struct AppData {
     sessions: Mutex<OSMFSessionStorage>,
-    graphs: HashMap<String, Arc<RwLock<Graph>>>,
+    graphs: HashMap<String, Arc<Graph>>,
 }
 
 #[derive(Serialize)]
@@ -64,11 +86,11 @@ async fn ping(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
 #[get("/graphs")]
 async fn list_graphs(data: web::Data<AppData>, req: HttpRequest) -> impl Responder {
     let (mut res, _) = init_response(&data, &req, HttpResponse::Ok());
-    res.json(json!(data.graphs.keys().map(|key|
-        {
-            return GraphData{name: key.clone(), num_of_nodes: data.graphs.get(key).unwrap().read().unwrap().num_nodes}
-        }
-    ).collect::<Vec<_>>()))
+    res.json(json!(
+        data.graphs.iter()
+        .map(|(graph_name, graph)| GraphData{name: graph_name.clone(), num_of_nodes: graph.num_nodes})
+        .collect::<Vec<_>>()
+    ))
 }
 
 /// List all available firefighter containment strategies
@@ -93,7 +115,7 @@ async fn simulate_problem(data: web::Data<AppData>, settings: web::Json<OSMFSett
         }
     };
 
-    let strategy = match OSMFStrategy::from_name(&settings.strategy_name, graph.clone()) {
+    let strategy = match OSMFStrategy::from_name_and_graph(&settings.strategy_name, graph.clone()) {
         Some(s) => s,
         None => {
             log::warn!("Unknown strategy {}", settings.strategy_name);
@@ -103,10 +125,12 @@ async fn simulate_problem(data: web::Data<AppData>, settings: web::Json<OSMFSett
         }
     };
 
-    let mut problem = OSMFProblem::new(
-        graph.clone(),
-        settings.into_inner(),
-        strategy);
+    let mut problem = match OSMFProblem::new(graph.clone(), settings.into_inner(), strategy) {
+        Ok(problem) => problem,
+        Err(err) => {
+            return Err(err.into());
+        }
+    };
     problem.simulate();
 
     let res = res.json(problem.simulation_response());
@@ -181,22 +205,21 @@ async fn get_sim_step_metadata(data: web::Data<AppData>, req: HttpRequest) -> Re
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Parse config file
+    let config = Config::from_file(CONFIG_PATH);
+
     // Initialize logger
-    env::set_var("RUST_LOG", "info");
+    env::set_var("RUST_LOG", &config.log_level);
     env::set_var("RUST_BACKTRACE", "1");
     env_logger::init();
 
-    let args: Vec<_> = env::args().collect();
-
-    if args.len() < 2 {
-        let err = "Missing argument: path to graph file";
-        log::error!("{}", err);
-        panic!("{}", err);
-    }
-
     // Initialize graphs
-    let graphs_path = args[1].to_string();
-    let graphs = lib::load_graphs(&graphs_path);
+    let graphs = match osmff_lib::load_graphs(&config.graphs_path) {
+        Ok(graphs) => graphs,
+        Err(err) => {
+            panic!("Failed to load graphs: {}", err.to_string());
+        }
+    };
 
     // Initialize app data
     let data = web::Data::new(AppData {
@@ -225,7 +248,7 @@ async fn main() -> std::io::Result<()> {
             .service(display_view)
             .service(get_sim_step_metadata)
     });
-    server.bind("0.0.0.0:8080")?
+    server.bind((config.host.as_str(), config.port))?
         .run()
         .await
 }

@@ -1,11 +1,10 @@
 use std::time::{Instant, Duration};
 
-use actix_web::{http::Cookie,
-                cookie::SameSite};
+use actix_web::cookie::{Cookie, SameSite};
 use nanoid;
 use transient_hashmap::TransientHashMap;
 
-use crate::firefighter::problem::OSMFProblem;
+use osmff_lib::firefighter::problem::OSMFProblem;
 
 /// Container for OSM-Firefighter session data
 pub struct OSMFSession {

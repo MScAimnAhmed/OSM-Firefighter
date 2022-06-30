@@ -1,8 +1,8 @@
-use std::{cmp::Ordering,
-          fmt::Formatter,
-          fs::File,
-          io::{prelude::*, BufReader},
-          num::{ParseIntError, ParseFloatError}};
+use std::cmp::Ordering;
+use std::fmt::Formatter;
+use std::fs::File;
+use std::io::{prelude::*, BufReader};
+use std::num::{ParseIntError, ParseFloatError};
 
 use serde::Serialize;
 
@@ -13,7 +13,7 @@ type DijkstraResult = Vec<usize>;
 
 /// Struct to hold the grid bounds of a graph or part of a graph
 #[derive(Debug, Serialize)]
-pub struct GridBounds {
+pub(crate) struct GridBounds {
     pub min_lat: f64,
     pub max_lat: f64,
     pub min_lon: f64,
@@ -22,14 +22,14 @@ pub struct GridBounds {
 
 impl GridBounds {
     /// Returns true if this grid bounds are located within `other`
-    pub fn is_located_in(&self, other: &GridBounds) -> bool {
+    pub(crate) fn is_located_in(&self, other: &GridBounds) -> bool {
         self.min_lat >= other.min_lat && self.max_lat <= other.max_lat
             && self.min_lon >= other.min_lon && self.max_lon <= other.max_lon
     }
 }
 
 /// Compass directions related to grid bounds
-pub enum CompassDirection {
+pub(crate) enum CompassDirection {
     North,
     NorthEast,
     East,
@@ -41,7 +41,12 @@ pub enum CompassDirection {
     Zero,
 }
 
-/// A graph node with id, latitude and longitude
+/// A graph node
+///
+/// # Attributes
+/// * `id` - An id uniquely identifying the node
+/// * `lat` - The nodes latitude coordinate
+/// * `lon` - The nodes longitude coordinate
 #[derive(Debug, Serialize, Default)]
 pub struct Node {
     pub id: usize,
@@ -51,13 +56,13 @@ pub struct Node {
 
 impl Node {
     /// Returns true if this node is located within the given grid bounds
-    pub fn is_located_in(&self, gb: &GridBounds) -> bool {
+    pub(crate) fn is_located_in(&self, gb: &GridBounds) -> bool {
         self.lat >= gb.min_lat && self.lat <= gb.max_lat
             && self.lon >= gb.min_lon && self.lon  <= gb.max_lon
     }
 
     /// Get the compass direction of this node relative to the given grid bounds
-    pub fn get_relative_compass_direction(&self, gb: &GridBounds) -> CompassDirection {
+    pub(crate) fn get_relative_compass_direction(&self, gb: &GridBounds) -> CompassDirection {
         if self.lon >= gb.min_lon && self.lon <= gb.max_lon && self.lat > gb.max_lat {
             CompassDirection::North
         } else if self.lon > gb.max_lon && self.lat > gb.max_lat {
@@ -80,7 +85,12 @@ impl Node {
     }
 }
 
-/// A directed graph edge with source and target
+/// A directed and weighted graph edge
+///
+/// # Attributes
+/// * `src` - The id of the source node
+/// * `tgt` - The id of the target node
+/// * `dist` - The distance between source and target
 #[derive(Debug, Serialize, Default)]
 pub struct Edge {
     pub src: usize,
@@ -88,12 +98,12 @@ pub struct Edge {
     pub dist: usize,
 }
 
-/// A directed graph with nodes, edges and node offsets
+/// A directed and weighted graph with nodes and edges
 #[derive(Debug, Serialize, Default)]
 pub struct Graph {
-    pub nodes: Vec<Node>,
-    pub edges: Vec<Edge>,
-    pub offsets: Vec<usize>,
+    nodes: Vec<Node>,
+    edges: Vec<Edge>,
+    offsets: Vec<usize>,
     pub num_nodes: usize,
     pub num_edges: usize,
 }
@@ -107,19 +117,10 @@ fn unstable_cmp_f64(a: f64, b: f64) -> Ordering {
 }
 
 impl Graph {
-    /// Create a new directed graph without any nodes or edges
-    fn new() -> Self {
-        Self {
-            nodes: Vec::new(),
-            edges: Vec::new(),
-            offsets: Vec::new(),
-            num_nodes: 0,
-            num_edges: 0,
-        }
-    }
-
-    /// Parse node and edge data from a file into a directed graph
-    fn parse_graph(&mut self, graph_file_path: &str) -> Result<(), ParseError> {
+    /// Parse node and edge data from a file into a directed graph.
+    /// Returns a `Result` containing the parsed graph if the operation succeeds, or an
+    /// `Err` otherwise.
+    pub fn parse_from_file(graph_file_path: &str) -> Result<Self, ParseError> {
         let graph_file = File::open(graph_file_path)?;
         let graph_reader = BufReader::new(graph_file);
 
@@ -128,7 +129,7 @@ impl Graph {
 
         loop {
             let line = lines.next()
-                .expect(&format!("Unexpected EOF while parsing header in line {}", line_no))?;
+                .expect(&format!("Unexpected EOF while parsing header after line {}", line_no))?;
             line_no += 1;
 
             if !line.starts_with("#") {
@@ -136,18 +137,21 @@ impl Graph {
             }
         }
 
-        self.num_nodes = lines.next()
+        let num_nodes = lines.next()
             .expect("Unexpected EOF while parsing number of nodes")?
             .parse()?;
-        self.num_edges = lines.next()
+        if num_nodes <= 0 {
+            return Err(ParseError::EmptyNodes);
+        }
+        let num_edges = lines.next()
             .expect("Unexpected EOF while parsing number of edges")?
             .parse()?;
-        line_no += 3;
+        line_no += 2;
 
-        self.nodes.reserve_exact(self.num_nodes);
-        for i in 0..self.num_nodes {
+        let mut nodes = Vec::with_capacity(num_nodes);
+        for i in 0..num_nodes {
             let line = lines.next()
-                .expect(&format!("Unexpected EOF while parsing nodes in line {}", line_no))?;
+                .expect(&format!("Unexpected EOF while parsing nodes after line {}", line_no))?;
             let mut split = line.split(" ");
             line_no += 1;
             split.next(); // id
@@ -164,16 +168,16 @@ impl Graph {
                                      line_no))
                     .parse()?,
             };
-            self.nodes.push(node);
+            nodes.push(node);
         }
 
         let mut last_src: i64 = -1;
         let mut offset: usize = 0;
-        self.edges.reserve_exact(self.num_edges);
-        self.offsets.resize(self.num_nodes + 1, 0);
-        for _ in 0..self.num_edges {
+        let mut edges = Vec::with_capacity(num_edges);
+        let mut offsets = vec![0; num_nodes + 1];
+        for _ in 0..num_edges {
             let line = lines.next()
-                .expect(&format!("Unexpected EOF while parsing edges in line {}", line_no))?;
+                .expect(&format!("Unexpected EOF while parsing edges after line {}", line_no))?;
             let mut split = line.split(" ");
             line_no += 1;
 
@@ -194,33 +198,48 @@ impl Graph {
 
             if edge.src as i64 > last_src {
                 for j in (last_src + 1) as usize..=edge.src {
-                    self.offsets[j] = offset;
+                    offsets[j] = offset;
                 }
                 last_src = edge.src as i64;
             }
             offset += 1;
 
-            self.edges.push(edge);
+            edges.push(edge);
         }
-        self.offsets[self.num_nodes] = self.num_edges;
+        offsets[num_nodes] = num_edges;
 
-        Ok(())
+        Ok(Self {
+            nodes,
+            edges,
+            offsets,
+            num_nodes,
+            num_edges,
+        })
     }
 
-    /// Create a directed graph from a file that contains node and edge data
-    pub fn from_file(file_path: &str) -> Self {
-        let mut graph = Graph::new();
-        match graph.parse_graph(file_path) {
-            Ok(_) => (),
-            Err(err) => panic!("Failed to create graph from files at {}: {}", file_path,
-                               err.to_string())
-        }
-        graph
+    /// Returns a reference to the vector containing all graph nodes
+    pub fn nodes(&self) -> &Vec<Node> {
+        &self.nodes
+    }
+
+    /// Returns a reference to the node with id `node_id`
+    pub fn get_node(&self, node_id: usize) -> &Node {
+        &self.nodes[node_id]
     }
 
     /// Get the number of outgoing edges of the node with id `node_id`
-    pub fn get_degree(&self, node_id: usize) -> usize {
+    pub fn get_node_degree(&self, node_id: usize) -> usize {
         self.offsets[node_id + 1] - self.offsets[node_id]
+    }
+
+    /// Returns a reference to the vector containing all graph edges
+    pub fn edges(&self) -> &Vec<Edge> {
+        &self.edges
+    }
+
+    /// Get the outgoing edges of the node with id `node_id`
+    pub fn get_outgoing_edges(&self, node_id: usize) -> &[Edge] {
+        &self.edges[self.offsets[node_id]..self.offsets[node_id + 1]]
     }
 
     /// Run an one-to-all Dijkstra from the source node with id `src_id`
@@ -259,7 +278,7 @@ impl Graph {
 
     /// Returns this graphs grid bounds, i.e. the minimal/maximal latitude/longitude
     /// of this graph
-    pub fn get_grid_bounds(&self) -> GridBounds {
+    pub(crate) fn get_grid_bounds(&self) -> GridBounds {
         let latitudes: Vec<_> = self.nodes.iter()
             .map(|n| n.lat)
             .collect();
@@ -270,25 +289,28 @@ impl Graph {
         GridBounds {
             min_lat: *latitudes.iter()
                 .min_by(|&lat1, &lat2| unstable_cmp_f64(*lat1, *lat2))
-                .unwrap_or(&f64::NAN),
+                // Calling unwrap is safe because the implementation of parse_graph ensures that the graph
+                // consists of at least one node
+                .unwrap(),
             max_lat: *latitudes.iter()
                 .max_by(|&lat1, &lat2| unstable_cmp_f64(*lat1, *lat2))
-                .unwrap_or(&f64::NAN),
+                .unwrap(),
             min_lon: *longitudes.iter()
                 .min_by(|&lon1, &lon2| unstable_cmp_f64(*lon1, *lon2))
-                .unwrap_or(&f64::NAN),
+                .unwrap(),
             max_lon: *longitudes.iter()
                 .max_by(|&lon1, &lon2| unstable_cmp_f64(*lon1, *lon2))
-                .unwrap_or(&f64::NAN),
+                .unwrap(),
         }
     }
 }
 
 #[derive(Debug)]
-enum ParseError {
+pub enum ParseError {
     IO(std::io::Error),
     ParseInt(ParseIntError),
     ParseFloat(ParseFloatError),
+    EmptyNodes,
 }
 
 impl std::fmt::Display for ParseError {
@@ -297,6 +319,7 @@ impl std::fmt::Display for ParseError {
             Self::IO(err) => write!(f, "{}", err.to_string()),
             Self::ParseInt(err) => write!(f, "{}", err.to_string()),
             Self::ParseFloat(err) => write!(f, "{}", err.to_string()),
+            Self::EmptyNodes => write!(f, "Graph must consist of at least one node"),
         }
     }
 }
@@ -307,6 +330,7 @@ impl std::error::Error for ParseError {
             Self::IO(ref err) => Some(err),
             Self::ParseInt(ref err) => Some(err),
             Self::ParseFloat(ref err) => Some(err),
+            Self::EmptyNodes => None,
         }
     }
 }

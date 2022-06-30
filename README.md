@@ -29,7 +29,7 @@ Entweder über die Runconfigurations für IntelliJ (benötigt Plugin) oder über
 
 ```
 cargo build [--release]
-cargo run --bin main [--release] data/
+cargo run --bin osmff_service [--release]
 ```
 
 Das Backend ist dann über den Port 8080 erreichbar.

@@ -1,5 +1,5 @@
 # We use the latest Rust stable release as base image
-FROM rust:1.56.1
+FROM rust:1.60.0
 
 # Let's switch our working directory to `app` (equivalent to `cd app`)
 # The `app` folder will be created for us by Docker in case it does not
@@ -13,4 +13,4 @@ RUN cargo build --release
 
 EXPOSE 8080
 # When `docker run` is executed, launch the binary!
-ENTRYPOINT ["./target/release/main", "./data"]
+ENTRYPOINT ["./target/release/osmff_service"]
