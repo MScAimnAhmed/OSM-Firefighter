@@ -219,15 +219,7 @@ impl OSMFProblem {
 
     /// Initialize the strategy used to contain the fire
     fn initialize_strategy(&mut self, roots: &Vec<usize>) {
-        if let OSMFStrategy::MultiMinDistanceSets(ref mut min_dist_sets_strategy_strategy) = self.strategy {
-            min_dist_sets_strategy_strategy.initialize_undefended_roots(roots);
-            min_dist_sets_strategy_strategy.compute_nodes_to_defend(roots, &self.settings, &self.node_data);
-        } else if let OSMFStrategy::SingleMinDistanceSet(ref mut min_dist_sets_strategy) = self.strategy {
-            min_dist_sets_strategy.compute_nodes_to_defend(roots, &self.settings);
-        } else if let OSMFStrategy::Priority(ref mut priority_strategy) = self.strategy {
-            priority_strategy.initialize_undefended_roots(roots);
-            priority_strategy.compute_nodes_to_defend(roots, &self.settings, &self.node_data);
-        }
+        self.strategy.initialize(roots, &self.settings, &self.node_data);
 
         log::info!("Initialized fire containment strategy");
     }

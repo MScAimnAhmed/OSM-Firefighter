@@ -57,6 +57,23 @@ impl OSMFStrategy {
             Self::Random(ref mut strategy) => strategy.as_mut_strategy(),
         }
     }
+
+    pub(super) fn initialize(&mut self, roots: &Vec<usize>, settings: &OSMFSettings, node_data: &NodeDataStorage) {
+        match self {
+            Self::MultiMinDistanceSets(ref mut strategy) => {
+                strategy.initialize_undefended_roots(roots);
+                strategy.compute_nodes_to_defend(roots, settings, node_data);
+            }
+            Self::SingleMinDistanceSet(ref mut strategy) => {
+                strategy.compute_nodes_to_defend(roots, settings);
+            }
+            Self::Priority(ref mut strategy) => {
+                strategy.initialize_undefended_roots(roots);
+                strategy.compute_nodes_to_defend(roots, settings, node_data);
+            }
+            _ => ()
+        };
+    }
 }
 
 /// Strategy trait that each strategy needs to implement
