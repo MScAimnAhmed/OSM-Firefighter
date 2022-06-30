@@ -13,4 +13,4 @@ RUN cargo build --release
 
 EXPOSE 8080
 # When `docker run` is executed, launch the binary!
-ENTRYPOINT ["./target/release/main"]
+ENTRYPOINT ["./target/release/osmff_service"]
