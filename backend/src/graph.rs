@@ -138,7 +138,7 @@ impl Graph {
 
         loop {
             let line = lines.next()
-                .expect(&format!("Unexpected EOF while parsing header in line {}", line_no))?;
+                .expect(&format!("Unexpected EOF while parsing header after line {}", line_no))?;
             line_no += 1;
 
             if !line.starts_with("#") {
@@ -152,12 +152,12 @@ impl Graph {
         self.num_edges = lines.next()
             .expect("Unexpected EOF while parsing number of edges")?
             .parse()?;
-        line_no += 3;
+        line_no += 2;
 
         self.nodes.reserve_exact(self.num_nodes);
         for i in 0..self.num_nodes {
             let line = lines.next()
-                .expect(&format!("Unexpected EOF while parsing nodes in line {}", line_no))?;
+                .expect(&format!("Unexpected EOF while parsing nodes after line {}", line_no))?;
             let mut split = line.split(" ");
             line_no += 1;
             split.next(); // id
@@ -183,7 +183,7 @@ impl Graph {
         self.offsets.resize(self.num_nodes + 1, 0);
         for _ in 0..self.num_edges {
             let line = lines.next()
-                .expect(&format!("Unexpected EOF while parsing edges in line {}", line_no))?;
+                .expect(&format!("Unexpected EOF while parsing edges after line {}", line_no))?;
             let mut split = line.split(" ");
             line_no += 1;
 
