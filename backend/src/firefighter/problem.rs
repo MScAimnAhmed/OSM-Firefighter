@@ -373,39 +373,46 @@ mod test {
                                         RandomStrategy,
                                         PriorityStrategy,
                                         Strategy}};
+    use crate::firefighter::strategy::ScoreStrategy;
     use crate::graph::Graph;
 
-    static GRAPH: Lazy<Arc<Graph>> = Lazy::new(||
-        Arc::new(Graph::from_file("data/bbgrund_undirected.fmi")));
+    struct TestData {
+        graph: Arc<Graph>,
+        settings: OSMFSettings,
+    }
 
-    fn initialize(strategy: OSMFStrategy) -> OSMFProblem {
-        OSMFProblem::new(
-            GRAPH.clone(),
-            OSMFSettings {
+    static TEST_DATA: Lazy<TestData> = Lazy::new(||
+        TestData {
+            graph: Arc::new(Graph::parse_from_file("data/bbgrund_undirected.fmi").unwrap()),
+            settings: OSMFSettings {
                 graph_name: "bbgrund".to_string(),
-                strategy_name:"greedy".to_string(),
+                strategy_name:"Greedy".to_string(),
                 num_roots: 10,
                 num_ffs: 2,
                 strategy_every: 10,
             },
-            strategy
-        ).unwrap()
+        });
+
+    fn initialize(strategy: OSMFStrategy) -> OSMFProblem {
+        OSMFProblem::new(TEST_DATA.graph.clone(), TEST_DATA.settings.clone(), strategy).unwrap()
     }
 
     #[test]
     fn test_roots() {
-        let problem = initialize(OSMFStrategy::Random(
-            RandomStrategy::new(GRAPH.clone())));
+        let mut problem = initialize(OSMFStrategy::Random(
+            RandomStrategy::new(TEST_DATA.graph.clone())));
+        problem.simulate();
 
-        let num_burning = problem.node_data.burning.len();
-        let num_roots = problem.settings.num_roots;
-        assert_eq!(num_burning, num_roots, "num burning: {}, num roots: {}", num_burning, num_roots);
+        let num_roots = problem.node_data.get_roots().len();
+        let settings = &TEST_DATA.settings;
+        assert_eq!(num_roots, settings.num_roots, "num burning at 0: {}, num roots: {}",
+                   num_roots, settings.num_roots);
     }
 
     #[test]
     fn test_active() {
         let mut problem = initialize(OSMFStrategy::Random(
-            RandomStrategy::new(GRAPH.clone())));
+            RandomStrategy::new(TEST_DATA.graph.clone())));
         problem.simulate();
 
         assert!(!problem.is_active);
@@ -414,7 +421,7 @@ mod test {
     #[test]
     fn test_burned() {
         let mut problem = initialize(OSMFStrategy::Random(
-            RandomStrategy::new(GRAPH.clone())));
+            RandomStrategy::new(TEST_DATA.graph.clone())));
         problem.simulate();
 
         let burned_times: Vec<_> = problem.node_data.burning.values()
@@ -429,7 +436,27 @@ mod test {
     #[test]
     fn test_greedy() {
         let mut problem = initialize(OSMFStrategy::Greedy(
-            GreedyStrategy::new(GRAPH.clone())));
+            GreedyStrategy::new(TEST_DATA.graph.clone())));
+        problem.simulate();
+
+        let ffs = problem.settings.num_ffs;
+        let gt = problem.global_time as usize;
+        let se = problem.settings.strategy_every as usize;
+        let num_defended = problem.node_data.defended.len();
+        let should_defended = ffs * (gt / se);
+        assert!(num_defended <= should_defended, "num defended: {}, should defended: {}",
+                num_defended, should_defended);
+
+        let num_ambiguous = problem.node_data.burning.keys()
+            .filter(|&node_id| problem.node_data.defended.contains_key(node_id))
+            .count();
+        assert_eq!(num_ambiguous, 0, "num ambiguous: {}", num_ambiguous);
+    }
+
+    #[test]
+    fn test_score() {
+        let mut problem = initialize(OSMFStrategy::Score(
+            ScoreStrategy::new(TEST_DATA.graph.clone())));
         problem.simulate();
 
         let ffs = problem.settings.num_ffs;
@@ -449,7 +476,7 @@ mod test {
     #[test]
     fn test_min_dist_group() {
         let mut problem = initialize(OSMFStrategy::MultiMinDistanceSets(
-            MultiMinDistSetsStrategy::new(GRAPH.clone())));
+            MultiMinDistSetsStrategy::new(TEST_DATA.graph.clone())));
         problem.simulate();
 
         let ffs = problem.settings.num_ffs;
@@ -469,7 +496,7 @@ mod test {
     #[test]
     fn test_prio() {
         let mut problem = initialize(OSMFStrategy::Priority(
-            PriorityStrategy::new(GRAPH.clone())));
+            PriorityStrategy::new(TEST_DATA.graph.clone())));
         problem.simulate();
 
         let ffs = problem.settings.num_ffs;
@@ -489,7 +516,7 @@ mod test {
     #[test]
     fn test_rand() {
         let mut problem = initialize(OSMFStrategy::Random(
-            RandomStrategy::new(GRAPH.clone())));
+            RandomStrategy::new(TEST_DATA.graph.clone())));
         problem.simulate();
 
         let ffs = problem.settings.num_ffs;

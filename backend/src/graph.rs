@@ -362,7 +362,8 @@ mod test {
 
     #[test]
     fn test_nodes_edges() {
-        let graph = Graph::from_file("data/bbgrund_undirected.fmi");
+        let graph =
+            Graph::parse_from_file("data/bbgrund_undirected.fmi").unwrap();
 
         assert_eq!(graph.nodes.len(), 350);
         assert_eq!(graph.edges.len(), 706);
@@ -370,7 +371,8 @@ mod test {
 
     #[test]
     fn test_grid_bounds() {
-        let graph = Graph::from_file("data/bbgrund_undirected.fmi");
+        let graph =
+            Graph::parse_from_file("data/bbgrund_undirected.fmi").unwrap();
 
         let gb = graph.get_grid_bounds();
         assert!(gb.min_lat >= 48.67);
@@ -381,7 +383,8 @@ mod test {
 
     #[test]
     fn test_node() {
-        let graph = Graph::from_file("data/bbgrund_undirected.fmi");
+        let graph =
+            Graph::parse_from_file("data/bbgrund_undirected.fmi").unwrap();
 
         let edges_with_src_70: Vec<_> = graph.edges.iter()
             .filter(|&e| e.src == 70)
@@ -391,7 +394,8 @@ mod test {
 
     #[test]
     fn test_dists() {
-        let graph = Graph::from_file("data/bbgrund_undirected.fmi");
+        let graph =
+            Graph::parse_from_file("data/bbgrund_undirected.fmi").unwrap();
 
         let mut rng = thread_rng();
         let sources: Vec<_> = graph.nodes.iter()
