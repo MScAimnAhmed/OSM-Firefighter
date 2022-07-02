@@ -22,7 +22,7 @@ pub(crate) struct GridBounds {
 
 impl GridBounds {
     /// Returns true if this grid bounds are located within `other`
-    pub(crate) fn is_located_in(&self, other: &GridBounds) -> bool {
+    pub fn is_located_in(&self, other: &GridBounds) -> bool {
         self.min_lat >= other.min_lat && self.max_lat <= other.max_lat
             && self.min_lon >= other.min_lon && self.max_lon <= other.max_lon
     }
@@ -124,6 +124,8 @@ impl Graph {
         let graph_file = File::open(graph_file_path)?;
         let graph_reader = BufReader::new(graph_file);
 
+        log::debug!("Start parsing graph: {}", graph_file_path);
+
         let mut lines = graph_reader.lines();
         let mut line_no = 0;
 
@@ -170,6 +172,7 @@ impl Graph {
             };
             nodes.push(node);
         }
+        log::debug!("Parsed {} nodes", num_nodes);
 
         let mut last_src: i64 = -1;
         let mut offset: usize = 0;
@@ -207,6 +210,7 @@ impl Graph {
             edges.push(edge);
         }
         offsets[num_nodes] = num_edges;
+        log::debug!("Parsed {} edges and computed node offsets", num_edges);
 
         Ok(Self {
             nodes,
