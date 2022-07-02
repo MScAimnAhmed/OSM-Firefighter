@@ -38,7 +38,7 @@ impl Config {
     }
 }
 
-/// Storage for data associated to the web_utils app
+/// Storage for data associated to the web app
 struct AppData {
     sessions: Mutex<OSMFSessionStorage>,
     graphs: HashMap<String, Arc<Graph>>,

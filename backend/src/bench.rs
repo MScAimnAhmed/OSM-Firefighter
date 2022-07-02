@@ -67,7 +67,9 @@ fn main() {
                     .expect("Invalid argument: loop_count");
             }
             _ => {
-                panic!("Unknown argument: {}", &args[i]);
+                let err = format!("Unknown argument: {}", &args[i]);
+                log::error!("{}", &err);
+                panic!("{}", err);
             }
         }
         i += 2;
@@ -75,10 +77,12 @@ fn main() {
 
     log::info!("Benchmarking with the following problem settings: {:?}", &settings);
     log::info!("Loop count: {}", loop_count);
-    log::info!("Starting benchmarks");
 
     let graph = graphs.get(&settings.graph_name)
         .expect("No such graph parsed");
+
+    log::info!("Starting benchmarks");
+
     let mut sum_burned = 0;
     let mut sum_defended = 0;
     let mut sum_end_time = 0;

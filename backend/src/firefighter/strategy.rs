@@ -109,8 +109,8 @@ impl Strategy for GreedyStrategy {
 
         // Get all edges with targets that are not burned or defended yet
         let mut edges = Vec::new();
-        for nd in burning {
-            for edge in self.graph.get_outgoing_edges(nd.node_id) {
+        for node_id in burning {
+            for edge in self.graph.get_outgoing_edges(node_id) {
                 if node_data.is_undefended(&edge.tgt) {
                     edges.push(edge);
                 }
@@ -149,10 +149,7 @@ impl Strategy for ScoreStrategy {
 
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
         // Run burning-to-all dijkstra to compute shortest distances for all nodes to the fire
-        let burning: Vec<_> = node_data.get_burning().iter()
-            .map(|&nd| nd.node_id)
-            .collect();
-        let dists = self.graph.run_dijkstra(burning.as_slice());
+        let dists = self.graph.run_dijkstra(node_data.get_burning().as_slice());
 
         // Compute max distance for normalization
         let max_dist = self.graph.nodes().iter()
@@ -393,7 +390,7 @@ impl Strategy for MultiMinDistSetsStrategy {
             assert!(node_data.is_undefended(node));
         }
 
-        node_data.mark_defended2(to_defend, global_time);
+        node_data.mark_defended(to_defend, global_time);
 
         self.nodes_to_defend.truncate(len-num_to_defend);
         self.possible_defended += settings.num_ffs;
@@ -467,17 +464,12 @@ impl SingleMinDistSetStrategy {
         let num_ffs = settings.num_ffs as usize;
 
         let mut it = distance_nodes_map.iter();
-        loop {
-            match it.next() {
-                Some((&dist, nodes)) => {
-                    if nodes.len() <= dist / strategy_every * num_ffs  {
-                        self.nodes_to_defend = nodes.clone();
-                        log::debug!("Selected {} nodes to defend: {:?} with distance {}",
+        while let Some((&dist, nodes)) = it.next() {
+            if nodes.len() <= dist / strategy_every * num_ffs  {
+                self.nodes_to_defend = nodes.clone();
+                log::debug!("Selected {} nodes to defend: {:?} with distance {}",
                             nodes.len(), &nodes, dist);
-                        break;
-                    }
-                }
-                None => { break; }
+                break;
             }
         }
     }
@@ -495,7 +487,7 @@ impl Strategy for SingleMinDistSetStrategy {
     fn execute(&mut self, settings: &OSMFSettings, node_data: &mut NodeDataStorage, global_time: TimeUnit) {
         let num_to_defend = min(settings.num_ffs, self.nodes_to_defend.len() - self.current_defended);
         let to_defend = &self.nodes_to_defend[self.current_defended..self.current_defended + num_to_defend];
-        node_data.mark_defended2(to_defend, global_time);
+        node_data.mark_defended(to_defend, global_time);
 
         self.current_defended += num_to_defend;
     }
@@ -658,7 +650,7 @@ impl Strategy for PriorityStrategy {
             assert!(node_data.is_undefended(node));
         }
 
-        node_data.mark_defended2(to_defend, global_time);
+        node_data.mark_defended(to_defend, global_time);
 
         self.nodes_to_defend.truncate(len-num_to_defend);
         self.possible_defended += settings.num_ffs;

@@ -9,30 +9,46 @@ use self::image::{DynamicImage, ImageBuffer, ImageOutputFormat, Rgb, RgbImage};
 use crate::firefighter::{problem::NodeDataStorage, TimeUnit};
 use crate::graph::{CompassDirection, Graph, GridBounds};
 
-const WHITE: Rgb<u8> = Rgb([255, 255, 255]);
-const DARK_GREY: Rgb<u8> = Rgb([64, 64, 64]);
-const YELLOW: Rgb<u8> = Rgb([255, 255, 0]);
-const RED: Rgb<u8> = Rgb([255, 0, 0]);
-const BLUE: Rgb<u8> = Rgb([0, 0, 255]);
-
 /// Type alias for a latitude/longitude tuple
 pub type Coords = (f64, f64);
 
-/// Get an `i32` order for an `Rgb<u8>` value
-fn get_col_ord(col: &Rgb<u8>) -> i32 {
-    match *col {
-        DARK_GREY => 0,
-        WHITE => 1,
-        RED => 2,
-        BLUE => 3,
-        YELLOW => 4,
-        _ => 0
+/// Type alias for a layer index associated with a `Color`
+type LayerIndex = u32;
+
+/// A color with a `Rgb<u8>` value and a `LayerIndex` to determine a drawing order among different
+/// colors
+struct Color {
+    rgb: Rgb<u8>,
+    layer: LayerIndex,
+}
+
+impl Color {
+    // Predefined colors
+    const DARK_GREY: &'static Color = &Color { rgb: Rgb([64, 64, 64]), layer: 0 };
+    const WHITE: &'static Color = &Color { rgb: Rgb([255, 255, 255]), layer: 1 };
+    const RED: &'static Color = &Color { rgb: Rgb([255, 0, 0]), layer: 2 };
+    const BLUE: &'static Color = &Color { rgb: Rgb([0, 0, 255]), layer: 3 };
+    const YELLOW: &'static Color = &Color { rgb: Rgb([255, 255, 0]), layer: 4 };
+}
+
+impl Eq for Color {}
+
+impl PartialEq<Self> for Color {
+    fn eq(&self, other: &Self) -> bool {
+        self.layer.eq(&other.layer)
     }
 }
 
-/// Compare two `Rgb<u8>` values
-fn cmp_col(col1: &Rgb<u8>, col2: &Rgb<u8>) -> Ordering {
-    get_col_ord(col1).cmp(&get_col_ord(col2))
+impl PartialOrd<Self> for Color {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.layer.partial_cmp(&other.layer)
+    }
+}
+
+impl Ord for Color {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.layer.cmp(&other.layer)
+    }
 }
 
 /// Orientation of an ordered triple of coordinates.
@@ -124,7 +140,7 @@ impl View {
 
         // Reset view
         for px in self.img_buf.pixels_mut() {
-            *px = DARK_GREY;
+            *px = Color::DARK_GREY.rgb;
         }
 
         // Maximum width and length
@@ -257,7 +273,7 @@ impl View {
                     continue;
                 }
 
-                self.img_buf.put_pixel(w_px as u32, (h_max - h_px) as u32, WHITE);
+                self.img_buf.put_pixel(w_px as u32, (h_max - h_px) as u32, Color::WHITE.rgb);
             }
         }
 
@@ -270,13 +286,13 @@ impl View {
 
                 let col_px;
                 if node_data.is_root(&node.id) {
-                    col_px = YELLOW;
+                    col_px = Color::YELLOW;
                 } else if node_data.is_burning_by(&node.id, time) {
-                    col_px = RED;
+                    col_px = Color::RED;
                 } else if node_data.is_defended_by(&node.id, time) {
-                    col_px = BLUE;
+                    col_px = Color::BLUE;
                 } else {
-                    col_px = WHITE;
+                    col_px = Color::WHITE;
                 }
 
                 let r = ((h_max.min(w_max)+1) as f64 * z.log(4.0).max(1.0) / 300.0) as i64;
@@ -292,9 +308,9 @@ impl View {
                 }
             }
         }
-        pxs_to_draw.sort_unstable_by(|(_, _, col1), (_, _, col2)| cmp_col(col1, col2));
+        pxs_to_draw.sort_unstable_by(|(_, _, col1), (_, _, col2)| col1.cmp(&col2));
         for (w, h, col) in pxs_to_draw {
-            self.img_buf.put_pixel(w, h_max as u32 - h, col);
+            self.img_buf.put_pixel(w, h_max as u32 - h, col.rgb);
         }
     }
 

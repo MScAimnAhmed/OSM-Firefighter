@@ -106,7 +106,7 @@ impl NodeDataStorage {
     }
 
     /// Mark all nodes in `nodes` as burning at time `time`
-    pub fn mark_burning(&mut self, nodes: &Vec<usize>, time: TimeUnit) {
+    fn mark_burning(&mut self, nodes: &Vec<usize>, time: TimeUnit) {
         if !nodes.is_empty() {
             log::debug!("Burning nodes {:?} in round {}", nodes, time);
         }
@@ -119,20 +119,7 @@ impl NodeDataStorage {
     }
 
     /// Mark all nodes in `nodes` as defended at time `time`
-    pub fn mark_defended(&mut self, nodes: &Vec<usize>, time: TimeUnit) {
-        if !nodes.is_empty() {
-            log::debug!("Defending nodes {:?} in round {}", nodes, time);
-        }
-        for node_id in nodes {
-            self.defended.insert(*node_id, NodeData {
-                node_id: *node_id,
-                time,
-            });
-        }
-    }
-
-    /// Mark all nodes in `nodes` as defended at time `time`
-    pub fn mark_defended2(&mut self, nodes: &[usize], time: TimeUnit) {
+    pub fn mark_defended(&mut self, nodes: &[usize], time: TimeUnit) {
         if !nodes.is_empty() {
             log::debug!("Defending nodes {:?} in round {}", nodes, time);
         }
@@ -145,8 +132,13 @@ impl NodeDataStorage {
     }
 
     /// Get the node data of all burning vertices
-    pub fn get_burning(&self) -> Vec<&NodeData> {
+    fn get_burning_node_data(&self) -> Vec<&NodeData> {
         self.burning.values().collect()
+    }
+
+    /// Get the id's of all burning vertices
+    pub fn get_burning(&self) -> Vec<usize> {
+        self.burning.keys().map(usize::to_owned).collect()
     }
 
     /// Get the id's of all burning vertices at time `time`
@@ -254,7 +246,7 @@ impl OSMFProblem {
         // For all undefended neighbours that are not already burning, check whether they have
         // to be added to `to_burn`
         self.is_active = false;
-        for node_data in self.node_data.get_burning() {
+        for node_data in self.node_data.get_burning_node_data() {
             for edge in self.graph.get_outgoing_edges(node_data.node_id) {
                 if self.node_data.is_undefended(&edge.tgt) {
                     // There is at least one node to be burned at some point in the future

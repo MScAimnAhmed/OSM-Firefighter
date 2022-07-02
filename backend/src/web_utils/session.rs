@@ -8,7 +8,7 @@ use osmff_lib::firefighter::problem::OSMFProblem;
 
 /// Container for OSM-Firefighter session data
 pub struct OSMFSession {
-    pub id: String,
+    id: String,
     problem: Option<OSMFProblem>,
 }
 
