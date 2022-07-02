@@ -138,12 +138,18 @@ impl Strategy for GreedyStrategy {
 #[derive(Debug, Default)]
 pub struct ScoreStrategy {
     graph: Arc<Graph>,
+    node_degrees: Vec<usize>,
 }
 
 impl Strategy for ScoreStrategy {
     fn new(graph: Arc<Graph>) -> Self {
+        // Store node degrees
+        let node_degrees: Vec<_> = graph.nodes().iter()
+            .map(|node| graph.get_node_degree(node.id))
+            .collect();
         Self {
             graph,
+            node_degrees,
         }
     }
 
@@ -152,32 +158,28 @@ impl Strategy for ScoreStrategy {
         let dists = self.graph.run_dijkstra(node_data.get_burning().as_slice());
 
         // Compute max distance for normalization
-        let max_dist = self.graph.nodes().iter()
+        let maybe_max_dist = self.graph.nodes().iter()
             .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
             .map(|node| dists[node.id])
-            .max()
-            // Calling unwrap is safe because the implementation of parse_graph ensures that the graph
-            // consists of at least one node
-            .unwrap();
-
-        // Store node degrees
-        let degs: Vec<_> = self.graph.nodes().iter()
-            .map(|node| self.graph.get_node_degree(node.id))
-            .collect();
+            .max();
+        let max_dist = match maybe_max_dist {
+            Some(max_dist) => max_dist,
+            None => return // Nothing left to defend
+        };
 
         // Compute max degree for normalization
         let max_deg = self.graph.nodes().iter()
             .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
-            .map(|node| degs[node.id])
+            .map(|node| self.node_degrees[node.id])
             .max()
-            .unwrap();
+            .unwrap(); // Unwrap because iterator cannot be empty
 
         // Compute normalized scores and sort them in descending order
         let mut scores: Vec<_> = self.graph.nodes().iter()
             .filter(|&node| node_data.is_undefended(&node.id) && dists[node.id] < usize::MAX)
             .map(|node| {
                 let norm_dist_score = 1.0 - dists[node.id] as f64 / max_dist as f64;
-                let norm_deg_score = degs[node.id] as f64 / max_deg as f64;
+                let norm_deg_score = self.node_degrees[node.id] as f64 / max_deg as f64;
                 let score = (2.0 * norm_dist_score + norm_deg_score) / 3.0;
                 (node.id, score)
             })
@@ -463,14 +465,18 @@ impl SingleMinDistSetStrategy {
         let strategy_every = settings.strategy_every as usize;
         let num_ffs = settings.num_ffs as usize;
 
-        let mut it = distance_nodes_map.iter();
-        while let Some((&dist, nodes)) = it.next() {
-            if nodes.len() <= dist / strategy_every * num_ffs  {
-                self.nodes_to_defend = nodes.clone();
-                log::debug!("Selected {} nodes to defend: {:?} with distance {}",
+        let maybe_nodes = distance_nodes_map.into_iter()
+            .find_map(|(dist, nodes)|
+                if nodes.len() <= dist / strategy_every * num_ffs {
+                    log::debug!("Selected {} nodes to defend: {:?} with distance {}",
                             nodes.len(), &nodes, dist);
-                break;
-            }
+                    Some(nodes)
+                } else {
+                    None
+                }
+            );
+        if let Some(nodes) = maybe_nodes {
+            self.nodes_to_defend = nodes;
         }
     }
 }
