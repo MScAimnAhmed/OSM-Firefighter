@@ -174,7 +174,7 @@ impl Graph {
         }
         log::debug!("Parsed {} nodes", num_nodes);
 
-        let mut last_src: i64 = -1;
+        let mut next_src: usize = 0;
         let mut offset: usize = 0;
         let mut edges = Vec::with_capacity(num_edges);
         let mut offsets = vec![0; num_nodes + 1];
@@ -199,17 +199,19 @@ impl Graph {
                     .parse()?,
             };
 
-            if edge.src as i64 > last_src {
-                for j in (last_src + 1) as usize..=edge.src {
+            if edge.src >= next_src {
+                for j in next_src..=edge.src {
                     offsets[j] = offset;
                 }
-                last_src = edge.src as i64;
+                next_src = edge.src + 1;
             }
             offset += 1;
 
             edges.push(edge);
         }
-        offsets[num_nodes] = num_edges;
+        for i in next_src..=num_nodes {
+            offsets[i] = num_edges;
+        }
         log::debug!("Parsed {} edges and computed node offsets", num_edges);
 
         Ok(Self {
@@ -412,5 +414,15 @@ mod test {
         let dists3 = graph.run_dijkstra(&[sources[1]]);
 
         assert_eq!(min(dists2[tgt], dists3[tgt]), dists1[tgt]);
+    }
+
+    #[test]
+    fn test_offsets() {
+        let graph =
+            Graph::parse_from_file("data/stgcenter_undirected.fmi").unwrap();
+
+        let mut offsets_clone = graph.offsets.clone();
+        offsets_clone.sort();
+        assert_eq!(offsets_clone, graph.offsets);
     }
 }
